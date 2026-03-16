@@ -1,0 +1,141 @@
+"""Sandboxed CLI command execution.
+
+Executes subprocess commands only within the validated sandbox root.
+All commands are validated against the CommandPolicy allowlist before execution.
+Captures stdout, stderr, exit code. Emits activity events.
+All command attempts are recorded in the audit log.
+"""
+
+import subprocess
+from typing import Any
+
+from src.core.sandbox.path_guard import PathGuard
+from src.core.sandbox.command_policy import CommandPolicy
+from src.core.sandbox.audit_log import AuditLog
+from src.core.runtime.activity_stream import ActivityStream
+from src.core.runtime.runtime_logger import get_logger
+from src.core.utils.clock import utc_iso, Stopwatch
+
+log = get_logger("cli_runner")
+
+
+class CLIRunner:
+    """Execute CLI commands inside the sandbox boundary with policy enforcement."""
+
+    def __init__(self, guard: PathGuard, activity: ActivityStream,
+                 policy: CommandPolicy | None = None, timeout: int = 30,
+                 on_confirm_destructive=None, audit_log: AuditLog | None = None):
+        self._guard = guard
+        self._activity = activity
+        self._policy = policy or CommandPolicy(mode="allowlist")
+        self._timeout = timeout
+        self._on_confirm_destructive = on_confirm_destructive
+        self._audit = audit_log
+
+    def run(self, command: str, cwd: str | None = None) -> dict[str, Any]:
+        """Execute a CLI command within the sandbox.
+
+        The command is first validated against the security policy.
+        Only allowlisted commands may execute.
+
+        Args:
+            command: Shell command string
+            cwd: Working directory (must be inside sandbox). Defaults to sandbox root.
+
+        Returns:
+            Dict with: command, cwd, stdout, stderr, exit_code, started_at, finished_at
+        """
+        started_at = utc_iso()
+
+        # Validate working directory
+        work_dir = self._guard.validate_cwd(cwd) if cwd else self._guard.root
+
+        # ── Command policy check ──────────────────────
+        allowed, reason = self._policy.validate(command)
+        if not allowed:
+            log.warning("COMMAND BLOCKED: %s — %s", command, reason)
+            self._activity.warn("cli.policy", f"BLOCKED: {command[:60]} — {reason}")
+            if self._audit:
+                self._audit.record(command, str(work_dir), "blocked", reason=reason)
+            return {
+                "command": command, "cwd": str(work_dir),
+                "stdout": "", "stderr": f"Command blocked: {reason}",
+                "exit_code": -1,
+                "started_at": started_at, "finished_at": utc_iso(),
+            }
+
+        # ── Destructive command confirmation ──────────
+        if self._policy.is_destructive(command) and self._on_confirm_destructive:
+            confirmed = self._on_confirm_destructive(command)
+            if not confirmed:
+                log.info("Destructive command cancelled by user: %s", command)
+                self._activity.warn("cli.confirm", f"CANCELLED: {command[:60]}")
+                if self._audit:
+                    self._audit.record(command, str(work_dir), "cancelled",
+                                       reason="User denied destructive command")
+                return {
+                    "command": command, "cwd": str(work_dir),
+                    "stdout": "", "stderr": "Command cancelled by user",
+                    "exit_code": -1,
+                    "started_at": started_at, "finished_at": utc_iso(),
+                }
+
+        self._activity.tool("cli", f"$ {command}  [cwd: {work_dir}]")
+        log.info("CLI exec: %s (cwd=%s)", command, work_dir)
+
+        sw = Stopwatch()
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                cwd=str(work_dir),
+                capture_output=True,
+                text=True,
+                timeout=self._timeout,
+                env=None,  # inherit environment
+            )
+            stdout = result.stdout
+            stderr = result.stderr
+            exit_code = result.returncode
+
+        except subprocess.TimeoutExpired:
+            stdout = ""
+            stderr = f"Command timed out after {self._timeout}s"
+            exit_code = -1
+            log.warning("CLI timeout: %s", command)
+        except Exception as e:
+            stdout = ""
+            stderr = str(e)
+            exit_code = -1
+            log.exception("CLI error: %s", command)
+
+        finished_at = utc_iso()
+        elapsed = sw.elapsed_ms()
+
+        # Log result
+        level = "TOOL" if exit_code == 0 else "WARN"
+        self._activity.push(level, "cli",
+                            f"Exit {exit_code} ({elapsed:.0f}ms) | {command[:80]}")
+
+        if stdout.strip():
+            self._activity.tool("cli.stdout", stdout.strip()[:500])
+        if stderr.strip():
+            self._activity.warn("cli.stderr", stderr.strip()[:500])
+
+        # Audit trail
+        if self._audit:
+            outcome = "executed" if exit_code == 0 else "error"
+            if "timed out" in stderr:
+                outcome = "timeout"
+            self._audit.record(command, str(work_dir), outcome,
+                               exit_code=exit_code, duration_ms=elapsed)
+
+        return {
+            "command": command,
+            "cwd": str(work_dir),
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": exit_code,
+            "started_at": started_at,
+            "finished_at": finished_at,
+        }

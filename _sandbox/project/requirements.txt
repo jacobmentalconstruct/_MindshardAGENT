@@ -1,0 +1,5 @@
+# AgenticTOOLBOX dependencies
+# Core app uses only stdlib (tkinter, sqlite3, urllib, json, subprocess)
+# psutil is optional but recommended for resource monitoring
+
+psutil>=5.9.0

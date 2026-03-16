@@ -1,0 +1,210 @@
+"""Agent response loop — manages one user turn through model + optional tool round-trips.
+
+Flow:
+  1. User submits prompt
+  2. Prompt builder constructs system + session + tool instructions
+  3. Model responds (streaming)
+  4. If tool call detected, tool router validates and executes
+  5. Tool output appended to conversation
+  6. Model continues if needed (up to max_rounds)
+  7. Final assistant response stored
+"""
+
+import threading
+from typing import Any, Callable
+
+from src.core.agent.prompt_builder import build_system_prompt, build_messages
+from src.core.agent.tool_router import ToolRouter
+from src.core.agent.transcript_formatter import format_all_results
+from src.core.ollama.ollama_client import chat_stream
+from src.core.sandbox.tool_catalog import ToolCatalog
+from src.core.sandbox.command_policy import CommandPolicy
+from src.core.config.app_config import AppConfig
+from src.core.runtime.activity_stream import ActivityStream
+from src.core.runtime.runtime_logger import get_logger
+from src.core.sessions.knowledge_store import KnowledgeStore
+
+log = get_logger("response_loop")
+
+MAX_TOOL_ROUNDS = 5
+
+
+class ResponseLoop:
+    """Manages a single user turn including tool round-trips."""
+
+    def __init__(
+        self,
+        config: AppConfig,
+        tool_catalog: ToolCatalog,
+        tool_router: ToolRouter,
+        activity: ActivityStream,
+        command_policy: CommandPolicy | None = None,
+        knowledge_store: KnowledgeStore | None = None,
+        embed_fn=None,
+        session_id_fn=None,
+    ):
+        self._config = config
+        self._command_policy = command_policy
+        self._catalog = tool_catalog
+        self._router = tool_router
+        self._activity = activity
+        self._knowledge = knowledge_store
+        self._embed_fn = embed_fn          # Callable(str) -> list[float]
+        self._session_id_fn = session_id_fn  # Callable() -> str | None
+
+    def run_turn(
+        self,
+        user_text: str,
+        chat_history: list[dict[str, str]],
+        on_token: Callable[[str], None] | None = None,
+        on_complete: Callable[[dict[str, Any]], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+        on_tool_start: Callable[[str], None] | None = None,
+        on_tool_result: Callable[[dict], None] | None = None,
+    ) -> None:
+        """Run a full user turn in a background thread.
+
+        Handles streaming, tool round-trips, and final result delivery.
+        """
+        def _worker():
+            try:
+                self._run_turn_sync(
+                    user_text, chat_history,
+                    on_token, on_complete, on_error,
+                    on_tool_start, on_tool_result)
+            except Exception as e:
+                log.exception("Response loop error")
+                if on_error:
+                    on_error(str(e))
+
+        thread = threading.Thread(target=_worker, daemon=True, name="response-loop")
+        thread.start()
+
+    def _run_turn_sync(
+        self,
+        user_text: str,
+        chat_history: list[dict[str, str]],
+        on_token, on_complete, on_error,
+        on_tool_start, on_tool_result,
+    ) -> None:
+        # RAG: retrieve relevant context for the user's query
+        rag_context = ""
+        if (self._config.rag_enabled and self._knowledge
+                and self._embed_fn and self._session_id_fn):
+            try:
+                sid = self._session_id_fn()
+                if sid and self._knowledge.count(sid) > 0:
+                    query_vec = self._embed_fn(user_text)
+                    hits = self._knowledge.query(
+                        sid, query_vec,
+                        top_k=self._config.rag_top_k,
+                        min_score=self._config.rag_min_score,
+                    )
+                    if hits:
+                        rag_context = "\n---\n".join(
+                            f"[{h['source_role']}/{h['source']}] {h['content']}"
+                            for h in hits
+                        )
+                        self._activity.info("rag",
+                            f"Retrieved {len(hits)} chunks (best={hits[0]['score']:.3f})")
+            except Exception as e:
+                log.warning("RAG retrieval failed: %s", e)
+
+        # Build system prompt
+        system = build_system_prompt(
+            sandbox_root=self._config.sandbox_root,
+            tools=self._catalog,
+            command_policy=self._command_policy,
+            session_title="",
+            model_name=self._config.selected_model,
+            rag_context=rag_context,
+        )
+
+        # Add user message
+        history = list(chat_history)
+        history.append({"role": "user", "content": user_text})
+        messages = build_messages(system, history)
+
+        total_content = []
+        rounds = 0
+
+        while rounds < MAX_TOOL_ROUNDS:
+            rounds += 1
+            round_tokens: list[str] = []
+
+            # Stream model response
+            self._activity.model("agent", f"Round {rounds}: requesting model response")
+            result = chat_stream(
+                base_url=self._config.ollama_base_url,
+                model=self._config.selected_model,
+                messages=messages,
+                on_token=lambda t: (round_tokens.append(t), on_token(t) if on_token else None),
+                temperature=self._config.temperature,
+                num_ctx=self._config.max_context_tokens,
+            )
+
+            assistant_text = result.get("content", "".join(round_tokens))
+            total_content.append(assistant_text)
+
+            # Check for tool calls
+            if self._router.has_tool_calls(assistant_text):
+                self._activity.tool("agent", "Tool call detected in response")
+                if on_tool_start:
+                    on_tool_start(assistant_text)
+
+                tool_results = self._router.execute_all(assistant_text)
+                tool_output = format_all_results(tool_results)
+
+                if on_tool_result:
+                    on_tool_result({"results": tool_results, "formatted": tool_output})
+
+                # Append assistant message and tool result to history
+                messages.append({"role": "assistant", "content": assistant_text})
+                messages.append({"role": "user", "content": f"[Tool Results]\n{tool_output}"})
+
+                self._activity.tool("agent", f"Tool round {rounds} complete, continuing...")
+                continue
+            else:
+                # No tool calls, we're done
+                break
+
+        # RAG: store user query and assistant response as knowledge
+        final_text = "\n".join(total_content)
+        if (self._config.rag_enabled and self._knowledge
+                and self._embed_fn and self._session_id_fn):
+            sid = self._session_id_fn()
+            if sid and len(final_text.strip()) > 20:
+                try:
+                    self._knowledge.add_text(
+                        sid, final_text, self._embed_fn,
+                        source="chat", source_role="assistant",
+                        max_chunk_chars=self._config.rag_chunk_max_chars,
+                    )
+                    # Also store user query for future context
+                    if len(user_text.strip()) > 20:
+                        self._knowledge.add_text(
+                            sid, user_text, self._embed_fn,
+                            source="chat", source_role="user",
+                            max_chunk_chars=self._config.rag_chunk_max_chars,
+                        )
+                except Exception as e:
+                    log.warning("RAG storage failed: %s", e)
+
+        # Final result
+        meta = {
+            "model": result.get("model", self._config.selected_model),
+            "tokens_in": f"~{result.get('prompt_eval_count', '?')}",
+            "tokens_out": f"~{result.get('eval_count', '?')}",
+            "time": f"{result.get('wall_ms', 0):.0f}ms",
+            "rounds": rounds,
+        }
+
+        if on_complete:
+            on_complete({
+                "content": "\n".join(total_content),
+                "metadata": meta,
+                "history_addition": [
+                    {"role": "user", "content": user_text},
+                    {"role": "assistant", "content": "\n".join(total_content)},
+                ],
+            })
