@@ -43,6 +43,7 @@ class ResponseLoop:
         embed_fn=None,
         session_id_fn=None,
         docker_mode: bool = False,
+        journal=None,
     ):
         self._config = config
         self._command_policy = command_policy
@@ -53,6 +54,7 @@ class ResponseLoop:
         self._embed_fn = embed_fn          # Callable(str) -> list[float]
         self._session_id_fn = session_id_fn  # Callable() -> str | None
         self._docker_mode = docker_mode
+        self._journal = journal            # ActionJournal | None
 
     def run_turn(
         self,
@@ -112,6 +114,14 @@ class ResponseLoop:
             except Exception as e:
                 log.warning("RAG retrieval failed: %s", e)
 
+        # Get recent action journal for orientation
+        journal_context = ""
+        if self._journal:
+            try:
+                journal_context = self._journal.summary_since(10)
+            except Exception:
+                pass
+
         # Build system prompt
         system = build_system_prompt(
             sandbox_root=self._config.sandbox_root,
@@ -121,6 +131,7 @@ class ResponseLoop:
             model_name=self._config.selected_model,
             rag_context=rag_context,
             docker_mode=self._docker_mode,
+            journal_context=journal_context,
         )
 
         # Add user message

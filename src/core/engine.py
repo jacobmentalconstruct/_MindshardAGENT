@@ -25,6 +25,8 @@ from src.core.agent.response_loop import ResponseLoop
 from src.core.sandbox.command_policy import CommandPolicy
 from src.core.sandbox.tool_discovery import register_discovered_tools
 from src.core.sessions.knowledge_store import KnowledgeStore
+from src.core.runtime.action_journal import ActionJournal
+import src.core.runtime.action_journal as aj
 
 log = get_logger("engine")
 
@@ -55,6 +57,9 @@ class Engine:
         self._embedding_available = False
         self._session_id_fn = None  # set by app.py
 
+        # Action journal (initialized when sandbox is set)
+        self.journal: ActionJournal | None = None
+
         log.info("Engine created")
 
     def start(self) -> None:
@@ -83,6 +88,9 @@ class Engine:
         # Always create the local sandbox manager (for PathGuard, AuditLog, structure)
         self.sandbox = SandboxManager(sandbox_root, self.activity,
                                        on_confirm_destructive=self._on_confirm_destructive)
+
+        # Action journal
+        self.journal = ActionJournal(sandbox_root)
 
         # File writer always operates host-side (volume mount keeps files in sync)
         self.file_writer = FileWriter(
@@ -122,6 +130,7 @@ class Engine:
             embed_fn=self._embed if self._embedding_available else None,
             session_id_fn=self._session_id_fn,
             docker_mode=bool(self.docker_runner),
+            journal=self.journal,
         )
         self.config.sandbox_root = sandbox_root
         # Discover sandbox-local tools
@@ -134,6 +143,9 @@ class Engine:
                 f"Command policy: allowlist mode, {len(self.command_policy._allowed)} commands permitted")
         if n_tools:
             self.activity.info("engine", f"Discovered {n_tools} sandbox tool(s)")
+        self.journal.record(aj.CONFIG_CHANGE, f"Sandbox set: {mode_str} mode",
+                            {"sandbox_root": sandbox_root, "mode": mode_str,
+                             "tools_discovered": n_tools})
         log.info("Sandbox initialized: %s (mode=%s)", sandbox_root, mode_str)
 
     def set_knowledge_store(self, knowledge: KnowledgeStore,
@@ -226,6 +238,12 @@ class Engine:
         self.activity.model("engine",
                             f"Response complete: {meta.get('tokens_out', '?')} tokens, "
                             f"{meta.get('time', '?')}, {meta.get('rounds', 1)} round(s)")
+        if self.journal:
+            self.journal.record(aj.AGENT_TURN,
+                f"Response: {meta.get('tokens_out', '?')} tokens, {meta.get('rounds', 1)} round(s)",
+                {"model": meta.get("model", ""), "rounds": meta.get("rounds", 1),
+                 "tokens_out": str(meta.get("tokens_out", "")),
+                 "content_preview": content[:100] if content else ""})
         if on_complete:
             on_complete(result)
 

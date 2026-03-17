@@ -24,6 +24,10 @@
 
 - [x] Tool-use round-trip testing with small models (39/39 passed, qwen3.5:2b live verified)
 - [x] Built-in write_file/read_file tools (solves multi-line file creation on Windows cmd)
+- [x] Project sync-back mechanism (sandbox/project/ → real source with diff preview)
+- [x] Action journal for agent orientation (structured event log injected into prompt)
+- [x] "Load Self" / "Sync Back" action buttons replacing placeholder faux buttons
+- [x] Streaming chat fix (canvas scrollregion update on card resize)
 
 ## Security / Containment
 
@@ -38,20 +42,31 @@
   - Integration tested: volume mount, exec, network isolation, blocked commands
 - [ ] Per-session command policy customization
 
+## UX / UI
+
+- [x] Tabbed control pane (Session / Sandbox / Watch tabs)
+- [x] Last Response preview in Watch tab (scrollable)
+- [x] Session auto-naming with timestamps (no more generic "New Session")
+- [x] Empty session purge on startup (cleans orphaned skeletons)
+- [x] Delete-active-session loads next available instead of creating new
+- [ ] Tab breakout into standalone columns (left or right of app)
+- [ ] Panel and column resizability (PanedWindow sash tuning)
+- [ ] Dark theme refinement and DPI scaling
+- [ ] Keyboard shortcuts (Ctrl+Enter submit already works)
+
 ## Low Priority / Future
 
 - [ ] Sandbox-authored tool creation (agent creates tools under _tools/)
 - [ ] Cannibalistic Thought Chains (agent self-talk spiral → task list generation)
 - [ ] Official toolbox root configuration and external tool loading
-- [ ] Dark theme refinement and DPI scaling
-- [ ] Keyboard shortcuts (Ctrl+Enter submit already works)
+- [ ] Per-session command policy customization
 
 ## Deferred by Blueprint
 
 - ~~Multiple built-in tools beyond CLI sandbox tool~~ (write_file + read_file shipped)
+- ~~Multi-tab workspaces~~ (tabbed control pane shipped; breakout columns pending)
 - Full plugin marketplace behavior
 - Persistent graph database backend
 - Deep resource telemetry beyond basic polling
-- Multi-tab workspaces
-- Agent self-editing outside sandbox
+- ~~Agent self-editing outside sandbox~~ (Load Self + Sync Back shipped)
 - BDVecEmbed offline fallback embedder (requires local corpus training first)

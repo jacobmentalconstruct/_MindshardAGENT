@@ -33,6 +33,7 @@ from src.core.registry.state_registry import StateRegistry
 from src.core.registry.session_registry import register_session, register_message
 from src.ui.ui_state import UIState
 from src.ui.gui_main import MainWindow
+import src.core.runtime.action_journal as aj
 
 
 def main() -> None:
@@ -159,18 +160,27 @@ def main() -> None:
 
     def on_session_new():
         sid = session_store.new_session(
-            title="New Session",
             model=config.selected_model,
             sandbox_root=config.sandbox_root,
         )
         _load_session(sid)
-        activity.info("session", "New session created")
+        session = session_store.get_session(sid)
+        title = session["title"] if session else sid
+        activity.info("session", f"New session: {title}")
+        if engine.journal:
+            engine.journal.record(aj.SESSION_START, f"New session: {title}",
+                                  {"session_id": sid, "title": title})
 
     def on_session_select(sid: str):
         if sid == active_session["sid"]:
             return
         _save_current_session()
         _load_session(sid)
+        session = session_store.get_session(sid)
+        if engine.journal:
+            engine.journal.record(aj.SESSION_SWITCH,
+                f"Switched to: {session['title'] if session else sid}",
+                {"session_id": sid})
 
     def on_session_rename(sid: str, new_title: str):
         session_store.save_session(sid, title=new_title)
@@ -183,8 +193,12 @@ def main() -> None:
     def on_session_delete(sid: str):
         session_store.delete_session(sid)
         if sid == active_session["sid"]:
-            # Create a new session if we just deleted the active one
-            on_session_new()
+            # Try to switch to another existing session first
+            remaining = session_store.list_sessions()
+            if remaining:
+                _load_session(remaining[0]["session_id"])
+            else:
+                on_session_new()
         else:
             _refresh_session_list()
         activity.info("session", "Session deleted")
@@ -228,8 +242,10 @@ def main() -> None:
             try:
                 content = "".join(_streaming_content)
                 card.update_streaming_content(content)
-                # Auto-scroll to bottom
-                window.chat_pane._canvas.update_idletasks()
+                # Force canvas to recalculate layout after card resize
+                window.chat_pane._inner.update_idletasks()
+                window.chat_pane._canvas.configure(
+                    scrollregion=window.chat_pane._canvas.bbox("all"))
                 window.chat_pane._canvas.yview_moveto(1.0)
             except Exception:
                 pass
@@ -247,8 +263,11 @@ def main() -> None:
                 activity.info("chat",
                     f"Response: {meta.get('tokens_out', '?')} tokens, {meta.get('time', '?')}")
 
-                # Persist assistant message
+                # Update response preview in Watch tab
                 content = result.get("content", "".join(_streaming_content))
+                window.control_pane.response_preview.set_text(content)
+
+                # Persist assistant message
                 sid = active_session["sid"]
                 if sid:
                     session_store.add_message(
@@ -336,19 +355,87 @@ def main() -> None:
         on_session_new()
         activity.info("sandbox", f"Sandbox changed to: {new_root}")
 
-    # ── Faux button actions (now real) ────────────────
+    # ── Action button handlers ────────────────────────
     def _handle_faux_click(label: str):
-        if label == "Files":
-            # Load project source into sandbox
-            from src.core.sandbox.project_loader import load_project, list_project_files
+        if label == "Load Self":
+            # Load project source into sandbox for agent self-iteration
+            from src.core.sandbox.project_loader import load_project, list_project_files, snapshot_manifest
             dest = load_project(PROJECT_ROOT, config.sandbox_root)
             files = list_project_files(config.sandbox_root)
             activity.info("project", f"Project loaded: {len(files)} files -> sandbox/project/")
             window.chat_pane.add_message("system",
-                f"Project source loaded into sandbox/project/ ({len(files)} files). "
-                f"The agent can now read and modify its own code.")
+                f"📂 Project source loaded into sandbox/project/ ({len(files)} files). "
+                f"This is YOUR source code — the MindshardAGENT application. "
+                f"You can read and modify files here. Changes stay in sandbox until the user syncs back.")
+            # Journal it
+            if engine.journal:
+                engine.journal.record(aj.PROJECT_LOAD,
+                    f"Loaded {len(files)} source files into sandbox/project/",
+                    {"file_count": len(files), "dest": str(dest)})
+
+        elif label == "Sync Back":
+            # Diff sandbox/project/ against real source and apply changes
+            from src.core.sandbox.project_syncer import diff_sandbox_to_source, apply_sync, log_sync
+            diff = diff_sandbox_to_source(config.sandbox_root, PROJECT_ROOT)
+
+            if diff.get("error"):
+                activity.error("sync", diff["error"])
+                window.chat_pane.add_message("system", f"⚠ Sync failed: {diff['error']}")
+                return
+
+            n_add = len(diff["added"])
+            n_mod = len(diff["modified"])
+            n_del = len(diff["removed"])
+
+            if n_add == 0 and n_mod == 0 and n_del == 0:
+                activity.info("sync", "No changes to sync — sandbox matches source")
+                window.chat_pane.add_message("system", "✓ No changes detected — sandbox matches source.")
+                return
+
+            # Show diff summary and confirm
+            summary_lines = []
+            if n_add:
+                summary_lines.append(f"  + {n_add} new file(s): {', '.join(diff['added'][:5])}")
+                if n_add > 5:
+                    summary_lines.append(f"    ... and {n_add - 5} more")
+            if n_mod:
+                summary_lines.append(f"  ~ {n_mod} modified: {', '.join(diff['modified'][:5])}")
+                if n_mod > 5:
+                    summary_lines.append(f"    ... and {n_mod - 5} more")
+            if n_del:
+                summary_lines.append(f"  - {n_del} deleted: {', '.join(diff['removed'][:5])}")
+                if n_del > 5:
+                    summary_lines.append(f"    ... and {n_del - 5} more")
+
+            summary_text = "\n".join(summary_lines)
+            from tkinter import messagebox
+            proceed = messagebox.askyesno("Sync Back to Source",
+                f"Apply sandbox changes to real source?\n\n{summary_text}\n\n"
+                f"Deletions will NOT be applied (safety).\n"
+                f"This overwrites real source files.")
+            if not proceed:
+                activity.info("sync", "Sync cancelled by user")
+                return
+
+            result = apply_sync(config.sandbox_root, PROJECT_ROOT, apply_deletes=False)
+            log_sync(config.sandbox_root, result, direction="sandbox_to_source")
+
+            total = result["total_applied"]
+            errors = len(result["errors"])
+            activity.info("sync",
+                f"Sync complete: +{len(result['added'])} ~{len(result['modified'])} ({errors} errors)")
+            window.chat_pane.add_message("system",
+                f"🔄 Synced {total} file(s) back to source. "
+                f"+{len(result['added'])} new, ~{len(result['modified'])} modified. "
+                f"{f'{errors} error(s).' if errors else 'No errors.'}")
+
+            if engine.journal:
+                engine.journal.record(aj.PROJECT_SYNC,
+                    f"Synced {total} files: +{len(result['added'])} ~{len(result['modified'])}",
+                    {"added": result["added"], "modified": result["modified"],
+                     "errors": result["errors"]})
+
         elif label == "Tools":
-            # List sandbox tools
             tools_dir = Path(config.sandbox_root) / "_tools"
             tools = list(tools_dir.glob("*.py")) if tools_dir.exists() else []
             if tools:
@@ -356,6 +443,14 @@ def main() -> None:
                 activity.info("tools", f"Sandbox tools: {names}")
             else:
                 activity.info("tools", "No sandbox tools found. Agent can create them.")
+
+        elif label == "Clear":
+            from tkinter import messagebox
+            if messagebox.askyesno("Clear Chat", "Clear the chat transcript? (Session history is preserved.)"):
+                window.chat_pane.clear()
+                engine.clear_history()
+                activity.info("ui", "Chat transcript cleared")
+
         else:
             activity.info("ui", f"Button '{label}' clicked (reserved)")
 
@@ -376,12 +471,14 @@ def main() -> None:
     def on_docker_toggle(enabled: bool):
         config.docker_enabled = enabled
         activity.info("docker", f"Docker mode {'enabled' if enabled else 'disabled'}")
-        # Re-initialize sandbox with new mode
         if config.sandbox_root:
             engine.set_sandbox(config.sandbox_root)
         _refresh_docker_status()
         mode = "Docker container" if engine.docker_runner else "local subprocess"
         window.set_status(f"Sandbox mode: {mode}")
+        if engine.journal:
+            engine.journal.record(aj.DOCKER_EVENT,
+                f"Docker mode {'enabled' if enabled else 'disabled'} → {mode}")
 
     def on_docker_build():
         activity.info("docker", "Building sandbox image...")
@@ -491,7 +588,13 @@ def main() -> None:
     ui_state.sandbox_root = config.sandbox_root
 
     # ── Initialize first session ──────────────────────
+    # Purge empty sessions from previous launches (keep at most one)
     existing = session_store.list_sessions()
+    if existing:
+        session_store.purge_empty(keep_sid=existing[0]["session_id"])
+        # Re-fetch after purge
+        existing = session_store.list_sessions()
+
     if existing:
         _load_session(existing[0]["session_id"])
     else:

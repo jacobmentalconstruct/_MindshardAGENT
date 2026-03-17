@@ -5,6 +5,7 @@ Database lives at _sandbox/_sessions/sessions.db by default.
 """
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -16,13 +17,22 @@ from src.core.runtime.runtime_logger import get_logger
 log = get_logger("session_store")
 
 
+def auto_session_title() -> str:
+    """Generate a unique session title from current timestamp.
+
+    Format: 'Session Mar-17 14:32'  (compact, human-scannable, unique per minute)
+    """
+    now = datetime.now(timezone.utc)
+    return now.strftime("Session %b-%d %H:%M")
+
+
 class SessionStore:
     """SQLite session persistence manager."""
 
     def __init__(self, db_path: str | Path):
         self._db_path = str(db_path)
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA_SQL)
@@ -34,8 +44,10 @@ class SessionStore:
 
     # ── Session CRUD ──────────────────────────────────
 
-    def new_session(self, title: str = "New Session", model: str = "",
+    def new_session(self, title: str = "", model: str = "",
                     sandbox_root: str = "", parent_id: str | None = None) -> str:
+        if not title:
+            title = auto_session_title()
         sid = make_session_id()
         now = utc_iso()
         self._conn.execute(
@@ -109,6 +121,31 @@ class SessionStore:
             (session_id,))
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def message_count(self, session_id: str) -> int:
+        """Return the number of messages in a session."""
+        cur = self._conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ?", (session_id,))
+        return cur.fetchone()[0]
+
+    def purge_empty(self, keep_sid: str | None = None) -> int:
+        """Delete sessions with zero messages. Optionally keep one by ID.
+
+        Returns count of purged sessions.
+        """
+        cur = self._conn.execute(
+            "SELECT session_id FROM sessions WHERE session_id NOT IN "
+            "(SELECT DISTINCT session_id FROM messages)")
+        empty_sids = [row[0] for row in cur.fetchall()]
+        purged = 0
+        for sid in empty_sids:
+            if sid == keep_sid:
+                continue
+            self.delete_session(sid)
+            purged += 1
+        if purged:
+            log.info("Purged %d empty session(s)", purged)
+        return purged
 
     # ── Branching ─────────────────────────────────────
 

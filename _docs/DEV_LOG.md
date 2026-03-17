@@ -338,3 +338,73 @@ Host (Windows)                    Container (Linux)
 - Nuke button: destroys container with confirmation dialog
 - Info line: contextual status message
 - Polls every 10 seconds to stay current
+
+---
+
+## 2026-03-17 — FEAT-004: Project Sync-Back + Action Journal
+
+### Summary
+Two features enabling the agent self-improvement loop:
+
+1. **Project sync-back** — diffs sandbox/project/ against real source tree,
+   shows a summary, and applies changes back with user confirmation. Logged
+   to `_sandbox/_logs/sync_log.jsonl`.
+
+2. **Action journal** — structured event log recording every significant
+   operation (project load, sync, tool use, session switch, docker events,
+   agent turns). Injected into the agent's system prompt so it can orient
+   itself between turns or after context loss.
+
+### Self-Improvement Loop
+```
+User clicks "Load Self"
+  → project_loader copies source → sandbox/project/
+  → journal records: project_load
+
+Agent reads/modifies files in sandbox/project/
+  → journal records: file_write, tool_exec per operation
+
+User clicks "Sync Back"
+  → project_syncer diffs sandbox vs real source
+  → user confirms via dialog (diff summary shown)
+  → changes applied to real source tree
+  → journal records: project_sync
+  → sync_log.jsonl records file-level details
+```
+
+### Files Created
+- `src/core/sandbox/project_syncer.py` — Diff and apply sandbox→source changes.
+  Uses `filecmp.cmp()` for content comparison. Never syncs venv/__pycache__/.git.
+  Deletions require explicit `apply_deletes=True` (default: off for safety).
+  Writes sync manifest to `_sandbox/_logs/sync_log.jsonl`.
+- `src/core/runtime/action_journal.py` — Append-only JSON-lines event log.
+  Categories: project_load, project_sync, file_write, file_read, tool_exec,
+  session_start, session_switch, config_change, docker_event, agent_turn.
+  Queryable by type, recency. `summary_since(n)` returns human-readable text
+  suitable for prompt injection.
+
+### Files Modified
+- `src/core/engine.py` — Creates ActionJournal on sandbox init. Records
+  CONFIG_CHANGE on set_sandbox, AGENT_TURN on response completion.
+  Passes journal to ResponseLoop.
+- `src/core/agent/response_loop.py` — Accepts journal parameter. Calls
+  `journal.summary_since(10)` before each turn and passes to prompt builder.
+- `src/core/agent/prompt_builder.py` — Added `journal_context` parameter.
+  Injected as "Recent Workspace Activity" section in system prompt.
+- `src/app.py` — Rewired action buttons: "Load Self" (loads project + journals),
+  "Sync Back" (diffs + confirms + applies + journals), "Clear" (clears chat).
+  Added journal recording for session new/switch, docker toggle.
+  Fixed streaming display: added scrollregion update after card resize.
+- `src/ui/widgets/faux_button_panel.py` — Updated button labels:
+  Load Self, Sync Back, Tools, Plan, Branch, Clear.
+
+### Streaming Fix
+The chat pane wasn't updating during streaming because `_update_stream` only
+called `canvas.update_idletasks()` without refreshing the scrollregion. After
+a card's Text widget resized, the canvas still thought the inner frame was the
+old size. Fix: explicitly call `canvas.configure(scrollregion=canvas.bbox("all"))`
+after each streaming update.
+
+### Testing
+- 70/70 unit tests pass
+- All new imports verified clean

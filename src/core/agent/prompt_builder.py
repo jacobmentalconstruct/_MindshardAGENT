@@ -23,6 +23,7 @@ def build_system_prompt(
     model_name: str = "",
     rag_context: str = "",
     docker_mode: bool = False,
+    journal_context: str = "",
 ) -> str:
     """Build the system prompt for the agent."""
 
@@ -134,7 +135,7 @@ Wrap a JSON object in triple-backtick tool_call fences. One tool call per block.
 - Wait for tool results before making your next tool call.
 - To create and run a script: FIRST use write_file, THEN use cli_in_sandbox to run it.
 
-{_format_rag_section(rag_context)}## Response Style
+{_format_journal_section(journal_context)}{_format_rag_section(rag_context)}## Response Style
 - Be helpful and direct.
 - Show your reasoning when solving problems.
 - When you don't know something, say so.
@@ -154,6 +155,19 @@ def _format_tool_section(tool_defs: list[dict[str, Any]]) -> str:
                 lines.append(f"  - {pname}: {pinfo.get('description', '')}{req}")
         lines.append("")
     return "\n".join(lines)
+
+
+def _format_journal_section(journal_context: str) -> str:
+    """Format recent action journal for injection into system prompt."""
+    if not journal_context:
+        return ""
+    return f"""## Recent Workspace Activity
+The following actions happened recently in this workspace. Use this to orient
+yourself and understand the current state of work.
+
+{journal_context}
+
+"""
 
 
 def _format_rag_section(rag_context: str) -> str:
