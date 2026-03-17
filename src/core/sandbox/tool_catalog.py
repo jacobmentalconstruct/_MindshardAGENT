@@ -1,6 +1,6 @@
 """Tool catalog — registry of built-in, official, and sandbox-local tools.
 
-Version 1 has one real built-in tool: cli_in_sandbox.
+Built-in tools: cli_in_sandbox, write_file, read_file
 """
 
 from dataclasses import dataclass, field
@@ -35,12 +35,40 @@ CLI_IN_SANDBOX = ToolEntry(
 )
 
 
+WRITE_FILE = ToolEntry(
+    name="write_file",
+    description="Create or overwrite a file within the sandbox. Handles multi-line content "
+                "directly — no shell quoting needed. Use this instead of echo/python -c for "
+                "creating files with code or multi-line text.",
+    source="builtin",
+    callable_name="write_file",
+    parameters={
+        "path": {"type": "string", "description": "File path relative to sandbox root", "required": True},
+        "content": {"type": "string", "description": "The text content to write to the file", "required": True},
+        "mode": {"type": "string", "description": "Write mode: 'write' (create/overwrite) or 'append' (add to end). Default: 'write'"},
+    },
+)
+
+READ_FILE = ToolEntry(
+    name="read_file",
+    description="Read the contents of a file within the sandbox. Returns the full text content. "
+                "Works reliably on all operating systems (use this instead of cat/type).",
+    source="builtin",
+    callable_name="read_file",
+    parameters={
+        "path": {"type": "string", "description": "File path relative to sandbox root", "required": True},
+    },
+)
+
+
 class ToolCatalog:
     """Registry of available tools."""
 
     def __init__(self):
         self._tools: dict[str, ToolEntry] = {}
         self.register(CLI_IN_SANDBOX)
+        self.register(WRITE_FILE)
+        self.register(READ_FILE)
 
     def register(self, entry: ToolEntry) -> None:
         self._tools[entry.name] = entry

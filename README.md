@@ -1,4 +1,4 @@
-# AgenticTOOLBOX
+# MindshardAGENT
 
 A lean Tkinter desktop chatbot shell for local Ollama-backed agents with sandboxed CLI tool execution.
 

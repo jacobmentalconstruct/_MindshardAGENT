@@ -1,6 +1,6 @@
 """Project loader — copies app source into the sandbox for agent self-iteration.
 
-Clones the AgenticTOOLBOX source tree into _sandbox/project/ so the
+Clones the MindshardAGENT source tree into _sandbox/project/ so the
 sandboxed agent can read, modify, and test its own code. Excludes
 runtime artifacts (venv, __pycache__, .db, logs, etc).
 
@@ -40,7 +40,7 @@ def load_project(project_root: str | Path, sandbox_root: str | Path,
     """Copy the app source tree into the sandbox.
 
     Args:
-        project_root: The AgenticTOOLBOX root directory
+        project_root: The MindshardAGENT root directory
         sandbox_root: The sandbox root directory
         target_name: Subfolder name inside sandbox (default: "project")
 

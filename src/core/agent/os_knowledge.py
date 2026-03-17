@@ -59,76 +59,133 @@ You are confined to a sandbox directory. This is your safe workspace:
 ### Common Task Patterns
 
 **See what's in a directory:**
-```
-dir
-```
+Use cli_in_sandbox with: `dir`
 
 **See the full tree of a directory:**
-```
-tree /f
-```
+Use cli_in_sandbox with: `tree /f`
 
-**Read a file:**
-```
-type filename.txt
-```
+**Create a file (ALWAYS use the write_file tool for this!):**
+Use the write_file tool — NOT echo, NOT python -c. The write_file tool handles multi-line content, special characters, and quoting automatically.
 
-**Create a new file with content:**
-```
-echo Hello, this is my file content > newfile.txt
-```
-
-**Append to a file:**
-```
-echo More content >> existingfile.txt
-```
+**Read a file (ALWAYS use the read_file tool for this!):**
+Use the read_file tool — NOT type, NOT cat. The read_file tool works reliably on all platforms.
 
 **Create a directory:**
-```
-mkdir my_new_folder
-```
+Use cli_in_sandbox with: `mkdir my_new_folder`
 
 **Copy a file:**
-```
-copy source.txt destination.txt
-```
+Use cli_in_sandbox with: `copy source.txt destination.txt`
 
 **Move/rename a file:**
-```
-move oldname.txt newname.txt
-```
+Use cli_in_sandbox with: `move oldname.txt newname.txt`
 
 **Delete a file:**
-```
-del unwanted.txt
-```
+Use cli_in_sandbox with: `del unwanted.txt`
 
 **Search for text inside files:**
-```
-findstr /s /i "search_term" *.txt
-```
+Use cli_in_sandbox with: `findstr /s /i "search_term" *.txt`
 
 **Run a Python script:**
-```
-python myscript.py
-```
+Use cli_in_sandbox with: `python myscript.py`
 
-**Write a Python script and run it:**
-```
-echo print("Hello from Python!") > hello.py
-python hello.py
-```
+**Create and run a Python script (two steps):**
+Step 1 — use write_file to create the script
+Step 2 — use cli_in_sandbox with: `python myscript.py`
 """
 
 
-def get_os_knowledge() -> str:
-    """Return the full OS fundamentals knowledge block."""
-    return OS_FUNDAMENTALS
+DOCKER_FUNDAMENTALS = """
+## Operating System Fundamentals
+
+You are running commands inside a Linux container (Docker). Here is what you need to know:
+
+### Your Environment
+- **Shell**: bash
+- **OS**: Debian Linux (slim)
+- **Python**: python3 / python (both work)
+- **Package manager**: pip is available (use `pip install <package>`)
+- **Working directory**: /sandbox
+
+### Filesystem
+- Directories use `/` as separator: `/sandbox/myfile.txt`
+- `.` means "the current directory"
+- `..` means "the parent directory"
+- Everything is inside `/sandbox` — your workspace
+
+### YOUR Sandbox
+You are inside a container with /sandbox as your workspace:
+- The sandbox has standard subdirectories:
+  - `_tools/` — where you can create new tool scripts
+  - `_sessions/` — saved conversation data
+  - `_outputs/` — files you generate
+  - `_logs/` — log files
+
+### Common Task Patterns
+
+**See what's in a directory:**
+Use cli_in_sandbox with: `ls -la`
+
+**See the full tree of a directory:**
+Use cli_in_sandbox with: `tree`
+
+**Create a file (ALWAYS use the write_file tool for this!):**
+Use the write_file tool — NOT echo, NOT cat, NOT python -c. The write_file tool handles multi-line content, special characters, and quoting automatically.
+
+**Read a file (ALWAYS use the read_file tool for this!):**
+Use the read_file tool — NOT cat, NOT less, NOT head. The read_file tool works reliably.
+
+**Create a directory:**
+Use cli_in_sandbox with: `mkdir -p my_new_folder`
+
+**Copy a file:**
+Use cli_in_sandbox with: `cp source.txt destination.txt`
+
+**Move/rename a file:**
+Use cli_in_sandbox with: `mv oldname.txt newname.txt`
+
+**Delete a file:**
+Use cli_in_sandbox with: `rm unwanted.txt`
+
+**Search for text inside files:**
+Use cli_in_sandbox with: `grep -r "search_term" .`
+
+**Install a Python package:**
+Use cli_in_sandbox with: `pip install package_name`
+
+**Run a Python script:**
+Use cli_in_sandbox with: `python myscript.py`
+
+**Create and run a Python script (two steps):**
+Step 1 — use write_file to create the script
+Step 2 — use cli_in_sandbox with: `python myscript.py`
+"""
 
 
-def get_command_teaching(command_reference: str) -> str:
-    """Combine OS fundamentals with the specific allowed command reference."""
-    return f"""{OS_FUNDAMENTALS}
+def get_os_knowledge(docker_mode: bool = False) -> str:
+    """Return the OS fundamentals knowledge block."""
+    return DOCKER_FUNDAMENTALS if docker_mode else OS_FUNDAMENTALS
+
+
+def get_command_teaching(command_reference: str, docker_mode: bool = False) -> str:
+    """Combine OS fundamentals with command reference."""
+    fundamentals = DOCKER_FUNDAMENTALS if docker_mode else OS_FUNDAMENTALS
+
+    if docker_mode:
+        return f"""{fundamentals}
+
+## Command Environment
+You are inside a Docker container with full bash access.
+Most standard Linux commands are available (ls, cp, mv, rm, grep, find, etc.).
+Python 3 and pip are available for package installation and script execution.
+Git is available for version control.
+
+### Safety Rules
+- You are inside a container — the container IS the boundary
+- You cannot access the host system
+- When in doubt, use `ls` to look around and `read_file` to read files
+"""
+    else:
+        return f"""{fundamentals}
 
 ## Allowed Commands Reference
 
@@ -142,5 +199,5 @@ You may ONLY use the following commands. Any other command will be blocked.
 - You CANNOT use absolute paths outside the sandbox
 - You CANNOT use .. to escape the sandbox directory
 - If a command is blocked, try a different approach using allowed commands
-- When in doubt, use `dir` to look around and `type` to read files
+- When in doubt, use `dir` to look around and `read_file` to read files
 """

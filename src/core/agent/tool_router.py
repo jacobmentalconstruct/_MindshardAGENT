@@ -10,6 +10,7 @@ from typing import Any
 
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.cli_runner import CLIRunner
+from src.core.sandbox.file_writer import FileWriter
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
 
@@ -24,9 +25,11 @@ _TOOL_CALL_RE = re.compile(
 class ToolRouter:
     """Parse and dispatch tool calls from model responses."""
 
-    def __init__(self, catalog: ToolCatalog, cli: CLIRunner, activity: ActivityStream):
+    def __init__(self, catalog: ToolCatalog, cli: CLIRunner, activity: ActivityStream,
+                 file_writer: FileWriter | None = None):
         self._catalog = catalog
         self._cli = cli
+        self._file_writer = file_writer
         self._activity = activity
 
     def extract_tool_calls(self, text: str) -> list[dict[str, Any]]:
@@ -69,6 +72,38 @@ class ToolRouter:
             return {
                 "tool_name": tool_name,
                 "success": result["exit_code"] == 0,
+                "result": result,
+            }
+
+        if tool_name == "write_file":
+            if not self._file_writer:
+                return {"tool_name": tool_name, "success": False, "error": "File writer not initialized"}
+            path = tool_call.get("path", "")
+            content = tool_call.get("content", "")
+            mode = tool_call.get("mode", "write")
+            if not path:
+                return {"tool_name": tool_name, "success": False, "error": "No path provided"}
+            if not content and mode != "write":
+                return {"tool_name": tool_name, "success": False, "error": "No content provided"}
+
+            result = self._file_writer.write_file(path, content, mode=mode)
+            return {
+                "tool_name": tool_name,
+                "success": result["success"],
+                "result": result,
+            }
+
+        if tool_name == "read_file":
+            if not self._file_writer:
+                return {"tool_name": tool_name, "success": False, "error": "File reader not initialized"}
+            path = tool_call.get("path", "")
+            if not path:
+                return {"tool_name": tool_name, "success": False, "error": "No path provided"}
+
+            result = self._file_writer.read_file(path)
+            return {
+                "tool_name": tool_name,
+                "success": result["success"],
                 "result": result,
             }
 

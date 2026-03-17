@@ -48,6 +48,11 @@ class AppConfig:
     rag_min_score: float = 0.3
     rag_chunk_max_chars: int = 512
 
+    # Docker sandbox
+    docker_enabled: bool = False
+    docker_memory_limit: str = "512m"
+    docker_cpu_limit: float = 1.0
+
     # Logging
     log_dir: str = "_logs"
 

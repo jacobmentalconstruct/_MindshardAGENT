@@ -1,4 +1,4 @@
-# DEV_LOG — AgenticTOOLBOX
+# DEV_LOG — MindshardAGENT
 
 Append-only execution ledger.
 
@@ -175,3 +175,166 @@ Burned through the entire high-priority TODO list in one session. Added full ses
 - Audit log write/read confirmed (2 entries: executed + cancelled)
 - Destructive detection: del=True, dir=False, rm=True
 - App launches successfully with session panel visible
+
+---
+
+## 2026-03-17 — FEAT-002: Medium Priority Sweep + RAG + Rename
+
+### Summary
+Burned through entire medium priority TODO list. Added session-scoped RAG with
+Ollama all-minilm embeddings, tool discovery, model chain pipelines, adaptive
+tokenizer, streaming auto-resize. Renamed project from AgenticTOOLBOX to
+MindshardAGENT across all source files.
+
+### Files Created
+- `src/core/ollama/embedding_client.py` — Ollama /api/embeddings client (embed_text, embed_batch, check_embedding_model)
+- `src/core/sessions/knowledge_store.py` — Session-scoped RAG knowledge base (SQLite + cosine similarity)
+- `src/core/sandbox/tool_discovery.py` — Scans _tools/ for Python scripts with docstring metadata
+- `src/core/agent/model_chain.py` — Sequential model pipeline (ChainStep → ChainArtifact)
+- `tests/test_tool_roundtrip.py` — Headless tool-use test suite (39 tests initially)
+
+### Files Modified
+- `src/core/sessions/sqlite_schema.py` — Added knowledge table for RAG embeddings
+- `src/core/config/app_config.py` — RAG config fields (embedding_model, rag_enabled, top_k, min_score, chunk_size)
+- `src/core/agent/prompt_builder.py` — RAG context injection, MindshardAGENT rename
+- `src/core/agent/response_loop.py` — RAG retrieval before prompt, RAG storage after completion
+- `src/core/engine.py` — RAG wiring, tool discovery, adaptive tokenizer learning
+- `src/core/ollama/tokenizer_adapter.py` — Rewritten with EMA-based adaptive learning
+- `src/ui/widgets/chat_message_card.py` — Streaming content update with auto-resize
+- `src/app.py` — KnowledgeStore wiring, embedding check, tokenizer sync, streaming resize
+- 10 files renamed AgenticTOOLBOX → MindshardAGENT
+
+### Testing
+- 39/39 tool round-trip tests passed (including live qwen3.5:2b)
+
+---
+
+## 2026-03-17 — FIX-001: write_file/read_file Tools + Prompt Overhaul
+
+### Summary
+First real GUI tool-use test revealed that models (qwen3.5:4b) cannot create
+multi-line files through Windows cmd.exe. Five consecutive tool rounds all
+failed — echo with single quotes, python -c with triple quotes, cat (not on
+Windows), python3 (blocked). Root cause was twofold: no file creation tool
+existed, and the system prompt was actively teaching the wrong approach.
+
+### The Bug (Self-Contradicting Prompt)
+`os_knowledge.py` contained shell-based file creation examples:
+```
+echo Hello, this is my file content > newfile.txt
+echo print("Hello from Python!") > hello.py
+```
+While `prompt_builder.py` later said "use write_file to create files." The
+model followed the concrete demonstrated pattern (echo), not the abstract
+directive (use write_file). The OS knowledge section was undermining the tool
+instructions.
+
+### Files Created
+- `src/core/sandbox/file_writer.py` — Direct file creation/reading within sandbox. PathGuard containment, extension blocklist (.exe/.bat/.cmd/.ps1), size limits (512KB write, 1MB read), audit logging.
+
+### Files Modified
+- `src/core/sandbox/tool_catalog.py` — Registered WRITE_FILE and READ_FILE as built-in tools
+- `src/core/agent/tool_router.py` — Added dispatch handlers for write_file and read_file
+- `src/core/agent/prompt_builder.py` — Complete rewrite of tool section. Added decision table, NEVER/ALWAYS rules, few-shot examples matching real use cases. Replaced polite "PREFERRED" with aggressive routing.
+- `src/core/agent/os_knowledge.py` — Removed all echo/type examples. Every file operation now references write_file/read_file tool by name.
+- `src/core/agent/transcript_formatter.py` — Custom formatting for file tool results
+- `src/core/engine.py` — FileWriter created in set_sandbox(), passed to ToolRouter
+- `src/core/sandbox/sandbox_manager.py` — Exposed audit property
+
+### Prompt Engineering Changes
+- Added tool selection decision table (Task → Correct Tool → Wrong approach)
+- Added capitalized NEVER/ALWAYS rules for tool routing
+- Added anti-patterns with markdown strikethrough (~~echo ... > file~~)
+- Changed few-shot example to a tkinter app (matches common first task)
+- Removed all echo-based file creation from OS knowledge module
+- Every "create file" reference now points to write_file tool
+
+### Testing
+- 70/70 tests passed (31 new tests for file tools, router dispatch, prompt verification)
+
+### Design Notes
+- The write_file tool bypasses cmd.exe entirely — JSON `\n` → real newlines → direct disk write
+- File content encoding: model produces JSON with `\n` escapes, Python json.loads() decodes, file_writer writes with newline="\n"
+- Extension blocklist is defense-in-depth — prevents model from creating executable files even inside sandbox
+- Auto-mkdir: parent directories created automatically within sandbox boundary
+
+### Key Lesson
+When teaching a model new tools, EVERY instructional reference must be updated.
+A single leftover `echo content > file` example in any section of the prompt
+will override explicit tool routing instructions. The demonstrated pattern
+always wins over the described pattern for small models.
+
+---
+
+## 2026-03-17 — FEAT-003: Docker Containerized Sandbox
+
+### Summary
+Full Docker sandbox integration — v2 containment upgrade. The agent's CLI
+commands now execute inside a Linux Docker container instead of Windows
+subprocess. The container IS the security boundary: `--network none`, memory
+and CPU limits, disposable. PathGuard and CommandPolicy become redundant in
+Docker mode — the container handles containment.
+
+### Architecture
+```
+Host (Windows)                    Container (Linux)
+├─ Tkinter GUI                    ├─ python:3.10-slim
+├─ Ollama (GPU)                   ├─ bash, tree, git
+├─ Engine                         ├─ /sandbox (volume mount)
+│   ├─ FileWriter (host-side)     └─ tail -f /dev/null (keepalive)
+│   └─ DockerRunner ──docker exec──►
+└─ DockerManager (user-only)
+```
+
+- **Host runs**: GUI, Ollama (GPU), Engine, FileWriter
+- **Container runs**: CLI commands only (via `docker exec`)
+- **Sandbox dir**: mounted as volume — files synced bidirectionally
+- **FileWriter**: always writes on host side (volume mount keeps container in sync)
+- **Agent**: never sees or controls Docker — just gets Linux bash instead of Windows cmd
+
+### Files Created
+- `docker/Dockerfile` — python:3.10-slim with tree, git. `tail -f /dev/null` keepalive.
+- `src/core/sandbox/docker_manager.py` — Container lifecycle: build, create, start, stop, destroy, status, exec. USER ONLY — never agent-accessible.
+- `src/core/sandbox/docker_runner.py` — Drop-in CLIRunner replacement. Same `.run()` interface, same result dict shape. Uses `docker exec` instead of `subprocess.run()`.
+- `src/ui/widgets/docker_panel.py` — Docker control panel: status light, enable/disable toggle, Build/Start/Stop/Nuke buttons, info line.
+- `_docs/AGENT_CONTRACT.md` — Behavioral contract for the local agent.
+- `_docs/ENGINEERING_NOTES.md` — Hard-won lessons and technical reference.
+
+### Files Modified
+- `src/core/config/app_config.py` — Added docker_enabled, docker_memory_limit, docker_cpu_limit
+- `src/core/engine.py` — Dual-mode set_sandbox(): DockerRunner when Docker available, CLIRunner fallback. Passes docker_mode to ResponseLoop.
+- `src/core/agent/response_loop.py` — Added docker_mode parameter, passes through to build_system_prompt()
+- `src/core/agent/prompt_builder.py` — Added docker_mode parameter. Conditional env block (Linux vs Windows), conditional list command (ls -la vs dir), Docker OS knowledge injection.
+- `src/core/agent/os_knowledge.py` — Added DOCKER_FUNDAMENTALS section, updated get_os_knowledge() and get_command_teaching() with docker_mode parameter.
+- `src/ui/panes/control_pane.py` — Added DockerPanel between Resources and Prompt Preview
+- `src/ui/gui_main.py` — Passed Docker callbacks through to ControlPane
+- `src/app.py` — Docker callback implementations: toggle (re-init sandbox), build (background thread), start (background thread + re-init), stop, destroy (with confirmation dialog). Docker status polling every 10s. Initial status check on startup.
+
+### Container Configuration
+- `--network none` — no network access
+- `--memory 512m` — configurable via app_config
+- `--cpus 1.0` — configurable via app_config
+- Volume mount: `sandbox_root:/sandbox`
+- Minimal blocklist inside container: reboot, shutdown, halt, init
+- Destructive confirmation still active: rm, rmdir, del
+
+### Testing
+- 70/70 unit tests pass (docker_mode defaults to False, all existing callers unaffected)
+- Docker integration test: 13/13 passed
+  - Docker available, image exists, container create+start
+  - Host→container file sync (wrote on host, cat inside container)
+  - Container→host file sync (echoed inside container, read on host)
+  - Python3 execution inside container
+  - DockerRunner.run() returns correct dict shape
+  - Blocked commands (reboot) rejected
+  - Container destroy + status verification
+
+### UI Panel
+- Status light: green=running, amber=stopped, dim=no container, red=Docker N/A
+- Enable checkbox: toggles docker_enabled in config, re-initializes sandbox
+- Build button: builds image from docker/Dockerfile (background thread)
+- Start button: creates and starts container with volume mount
+- Stop button: stops container, falls back to local subprocess
+- Nuke button: destroys container with confirmation dialog
+- Info line: contextual status message
+- Polls every 10 seconds to stay current

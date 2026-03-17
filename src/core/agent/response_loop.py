@@ -42,6 +42,7 @@ class ResponseLoop:
         knowledge_store: KnowledgeStore | None = None,
         embed_fn=None,
         session_id_fn=None,
+        docker_mode: bool = False,
     ):
         self._config = config
         self._command_policy = command_policy
@@ -51,6 +52,7 @@ class ResponseLoop:
         self._knowledge = knowledge_store
         self._embed_fn = embed_fn          # Callable(str) -> list[float]
         self._session_id_fn = session_id_fn  # Callable() -> str | None
+        self._docker_mode = docker_mode
 
     def run_turn(
         self,
@@ -118,6 +120,7 @@ class ResponseLoop:
             session_title="",
             model_name=self._config.selected_model,
             rag_context=rag_context,
+            docker_mode=self._docker_mode,
         )
 
         # Add user message

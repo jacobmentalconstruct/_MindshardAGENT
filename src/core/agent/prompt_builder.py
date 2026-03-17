@@ -22,6 +22,7 @@ def build_system_prompt(
     session_title: str = "",
     model_name: str = "",
     rag_context: str = "",
+    docker_mode: bool = False,
 ) -> str:
     """Build the system prompt for the agent."""
 
@@ -29,15 +30,33 @@ def build_system_prompt(
     tool_section = _format_tool_section(tool_defs)
 
     # Build the OS + command knowledge section
-    if command_policy:
+    if docker_mode:
+        os_section = get_command_teaching("", docker_mode=True)
+    elif command_policy:
         cmd_ref = command_policy.get_command_reference()
-        os_section = get_command_teaching(cmd_ref)
+        os_section = get_command_teaching(cmd_ref, docker_mode=False)
     else:
         os_section = ""
 
-    return f"""You are a helpful assistant running inside the AgenticTOOLBOX sandbox environment.
+    # Environment description changes based on mode
+    if docker_mode:
+        env_block = f"""## Your Environment
+- Sandbox root: /sandbox
+- Session: {session_title or 'unnamed'}
+- Model: {model_name or 'unknown'}
+- Operating system: Linux (Docker container)
+- Shell: bash
+- Python: python / python3 (both work)
+- Package manager: pip (available)
 
-## Your Environment
+## Sandbox Rules
+- You are inside a Docker container. The container IS your sandbox.
+- All files are under /sandbox.
+- You have full bash access — most Linux commands work.
+- pip install is available for Python packages.
+- If you create tools, they must go under _tools/ directory."""
+    else:
+        env_block = f"""## Your Environment
 - Sandbox root: {sandbox_root}
 - Session: {session_title or 'unnamed'}
 - Model: {model_name or 'unknown'}
@@ -49,28 +68,71 @@ def build_system_prompt(
 - You may NOT access files outside the sandbox.
 - All CLI commands execute within the sandbox boundary.
 - Only allowlisted commands may be used. Blocked commands will be rejected.
-- If you create tools, they must go under the sandbox's _tools/ directory.
+- If you create tools, they must go under the sandbox's _tools/ directory."""
+
+    # List files example changes based on mode
+    list_cmd = "ls -la" if docker_mode else "dir"
+
+    return f"""You are a helpful assistant running inside the MindshardAGENT sandbox environment.
+
+{env_block}
 
 {os_section}
 
 ## Available Tools
 {tool_section}
 
-## How to Use Tools
-When you need to run a CLI command, respond with a JSON tool call block:
+## CRITICAL: Tool Selection Rules
+
+You have three tools. Pick the RIGHT one:
+
+| Task | Correct Tool | WRONG (never do this) |
+|------|-------------|----------------------|
+| Create/write a file | write_file | ~~echo ... > file~~ |
+| Read a file | read_file | ~~type file~~ ~~cat file~~ |
+| Run a program | cli_in_sandbox | — |
+| List files | cli_in_sandbox | — |
+| Create a directory | cli_in_sandbox | — |
+
+NEVER use echo, python -c, or any CLI command to create files.
+NEVER use type, cat, or any CLI command to read files.
+ALWAYS use write_file to create files. ALWAYS use read_file to read files.
+
+## How to Call Tools
+
+Wrap a JSON object in triple-backtick tool_call fences. One tool call per block.
+
+### Example: Create a Python file
 ```tool_call
-{{"tool": "cli_in_sandbox", "command": "<your shell command>", "cwd": "<optional relative path>"}}
+{{"tool": "write_file", "path": "hello.py", "content": "import tkinter as tk\\n\\nroot = tk.Tk()\\nroot.title('Hello')\\nlabel = tk.Label(root, text='HELLO WORLD!', font=('Arial', 48), fg='pink', bg='black')\\nlabel.pack(expand=True, fill='both')\\nroot.mainloop()\\n"}}
 ```
 
-Important:
-- Only use registered tools listed above.
-- Only use allowed commands listed in the command reference above.
-- CLI commands run inside the sandbox root.
-- Include the tool_call block on its own line.
-- You may include explanation before and after tool calls.
-- Wait for tool results before continuing when appropriate.
-- Created tools must be placed under _tools/ with clear documentation headers.
-- If a command is blocked, try a different allowed command instead.
+### Example: Read a file
+```tool_call
+{{"tool": "read_file", "path": "hello.py"}}
+```
+
+### Example: Run a program
+```tool_call
+{{"tool": "cli_in_sandbox", "command": "python hello.py"}}
+```
+
+### Example: Append to a file
+```tool_call
+{{"tool": "write_file", "path": "log.txt", "content": "new entry\\n", "mode": "append"}}
+```
+
+### Example: List files
+```tool_call
+{{"tool": "cli_in_sandbox", "command": "{list_cmd}"}}
+```
+
+## Tool Call Rules
+- In write_file content: use \\n for newlines, \\t for tabs, \\\\ for backslash, \\" for quotes.
+- Only one tool call per ```tool_call block.
+- You may include explanation text before and after tool call blocks.
+- Wait for tool results before making your next tool call.
+- To create and run a script: FIRST use write_file, THEN use cli_in_sandbox to run it.
 
 {_format_rag_section(rag_context)}## Response Style
 - Be helpful and direct.

@@ -16,7 +16,7 @@ Tool: {name}
 Purpose: {purpose}
 Usage: python _tools/{filename} [args]
 Constraints: Runs only within sandbox root. No external writes.
-Generated-by: AgenticTOOLBOX sandbox agent
+Generated-by: MindshardAGENT sandbox agent
 Created: {created_at}
 """
 

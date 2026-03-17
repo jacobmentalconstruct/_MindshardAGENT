@@ -1,4 +1,4 @@
-# TODO — AgenticTOOLBOX
+# TODO — MindshardAGENT
 
 ## High Priority
 
@@ -14,12 +14,16 @@
 - [x] Ollama embedding client (all-minilm 384-dim via /api/embeddings)
 - [x] RAG context injection into system prompt
 - [x] Auto-embed chat turns into knowledge base after each exchange
-- [ ] Sandbox-authored tool creation (agent creates tools under _tools/)
-- [ ] Tool catalog discovery of sandbox-local tools at startup
-- [ ] Resource monitor polling for GPU VRAM stats
-- [ ] Streaming text height auto-resize during token delivery
 - [x] Save-on-close session persistence
 - [x] Autosave debounce after turn completion
+- [x] Model chain workflows (Model A → file → Model B)
+- [x] Tool catalog discovery of sandbox-local tools at startup
+- [x] Resource monitor polling for GPU VRAM stats
+- [x] Streaming text height auto-resize during token delivery
+- [x] Full tokenizer integration (adaptive per-model chars/token ratio)
+
+- [x] Tool-use round-trip testing with small models (39/39 passed, qwen3.5:2b live verified)
+- [x] Built-in write_file/read_file tools (solves multi-line file creation on Windows cmd)
 
 ## Security / Containment
 
@@ -27,22 +31,24 @@
 - [x] OS knowledge module for agent teaching
 - [x] User confirmation modal for destructive commands (del, rm, rmdir)
 - [x] Command audit log (persistent JSON-lines at _sandbox/_logs/audit.jsonl)
-- [ ] Docker containerized sandbox (v2 containment upgrade)
+
+- [x] Docker containerized sandbox (v2 containment upgrade)
+  - Dockerfile, DockerManager, DockerRunner, dual-mode engine, Docker-aware prompt builder
+  - UI Docker panel: status light, enable toggle, Build/Start/Stop/Nuke buttons
+  - Integration tested: volume mount, exec, network isolation, blocked commands
 - [ ] Per-session command policy customization
 
 ## Low Priority / Future
 
-- [ ] Agent-to-agent chaining experiments (spawn sub-instances)
-- [ ] Model chain workflows (Model A → file → Model B)
-- [ ] Tool-use round-trip testing with small models (qwen3.5:2b, 4b)
+- [ ] Sandbox-authored tool creation (agent creates tools under _tools/)
+- [ ] Cannibalistic Thought Chains (agent self-talk spiral → task list generation)
 - [ ] Official toolbox root configuration and external tool loading
-- [ ] Full tokenizer integration for exact model-specific counts
 - [ ] Dark theme refinement and DPI scaling
 - [ ] Keyboard shortcuts (Ctrl+Enter submit already works)
 
 ## Deferred by Blueprint
 
-- Multiple built-in tools beyond CLI sandbox tool
+- ~~Multiple built-in tools beyond CLI sandbox tool~~ (write_file + read_file shipped)
 - Full plugin marketplace behavior
 - Persistent graph database backend
 - Deep resource telemetry beyond basic polling

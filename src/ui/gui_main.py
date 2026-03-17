@@ -37,14 +37,17 @@ class MainWindow:
                  on_session_new=None, on_session_select=None,
                  on_session_rename=None, on_session_delete=None,
                  on_session_branch=None, on_sandbox_pick=None,
-                 on_faux_click=None):
+                 on_faux_click=None,
+                 on_docker_toggle=None, on_docker_build=None,
+                 on_docker_start=None, on_docker_stop=None,
+                 on_docker_destroy=None):
         self.root = root
         self.ui_state = ui_state
         self.activity = activity
         self._on_close = on_close
 
         # ── Window setup ──────────────────────────────────
-        root.title("AgenticTOOLBOX — Sandboxed Agent Shell")
+        root.title("MindshardAGENT — Sandboxed Agent Shell")
         root.configure(bg=T.BG_DARK)
         root.minsize(1000, 650)
         root.protocol("WM_DELETE_WINDOW", self._handle_close)
@@ -133,6 +136,11 @@ class MainWindow:
             on_session_delete=on_session_delete,
             on_session_branch=on_session_branch,
             on_sandbox_pick=on_sandbox_pick,
+            on_docker_toggle=on_docker_toggle,
+            on_docker_build=on_docker_build,
+            on_docker_start=on_docker_start,
+            on_docker_stop=on_docker_stop,
+            on_docker_destroy=on_docker_destroy,
         )
         body.add(self.control_pane, stretch="never", width=380)
 

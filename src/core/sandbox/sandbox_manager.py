@@ -67,3 +67,7 @@ class SandboxManager:
     @property
     def cli(self) -> CLIRunner:
         return self._cli
+
+    @property
+    def audit(self) -> AuditLog:
+        return self._audit

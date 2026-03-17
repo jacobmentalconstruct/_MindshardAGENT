@@ -15,7 +15,7 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 
-# Project root is the _AgenticTOOLBOX directory
+# Project root is the _MindshardAGENT directory
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Ensure project root is on sys.path for package imports
@@ -43,7 +43,7 @@ def main() -> None:
     log_dir = PROJECT_ROOT / config.log_dir
     init_logging(log_dir=log_dir)
     log = get_logger("app")
-    log.info("=== AgenticTOOLBOX starting ===")
+    log.info("=== MindshardAGENT starting ===")
     log.info("Project root: %s", PROJECT_ROOT)
 
     # ── Runtime infrastructure ────────────────────────
@@ -227,14 +227,10 @@ def main() -> None:
         def _update_stream(card):
             try:
                 content = "".join(_streaming_content)
-                for child in card.winfo_children():
-                    for sub in child.winfo_children():
-                        if isinstance(sub, tk.Text):
-                            sub.config(state="normal")
-                            sub.delete("1.0", "end")
-                            sub.insert("1.0", content)
-                            sub.config(state="disabled")
-                            return
+                card.update_streaming_content(content)
+                # Auto-scroll to bottom
+                window.chat_pane._canvas.update_idletasks()
+                window.chat_pane._canvas.yview_moveto(1.0)
             except Exception:
                 pass
 
@@ -287,6 +283,7 @@ def main() -> None:
     def on_model_select(model: str):
         config.selected_model = model
         ui_state.selected_model = model
+        engine.tokenizer.set_model(model)
         window.set_model(model)
         activity.info("model", f"Model selected: {model}")
 
@@ -362,6 +359,96 @@ def main() -> None:
         else:
             activity.info("ui", f"Button '{label}' clicked (reserved)")
 
+    # ── Docker callbacks ─────────────────────────────
+    def _refresh_docker_status():
+        """Update the Docker panel with current container state."""
+        try:
+            info = engine.docker_manager.get_info()
+            window.control_pane.docker_panel.set_status(
+                info["status"],
+                docker_available=info["docker_available"],
+                image_exists=info["image_exists"],
+            )
+            window.control_pane.docker_panel.set_enabled(config.docker_enabled)
+        except Exception:
+            pass
+
+    def on_docker_toggle(enabled: bool):
+        config.docker_enabled = enabled
+        activity.info("docker", f"Docker mode {'enabled' if enabled else 'disabled'}")
+        # Re-initialize sandbox with new mode
+        if config.sandbox_root:
+            engine.set_sandbox(config.sandbox_root)
+        _refresh_docker_status()
+        mode = "Docker container" if engine.docker_runner else "local subprocess"
+        window.set_status(f"Sandbox mode: {mode}")
+
+    def on_docker_build():
+        activity.info("docker", "Building sandbox image...")
+
+        def _build():
+            dockerfile_dir = str(PROJECT_ROOT / "docker")
+            success = engine.docker_manager.build_image(dockerfile_dir)
+            root.after(0, lambda: _on_build_done(success))
+
+        def _on_build_done(success):
+            if success:
+                activity.info("docker", "Image built successfully")
+            else:
+                activity.error("docker", "Image build failed — check Docker Desktop")
+            _refresh_docker_status()
+
+        threading.Thread(target=_build, daemon=True, name="docker-build").start()
+
+    def on_docker_start():
+        activity.info("docker", "Starting container...")
+
+        def _start():
+            # Ensure image exists
+            if not engine.docker_manager.image_exists():
+                root.after(0, lambda: activity.error("docker",
+                    "No image — press Build first"))
+                return
+            success = engine.docker_manager.create_and_start(
+                config.sandbox_root,
+                memory_limit=config.docker_memory_limit,
+                cpu_limit=config.docker_cpu_limit,
+            )
+            root.after(0, lambda: _on_start_done(success))
+
+        def _on_start_done(success):
+            if success:
+                # If Docker mode is enabled, re-initialize to pick up the runner
+                if config.docker_enabled:
+                    engine.set_sandbox(config.sandbox_root)
+                activity.info("docker", "Container started")
+            else:
+                activity.error("docker", "Container start failed")
+            _refresh_docker_status()
+
+        threading.Thread(target=_start, daemon=True, name="docker-start").start()
+
+    def on_docker_stop():
+        engine.docker_manager.stop()
+        # If we were using Docker runner, re-init to fall back to local
+        if engine.docker_runner:
+            engine.set_sandbox(config.sandbox_root)
+        _refresh_docker_status()
+        activity.info("docker", "Container stopped")
+
+    def on_docker_destroy():
+        from tkinter import messagebox
+        if not messagebox.askyesno("Destroy Container",
+                "This will remove the sandbox container.\n"
+                "Files in the sandbox directory are NOT affected.\n\n"
+                "Proceed?"):
+            return
+        engine.docker_manager.destroy()
+        if engine.docker_runner:
+            engine.set_sandbox(config.sandbox_root)
+        _refresh_docker_status()
+        activity.info("docker", "Container destroyed")
+
     # ── Close callback ────────────────────────────────
     def on_close():
         log.info("Application closing")
@@ -385,6 +472,11 @@ def main() -> None:
         on_session_branch=on_session_branch,
         on_sandbox_pick=on_sandbox_pick,
         on_faux_click=_handle_faux_click,
+        on_docker_toggle=on_docker_toggle,
+        on_docker_build=on_docker_build,
+        on_docker_start=on_docker_start,
+        on_docker_stop=on_docker_stop,
+        on_docker_destroy=on_docker_destroy,
     )
 
     # ── Apply window geometry ─────────────────────────
@@ -392,7 +484,7 @@ def main() -> None:
 
     # ── Start engine ──────────────────────────────────
     engine.start()
-    activity.info("app", "AgenticTOOLBOX ready")
+    activity.info("app", "MindshardAGENT ready")
     activity.info("app", f"Sandbox: {config.sandbox_root}")
     window.set_status("Ready — refresh models to begin")
     window.set_sandbox_path(config.sandbox_root)
@@ -430,10 +522,24 @@ def main() -> None:
 
     root.after(1000, _poll_resources)
 
+    # ── Docker status check on startup ─────────────
+    def _init_docker_status():
+        _refresh_docker_status()
+    root.after(800, _init_docker_status)
+
+    # ── Docker status polling (every 10s) ──────────
+    def _poll_docker():
+        try:
+            _refresh_docker_status()
+        except Exception:
+            pass
+        root.after(10000, _poll_docker)
+    root.after(10000, _poll_docker)
+
     # ── Main loop ─────────────────────────────────────
     log.info("Entering main loop")
     root.mainloop()
-    log.info("=== AgenticTOOLBOX shutdown complete ===")
+    log.info("=== MindshardAGENT shutdown complete ===")
 
 
 if __name__ == "__main__":

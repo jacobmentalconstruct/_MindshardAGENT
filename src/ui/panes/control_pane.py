@@ -9,6 +9,7 @@ from src.ui.widgets.model_picker import ModelPicker
 from src.ui.widgets.status_light import StatusLight
 from src.ui.widgets.faux_button_panel import FauxButtonPanel
 from src.ui.widgets.session_panel import SessionPanel
+from src.ui.widgets.docker_panel import DockerPanel
 from src.ui.panes.input_pane import InputPane
 
 
@@ -100,7 +101,10 @@ class ControlPane(tk.Frame):
                  on_model_refresh=None, on_faux_click=None,
                  on_session_new=None, on_session_select=None,
                  on_session_rename=None, on_session_delete=None,
-                 on_session_branch=None, on_sandbox_pick=None, **kw):
+                 on_session_branch=None, on_sandbox_pick=None,
+                 on_docker_toggle=None, on_docker_build=None,
+                 on_docker_start=None, on_docker_stop=None,
+                 on_docker_destroy=None, **kw):
         kw.setdefault("bg", T.BG_DARK)
         super().__init__(parent, **kw)
 
@@ -128,6 +132,19 @@ class ControlPane(tk.Frame):
         # Resource status
         self.resources = ResourceBlock(self)
         self.resources.pack(fill="x", padx=4, pady=2)
+
+        tk.Frame(self, bg=T.BORDER, height=1).pack(fill="x", padx=8, pady=4)
+
+        # Docker sandbox controls
+        self.docker_panel = DockerPanel(
+            self,
+            on_toggle=on_docker_toggle,
+            on_build=on_docker_build,
+            on_start=on_docker_start,
+            on_stop=on_docker_stop,
+            on_destroy=on_docker_destroy,
+        )
+        self.docker_panel.pack(fill="x", padx=4, pady=2)
 
         tk.Frame(self, bg=T.BORDER, height=1).pack(fill="x", padx=8, pady=4)
 
