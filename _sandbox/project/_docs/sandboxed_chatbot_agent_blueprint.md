@@ -165,7 +165,7 @@ For the prototype release, defer:
 This stays aligned with the existing scaffold and contract.
 
 ```text
-_AgenticTOOLBOX/
+_MindshardAGENT/
 ├── README.md
 ├── LICENSE.md
 ├── requirements.txt

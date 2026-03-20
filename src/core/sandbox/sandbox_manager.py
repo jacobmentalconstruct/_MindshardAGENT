@@ -27,7 +27,7 @@ class SandboxManager:
 
         self._ensure_structure()
 
-        # Audit log lives in sandbox _logs/
+        # Audit log lives in .mindshard/logs/
         self._audit = AuditLog(self._root / "_logs" / "audit.jsonl")
         self._cli = CLIRunner(self._guard, activity,
                               on_confirm_destructive=on_confirm_destructive,

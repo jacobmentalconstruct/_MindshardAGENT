@@ -1,6 +1,6 @@
 """Tool catalog — registry of built-in, official, and sandbox-local tools.
 
-Built-in tools: cli_in_sandbox, write_file, read_file
+Built-in tools: cli_in_sandbox, write_file, read_file, list_files, reload_tools
 """
 
 from dataclasses import dataclass, field
@@ -60,6 +60,28 @@ READ_FILE = ToolEntry(
     },
 )
 
+LIST_FILES = ToolEntry(
+    name="list_files",
+    description="List files and directories within the sandbox as a structured JSON tree. "
+                "Use this to explore the workspace — much better than running dir or ls.",
+    source="builtin",
+    callable_name="list_files",
+    parameters={
+        "path": {"type": "string", "description": "Directory path relative to sandbox root (empty = root)"},
+        "depth": {"type": "integer", "description": "How many levels deep to recurse (default: 3)"},
+    },
+)
+
+RELOAD_TOOLS = ToolEntry(
+    name="reload_tools",
+    description="Re-scan .mindshard/tools/ and register any new or updated sandbox tools. "
+                "Call this after writing a new tool script so you can use it immediately. "
+                "Returns the list of currently available sandbox tools.",
+    source="builtin",
+    callable_name="reload_tools",
+    parameters={},
+)
+
 
 class ToolCatalog:
     """Registry of available tools."""
@@ -69,6 +91,8 @@ class ToolCatalog:
         self.register(CLI_IN_SANDBOX)
         self.register(WRITE_FILE)
         self.register(READ_FILE)
+        self.register(LIST_FILES)
+        self.register(RELOAD_TOOLS)
 
     def register(self, entry: ToolEntry) -> None:
         self._tools[entry.name] = entry
@@ -79,6 +103,29 @@ class ToolCatalog:
 
     def list_tools(self) -> list[ToolEntry]:
         return list(self._tools.values())
+
+    def reload_sandbox_tools(self, sandbox_root: str) -> list[str]:
+        """Clear all sandbox_local tools and re-discover from .mindshard/tools/.
+
+        Returns list of newly registered tool names.
+        """
+        from src.core.sandbox.tool_discovery import discover_tools
+        # Remove all previously registered sandbox tools
+        stale = [name for name, entry in self._tools.items()
+                 if entry.source == "sandbox_local"]
+        for name in stale:
+            del self._tools[name]
+        # Re-discover and register
+        entries = discover_tools(sandbox_root)
+        for entry in entries:
+            self.register(entry)
+        names = [e.name for e in entries]
+        log.info("Reloaded sandbox tools: %s", names or "none")
+        return names
+
+    def sandbox_tool_names(self) -> list[str]:
+        """Return names of all currently registered sandbox_local tools."""
+        return [name for name, e in self._tools.items() if e.source == "sandbox_local"]
 
     def to_schema_list(self) -> list[dict[str, Any]]:
         """Export tool definitions as JSON-schema-like dicts for prompt building."""

@@ -1,4 +1,4 @@
-"""Tool discovery — scans sandbox _tools/ for Python scripts with metadata headers.
+"""Tool discovery — scans sandbox .mindshard/tools/ for Python scripts with metadata headers.
 
 Tools must have a docstring header block containing structured metadata:
     '''
@@ -84,7 +84,7 @@ def _parse_docstring_meta(source: str) -> dict[str, Any] | None:
 
 
 def discover_tools(sandbox_root: str | Path) -> list[ToolEntry]:
-    """Scan _tools/ directory for Python scripts with tool metadata.
+    """Scan .mindshard/tools/ directory for Python scripts with tool metadata.
 
     Args:
         sandbox_root: Path to the sandbox root directory.
@@ -92,10 +92,10 @@ def discover_tools(sandbox_root: str | Path) -> list[ToolEntry]:
     Returns:
         List of discovered ToolEntry objects.
     """
-    tools_dir = Path(sandbox_root) / "_tools"
+    tools_dir = Path(sandbox_root) / ".mindshard" / "tools"
     if not tools_dir.exists():
         tools_dir.mkdir(parents=True, exist_ok=True)
-        log.info("Created _tools/ directory at %s", tools_dir)
+        log.info("Created .mindshard/tools/ directory at %s", tools_dir)
         return []
 
     discovered = []

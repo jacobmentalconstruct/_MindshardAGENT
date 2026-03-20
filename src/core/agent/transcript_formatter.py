@@ -31,6 +31,32 @@ def format_tool_result(tool_result: dict[str, Any]) -> str:
             content = content[:3000] + "\n... (truncated)"
         return f"[Tool '{name}' completed] {path} ({size} bytes):\n{content}"
 
+    if name == "reload_tools":
+        summary = result.get("summary", "Tools reloaded.")
+        tools = result.get("tools", [])
+        return f"[Tool '{name}' completed] {summary}"
+
+    if name == "list_files":
+        import json
+        path = result.get("path", ".")
+        tree = result.get("tree", [])
+
+        def _render(entries, indent=0) -> list[str]:
+            lines = []
+            for entry in entries:
+                prefix = "  " * indent
+                if entry["type"] == "dir":
+                    lines.append(f"{prefix}{entry['name']}/")
+                    if "children" in entry:
+                        lines.extend(_render(entry["children"], indent + 1))
+                else:
+                    size_kb = entry.get("size", 0) / 1024
+                    lines.append(f"{prefix}{entry['name']}  ({size_kb:.1f}KB)")
+            return lines
+
+        rendered = "\n".join(_render(tree))
+        return f"[Tool '{name}' completed] Directory: {path}\n{rendered}"
+
     # Default: CLI-style result with exit_code/stdout/stderr
     parts = [f"[Tool '{name}' completed (exit code {result.get('exit_code', '?')})]"]
 

@@ -26,7 +26,7 @@ class CLIPane(tk.Frame):
         # Output area
         self._output = tk.Text(
             self, wrap="word", font=T.FONT_LOG,
-            fg=T.GREEN, bg="#060a10",
+            fg=T.GREEN, bg=T.BG_DEEPEST,
             relief="flat", bd=0, highlightthickness=1,
             highlightcolor=T.BORDER, highlightbackground=T.BORDER,
             insertbackground=T.GREEN, padx=8, pady=4,

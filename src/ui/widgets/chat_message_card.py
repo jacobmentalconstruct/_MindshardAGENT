@@ -7,8 +7,8 @@ from src.ui import theme as T
 # Role-specific styling
 _ROLE_STYLES = {
     "user": {"accent": T.CYAN, "label": "YOU", "bg": T.BG_MID},
-    "assistant": {"accent": T.PURPLE, "label": "AGENT", "bg": "#13182b"},
-    "tool": {"accent": T.MAGENTA, "label": "TOOL", "bg": "#17122a"},
+    "assistant": {"accent": T.PURPLE, "label": "AGENT", "bg": T.BG_AGENT},
+    "tool": {"accent": T.MAGENTA, "label": "TOOL", "bg": T.BG_TOOL},
     "system": {"accent": T.AMBER, "label": "SYS", "bg": T.BG_MID},
 }
 

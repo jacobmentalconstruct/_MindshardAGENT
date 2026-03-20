@@ -22,6 +22,7 @@ from src.core.sandbox.command_policy import CommandPolicy
 from src.core.config.app_config import AppConfig
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
+from src.core.sessions.knowledge_store import KnowledgeStore
 
 log = get_logger("response_loop")
 
@@ -38,12 +39,22 @@ class ResponseLoop:
         tool_router: ToolRouter,
         activity: ActivityStream,
         command_policy: CommandPolicy | None = None,
+        knowledge_store: KnowledgeStore | None = None,
+        embed_fn=None,
+        session_id_fn=None,
+        docker_mode: bool = False,
+        journal=None,
     ):
         self._config = config
         self._command_policy = command_policy
         self._catalog = tool_catalog
         self._router = tool_router
         self._activity = activity
+        self._knowledge = knowledge_store
+        self._embed_fn = embed_fn          # Callable(str) -> list[float]
+        self._session_id_fn = session_id_fn  # Callable() -> str | None
+        self._docker_mode = docker_mode
+        self._journal = journal            # ActionJournal | None
 
     def run_turn(
         self,
@@ -80,6 +91,37 @@ class ResponseLoop:
         on_token, on_complete, on_error,
         on_tool_start, on_tool_result,
     ) -> None:
+        # RAG: retrieve relevant context for the user's query
+        rag_context = ""
+        if (self._config.rag_enabled and self._knowledge
+                and self._embed_fn and self._session_id_fn):
+            try:
+                sid = self._session_id_fn()
+                if sid and self._knowledge.count(sid) > 0:
+                    query_vec = self._embed_fn(user_text)
+                    hits = self._knowledge.query(
+                        sid, query_vec,
+                        top_k=self._config.rag_top_k,
+                        min_score=self._config.rag_min_score,
+                    )
+                    if hits:
+                        rag_context = "\n---\n".join(
+                            f"[{h['source_role']}/{h['source']}] {h['content']}"
+                            for h in hits
+                        )
+                        self._activity.info("rag",
+                            f"Retrieved {len(hits)} chunks (best={hits[0]['score']:.3f})")
+            except Exception as e:
+                log.warning("RAG retrieval failed: %s", e)
+
+        # Get recent action journal for orientation
+        journal_context = ""
+        if self._journal:
+            try:
+                journal_context = self._journal.summary_since(10)
+            except Exception:
+                pass
+
         # Build system prompt
         system = build_system_prompt(
             sandbox_root=self._config.sandbox_root,
@@ -87,6 +129,9 @@ class ResponseLoop:
             command_policy=self._command_policy,
             session_title="",
             model_name=self._config.selected_model,
+            rag_context=rag_context,
+            docker_mode=self._docker_mode,
+            journal_context=journal_context,
         )
 
         # Add user message
@@ -136,6 +181,28 @@ class ResponseLoop:
             else:
                 # No tool calls, we're done
                 break
+
+        # RAG: store user query and assistant response as knowledge
+        final_text = "\n".join(total_content)
+        if (self._config.rag_enabled and self._knowledge
+                and self._embed_fn and self._session_id_fn):
+            sid = self._session_id_fn()
+            if sid and len(final_text.strip()) > 20:
+                try:
+                    self._knowledge.add_text(
+                        sid, final_text, self._embed_fn,
+                        source="chat", source_role="assistant",
+                        max_chunk_chars=self._config.rag_chunk_max_chars,
+                    )
+                    # Also store user query for future context
+                    if len(user_text.strip()) > 20:
+                        self._knowledge.add_text(
+                            sid, user_text, self._embed_fn,
+                            source="chat", source_role="user",
+                            max_chunk_chars=self._config.rag_chunk_max_chars,
+                        )
+                except Exception as e:
+                    log.warning("RAG storage failed: %s", e)
 
         # Final result
         meta = {

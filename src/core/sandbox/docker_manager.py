@@ -5,6 +5,7 @@ check status. The agent never sees or controls Docker — it just gets a Linux
 shell instead of Windows cmd.exe.
 """
 
+import hashlib
 import subprocess
 import json
 from pathlib import Path
@@ -15,16 +16,40 @@ from src.core.runtime.runtime_logger import get_logger
 
 log = get_logger("docker_manager")
 
-CONTAINER_NAME = "mindshard-sandbox"
 IMAGE_NAME = "mindshard-sandbox:latest"
 CONTAINER_WORKDIR = "/sandbox"
+
+
+def _derive_container_name(sandbox_root: str | Path) -> str:
+    """Derive a unique container name from the sandbox path.
+
+    Each install/sandbox gets its own container so multiple instances
+    don't collide.  Format: mindshard-<8-char hash>
+    """
+    path_str = str(Path(sandbox_root).resolve()).lower()
+    short_hash = hashlib.sha256(path_str.encode()).hexdigest()[:8]
+    return f"mindshard-{short_hash}"
 
 
 class DockerManager:
     """Manages the MindshardAGENT sandbox Docker container."""
 
-    def __init__(self, activity: ActivityStream):
+    def __init__(self, activity: ActivityStream, sandbox_root: str | Path = ""):
         self._activity = activity
+        # Container name derived from sandbox path — unique per install
+        self._container_name = (
+            _derive_container_name(sandbox_root) if sandbox_root
+            else "mindshard-sandbox"
+        )
+
+    def set_sandbox_root(self, sandbox_root: str | Path) -> None:
+        """Update the container name when sandbox root changes."""
+        self._container_name = _derive_container_name(sandbox_root)
+        log.info("Container name set: %s", self._container_name)
+
+    @property
+    def container_name(self) -> str:
+        return self._container_name
 
     def is_docker_available(self) -> bool:
         """Check if Docker daemon is running."""
@@ -91,7 +116,7 @@ class DockerManager:
         """Get container status: 'running', 'stopped', 'not_found', or 'error'."""
         try:
             result = subprocess.run(
-                ["docker", "inspect", "-f", "{{.State.Status}}", CONTAINER_NAME],
+                ["docker", "inspect", "-f", "{{.State.Status}}", self._container_name],
                 capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
@@ -126,7 +151,7 @@ class DockerManager:
 
         cmd = [
             "docker", "run", "-d",
-            "--name", CONTAINER_NAME,
+            "--name", self._container_name,
             "--memory", memory_limit,
             "--cpus", str(cpu_limit),
             "--network", "none",  # No network access for the sandbox
@@ -145,8 +170,8 @@ class DockerManager:
             if result.returncode == 0:
                 container_id = result.stdout.strip()[:12]
                 self._activity.info("docker",
-                    f"Container {CONTAINER_NAME} started ({container_id})")
-                log.info("Container started: %s (%s)", CONTAINER_NAME, container_id)
+                    f"Container {self._container_name} started ({container_id})")
+                log.info("Container started: %s (%s)", self._container_name, container_id)
                 return True
             else:
                 self._activity.error("docker",
@@ -162,11 +187,11 @@ class DockerManager:
         """Stop the running container."""
         try:
             result = subprocess.run(
-                ["docker", "stop", CONTAINER_NAME],
+                ["docker", "stop", self._container_name],
                 capture_output=True, text=True, timeout=15,
             )
             if result.returncode == 0:
-                self._activity.info("docker", f"Container {CONTAINER_NAME} stopped")
+                self._activity.info("docker", f"Container {self._container_name} stopped")
                 return True
             return False
         except Exception:
@@ -176,11 +201,11 @@ class DockerManager:
         """Stop and remove the container."""
         try:
             subprocess.run(
-                ["docker", "rm", "-f", CONTAINER_NAME],
+                ["docker", "rm", "-f", self._container_name],
                 capture_output=True, text=True, timeout=15,
             )
-            self._activity.info("docker", f"Container {CONTAINER_NAME} removed")
-            log.info("Container destroyed: %s", CONTAINER_NAME)
+            self._activity.info("docker", f"Container {self._container_name} removed")
+            log.info("Container destroyed: %s", self._container_name)
             return True
         except Exception:
             return False
@@ -206,7 +231,7 @@ class DockerManager:
         cmd = [
             "docker", "exec",
             "-w", cwd,
-            CONTAINER_NAME,
+            self._container_name,
             "bash", "-c", command,
         ]
 
@@ -236,7 +261,7 @@ class DockerManager:
         """Get container info for display."""
         status = self.container_status()
         info = {
-            "container_name": CONTAINER_NAME,
+            "container_name": self._container_name,
             "image": IMAGE_NAME,
             "status": status,
             "docker_available": self.is_docker_available(),

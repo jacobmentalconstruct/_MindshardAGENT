@@ -1,7 +1,7 @@
 """Command audit log — persistent record of all executed commands.
 
 Appends a JSON-lines entry for every command attempt (allowed, blocked,
-cancelled, succeeded, failed). Lives at _sandbox/_logs/audit.jsonl.
+cancelled, succeeded, failed). Lives at .mindshard/logs/audit.jsonl.
 """
 
 import json

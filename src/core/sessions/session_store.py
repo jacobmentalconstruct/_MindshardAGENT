@@ -1,7 +1,7 @@
 """SQLite-backed session persistence.
 
 Supports: new, save, load, delete, branch, list.
-Database lives at _sandbox/_sessions/sessions.db by default.
+Database lives at .mindshard/sessions/sessions.db by default.
 """
 
 import sqlite3
@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from src.core.sessions.sqlite_schema import SCHEMA_SQL
+from src.core.sessions.sqlite_schema import SCHEMA_SQL, run_migrations
 from src.core.utils.ids import make_session_id, make_message_id
 from src.core.utils.clock import utc_iso
 from src.core.runtime.runtime_logger import get_logger
@@ -37,6 +37,7 @@ class SessionStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
+        run_migrations(self._conn)
         log.info("SessionStore initialized at %s", self._db_path)
 
     def close(self) -> None:
@@ -146,6 +147,39 @@ class SessionStore:
         if purged:
             log.info("Purged %d empty session(s)", purged)
         return purged
+
+    # ── Per-session command policy ─────────────────────
+
+    def get_command_policy(self, session_id: str) -> dict:
+        """Return the per-session command policy overrides (or empty dict).
+
+        Policy JSON format:
+          {"allow_add": ["npm", "yarn"], "allow_remove": ["git"], "notes": "..."}
+        - allow_add: extra commands permitted beyond the global allowlist
+        - allow_remove: global-allowed commands blocked for this session
+        """
+        import json
+        cur = self._conn.execute(
+            "SELECT command_policy_json FROM sessions WHERE session_id = ?",
+            (session_id,))
+        row = cur.fetchone()
+        if not row or not row[0]:
+            return {}
+        try:
+            return json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_command_policy(self, session_id: str, policy: dict) -> None:
+        """Save per-session command policy overrides."""
+        import json
+        policy_json = json.dumps(policy) if policy else ""
+        self._conn.execute(
+            "UPDATE sessions SET command_policy_json = ?, updated_at = ? "
+            "WHERE session_id = ?",
+            (policy_json, utc_iso(), session_id))
+        self._conn.commit()
+        log.info("Command policy updated for session %s", session_id)
 
     # ── Branching ─────────────────────────────────────
 

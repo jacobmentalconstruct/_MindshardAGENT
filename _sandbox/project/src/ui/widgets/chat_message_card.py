@@ -35,21 +35,16 @@ class ChatMessageCard(tk.Frame):
         role_lbl.pack(anchor="w")
 
         # Message text
-        msg = tk.Text(body, wrap="word", font=T.FONT_BODY,
-                      fg=T.TEXT_PRIMARY, bg=style["bg"],
-                      relief="flat", bd=0, highlightthickness=0,
-                      padx=0, pady=4)
-        msg.insert("1.0", content)
-        msg.config(state="disabled")
+        self._msg = tk.Text(body, wrap="word", font=T.FONT_BODY,
+                            fg=T.TEXT_PRIMARY, bg=style["bg"],
+                            relief="flat", bd=0, highlightthickness=0,
+                            padx=0, pady=4)
+        self._msg.insert("1.0", content)
+        self._msg.config(state="disabled")
 
         # Auto-height: count lines needed
-        line_count = max(1, content.count("\n") + 1)
-        char_width = 80  # approximate chars per line
-        for line in content.split("\n"):
-            if len(line) > char_width:
-                line_count += len(line) // char_width
-        msg.config(height=min(line_count, 30))
-        msg.pack(fill="x", expand=True)
+        self._resize_to_content()
+        self._msg.pack(fill="x", expand=True)
 
         # Metadata row (assistant messages)
         if metadata and role == "assistant":
@@ -59,3 +54,26 @@ class ChatMessageCard(tk.Frame):
                 tag = tk.Label(meta_frame, text=f"{key}: {val}", font=T.FONT_SMALL,
                                fg=T.TEXT_DIM, bg=style["bg"], padx=6)
                 tag.pack(side="left")
+
+    @property
+    def text_widget(self) -> tk.Text:
+        """Access the internal Text widget for streaming updates."""
+        return self._msg
+
+    def _resize_to_content(self) -> None:
+        """Resize the text widget height to fit its content."""
+        content = self._msg.get("1.0", "end-1c")
+        line_count = max(1, content.count("\n") + 1)
+        char_width = 80
+        for line in content.split("\n"):
+            if len(line) > char_width:
+                line_count += len(line) // char_width
+        self._msg.config(height=min(line_count, 50))
+
+    def update_streaming_content(self, content: str) -> None:
+        """Update card content during streaming and auto-resize."""
+        self._msg.config(state="normal")
+        self._msg.delete("1.0", "end")
+        self._msg.insert("1.0", content)
+        self._msg.config(state="disabled")
+        self._resize_to_content()

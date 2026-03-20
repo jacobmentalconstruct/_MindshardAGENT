@@ -8,7 +8,7 @@ import tkinter as tk
 from src.ui import theme as T
 
 
-_PLACEHOLDER_LABELS = ["Load Self", "Sync Back", "Tools", "Plan", "Branch", "Clear"]
+_PLACEHOLDER_LABELS = ["Attach Self", "Sync to Source", "Add Ref", "Add Parts", "Detach", "Clear"]
 
 
 class FauxButtonPanel(tk.Frame):

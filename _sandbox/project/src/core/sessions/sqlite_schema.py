@@ -46,7 +46,20 @@ CREATE TABLE IF NOT EXISTS tool_runs (
     FOREIGN KEY (message_id) REFERENCES messages(message_id)
 );
 
+CREATE TABLE IF NOT EXISTS knowledge (
+    chunk_id      TEXT PRIMARY KEY,
+    session_id    TEXT NOT NULL,
+    content       TEXT NOT NULL,
+    embedding     BLOB NOT NULL,
+    source        TEXT DEFAULT '',
+    source_role   TEXT DEFAULT '',
+    dim           INTEGER NOT NULL DEFAULT 384,
+    created_at    TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_runs_session ON tool_runs(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_runs_message ON tool_runs(message_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_session ON knowledge(session_id);
 """

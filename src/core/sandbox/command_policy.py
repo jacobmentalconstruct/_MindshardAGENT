@@ -309,9 +309,43 @@ class CommandPolicy:
             mode: "allowlist" (strict, default) or "permissive" (blocklist only)
         """
         self.mode = mode
-        self._allowed = set(ALLOWED_COMMANDS.keys())
+        self._base_allowed = set(ALLOWED_COMMANDS.keys())
+        self._allowed = set(self._base_allowed)
         self._blocked = set(ALWAYS_BLOCKED)
         self._destructive = set(DESTRUCTIVE_COMMANDS)
+        self._session_overrides: dict = {}
+
+    def apply_session_overrides(self, overrides: dict) -> None:
+        """Apply per-session command policy overrides.
+
+        Args:
+            overrides: {"allow_add": [...], "allow_remove": [...]}
+                       allow_add: extra commands to permit (cannot override ALWAYS_BLOCKED)
+                       allow_remove: global-allowed commands to block for this session
+        """
+        # Reset to base
+        self._allowed = set(self._base_allowed)
+        self._session_overrides = overrides
+
+        for cmd in overrides.get("allow_add", []):
+            cmd_lower = cmd.lower().strip()
+            # Never allow ALWAYS_BLOCKED commands regardless of session policy
+            if cmd_lower not in self._blocked:
+                self._allowed.add(cmd_lower)
+
+        for cmd in overrides.get("allow_remove", []):
+            cmd_lower = cmd.lower().strip()
+            self._allowed.discard(cmd_lower)
+
+        log.info("Session policy applied: +%s -%s",
+                 overrides.get("allow_add", []),
+                 overrides.get("allow_remove", []))
+
+    def clear_session_overrides(self) -> None:
+        """Reset to default global policy."""
+        self._allowed = set(self._base_allowed)
+        self._session_overrides = {}
+        log.info("Session policy cleared — using global defaults")
 
     def validate(self, command: str) -> tuple[bool, str]:
         """Check if a command is permitted.

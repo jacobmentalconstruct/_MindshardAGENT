@@ -1,6 +1,0 @@
-print("Hello, World!")
-print("My app is running!")
-print("This is a simple hello world application.")
-print("\n")
-print("Version: 1.0.0")
-print("Created on: March 17, 2025")

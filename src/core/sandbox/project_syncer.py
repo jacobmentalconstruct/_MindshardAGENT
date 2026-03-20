@@ -1,15 +1,14 @@
-"""Project sync-back — applies sandbox/project/ changes to the real source tree.
+"""Project sync-back — applies sandbox/project changes to the real source tree.
 
 Workflow:
-    1. User clicks "Load Self" → project_loader copies source into sandbox/project/
-    2. Agent reads/modifies files in sandbox/project/
-    3. User clicks "Sync Back" → this module diffs and applies changes
+    1. User attaches a project → agent reads/modifies files in the project root
+    2. If source_path is set in project_meta, "Sync Back" diffs and applies changes
 
 Safety:
     - Always generates a diff summary BEFORE writing
-    - Writes a sync manifest to _sandbox/_logs/sync_log.jsonl
+    - Writes a sync manifest to .mindshard/logs/sync_log.jsonl
     - Never touches files outside the project root
-    - Skips _sandbox, venv, __pycache__, .git directories
+    - Skips _sandbox, venv, __pycache__, .git, .mindshard directories
 """
 
 import json
@@ -26,7 +25,7 @@ log = get_logger("project_syncer")
 # Directories that should never be synced back
 _NEVER_SYNC = {
     "venv", ".venv", "__pycache__", ".git", ".idea", ".vscode",
-    "_sandbox", "node_modules", ".mypy_cache", ".pytest_cache",
+    "_sandbox", "node_modules", ".mypy_cache", ".pytest_cache", ".mindshard",
 }
 
 # Extensions that should never be synced back
@@ -36,9 +35,14 @@ _NEVER_SYNC_EXT = {".pyc", ".pyo", ".db", ".db-shm", ".db-wal", ".log", ".jsonl"
 def diff_sandbox_to_source(
     sandbox_root: str | Path,
     project_root: str | Path,
-    target_name: str = "project",
+    target_name: str = "",
 ) -> dict[str, Any]:
-    """Compare sandbox/project/ against real source tree.
+    """Compare sandbox project dir against real source tree.
+
+    Args:
+        sandbox_root: Sandbox root directory
+        project_root: Real project root
+        target_name: Subfolder name in sandbox (empty string = sandbox root itself)
 
     Returns:
         {
@@ -50,7 +54,10 @@ def diff_sandbox_to_source(
             "project_dir": str,
         }
     """
-    sandbox_dir = Path(sandbox_root).resolve() / target_name
+    if target_name:
+        sandbox_dir = Path(sandbox_root).resolve() / target_name
+    else:
+        sandbox_dir = Path(sandbox_root).resolve()
     source_dir = Path(project_root).resolve()
 
     if not sandbox_dir.exists():
@@ -98,7 +105,7 @@ def diff_sandbox_to_source(
 def apply_sync(
     sandbox_root: str | Path,
     project_root: str | Path,
-    target_name: str = "project",
+    target_name: str = "",
     apply_deletes: bool = False,
 ) -> dict[str, Any]:
     """Apply sandbox changes back to the real source tree.
@@ -106,7 +113,7 @@ def apply_sync(
     Args:
         sandbox_root: Sandbox root directory
         project_root: Real project root
-        target_name: Subfolder name in sandbox
+        target_name: Subfolder name in sandbox (empty string = sandbox root itself)
         apply_deletes: If True, also delete files that were removed in sandbox
 
     Returns:
@@ -116,7 +123,10 @@ def apply_sync(
     if diff.get("error"):
         return diff
 
-    sandbox_dir = Path(sandbox_root).resolve() / target_name
+    if target_name:
+        sandbox_dir = Path(sandbox_root).resolve() / target_name
+    else:
+        sandbox_dir = Path(sandbox_root).resolve()
     source_dir = Path(project_root).resolve()
 
     applied_add = []
@@ -174,7 +184,7 @@ def apply_sync(
 def log_sync(sandbox_root: str | Path, sync_result: dict[str, Any],
              direction: str = "sandbox_to_source") -> None:
     """Append a sync event to the sync log (JSON-lines)."""
-    log_path = Path(sandbox_root).resolve() / "_logs" / "sync_log.jsonl"
+    log_path = Path(sandbox_root).resolve() / ".mindshard" / "logs" / "sync_log.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     entry = {
@@ -193,7 +203,7 @@ def log_sync(sandbox_root: str | Path, sync_result: dict[str, Any],
 
 def get_sync_log(sandbox_root: str | Path, limit: int = 20) -> list[dict]:
     """Read recent sync log entries."""
-    log_path = Path(sandbox_root).resolve() / "_logs" / "sync_log.jsonl"
+    log_path = Path(sandbox_root).resolve() / ".mindshard" / "logs" / "sync_log.jsonl"
     if not log_path.exists():
         return []
     entries = []

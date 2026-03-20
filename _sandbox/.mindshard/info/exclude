@@ -1,0 +1,17 @@
+# MindshardAGENT workspace excludes
+.mindshard
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+venv/
+.venv/
+node_modules/
+*.egg-info/
+.DS_Store
+Thumbs.db
+_sessions/
+_logs/

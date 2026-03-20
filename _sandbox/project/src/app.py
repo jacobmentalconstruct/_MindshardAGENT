@@ -15,7 +15,7 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 
-# Project root is the _AgenticTOOLBOX directory
+# Project root is the _MindshardAGENT directory
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Ensure project root is on sys.path for package imports
@@ -28,10 +28,12 @@ from src.core.runtime.event_bus import EventBus
 from src.core.config.app_config import AppConfig
 from src.core.engine import Engine
 from src.core.sessions.session_store import SessionStore
+from src.core.sessions.knowledge_store import KnowledgeStore
 from src.core.registry.state_registry import StateRegistry
 from src.core.registry.session_registry import register_session, register_message
 from src.ui.ui_state import UIState
 from src.ui.gui_main import MainWindow
+import src.core.runtime.action_journal as aj
 
 
 def main() -> None:
@@ -42,7 +44,7 @@ def main() -> None:
     log_dir = PROJECT_ROOT / config.log_dir
     init_logging(log_dir=log_dir)
     log = get_logger("app")
-    log.info("=== AgenticTOOLBOX starting ===")
+    log.info("=== MindshardAGENT starting ===")
     log.info("Project root: %s", PROJECT_ROOT)
 
     # ── Runtime infrastructure ────────────────────────
@@ -90,6 +92,13 @@ def main() -> None:
     # ── Session store ─────────────────────────────────
     sessions_db = Path(config.sandbox_root) / "_sessions" / "sessions.db"
     session_store = SessionStore(sessions_db)
+
+    # ── Knowledge store (RAG) ─────────────────────────
+    knowledge_store = KnowledgeStore(session_store._conn)
+    engine.set_knowledge_store(
+        knowledge_store,
+        session_id_fn=lambda: active_session["sid"],
+    )
 
     # ── Active session tracking ───────────────────────
     active_session = {"sid": None, "node_id": None}
@@ -151,18 +160,27 @@ def main() -> None:
 
     def on_session_new():
         sid = session_store.new_session(
-            title="New Session",
             model=config.selected_model,
             sandbox_root=config.sandbox_root,
         )
         _load_session(sid)
-        activity.info("session", "New session created")
+        session = session_store.get_session(sid)
+        title = session["title"] if session else sid
+        activity.info("session", f"New session: {title}")
+        if engine.journal:
+            engine.journal.record(aj.SESSION_START, f"New session: {title}",
+                                  {"session_id": sid, "title": title})
 
     def on_session_select(sid: str):
         if sid == active_session["sid"]:
             return
         _save_current_session()
         _load_session(sid)
+        session = session_store.get_session(sid)
+        if engine.journal:
+            engine.journal.record(aj.SESSION_SWITCH,
+                f"Switched to: {session['title'] if session else sid}",
+                {"session_id": sid})
 
     def on_session_rename(sid: str, new_title: str):
         session_store.save_session(sid, title=new_title)
@@ -175,8 +193,12 @@ def main() -> None:
     def on_session_delete(sid: str):
         session_store.delete_session(sid)
         if sid == active_session["sid"]:
-            # Create a new session if we just deleted the active one
-            on_session_new()
+            # Try to switch to another existing session first
+            remaining = session_store.list_sessions()
+            if remaining:
+                _load_session(remaining[0]["session_id"])
+            else:
+                on_session_new()
         else:
             _refresh_session_list()
         activity.info("session", "Session deleted")
@@ -219,14 +241,12 @@ def main() -> None:
         def _update_stream(card):
             try:
                 content = "".join(_streaming_content)
-                for child in card.winfo_children():
-                    for sub in child.winfo_children():
-                        if isinstance(sub, tk.Text):
-                            sub.config(state="normal")
-                            sub.delete("1.0", "end")
-                            sub.insert("1.0", content)
-                            sub.config(state="disabled")
-                            return
+                card.update_streaming_content(content)
+                # Force canvas to recalculate layout after card resize
+                window.chat_pane._inner.update_idletasks()
+                window.chat_pane._canvas.configure(
+                    scrollregion=window.chat_pane._canvas.bbox("all"))
+                window.chat_pane._canvas.yview_moveto(1.0)
             except Exception:
                 pass
 
@@ -243,8 +263,11 @@ def main() -> None:
                 activity.info("chat",
                     f"Response: {meta.get('tokens_out', '?')} tokens, {meta.get('time', '?')}")
 
-                # Persist assistant message
+                # Update response preview in Watch tab
                 content = result.get("content", "".join(_streaming_content))
+                window.control_pane.response_preview.set_text(content)
+
+                # Persist assistant message
                 sid = active_session["sid"]
                 if sid:
                     session_store.add_message(
@@ -279,6 +302,7 @@ def main() -> None:
     def on_model_select(model: str):
         config.selected_model = model
         ui_state.selected_model = model
+        engine.tokenizer.set_model(model)
         window.set_model(model)
         activity.info("model", f"Model selected: {model}")
 
@@ -316,15 +340,211 @@ def main() -> None:
         window.set_sandbox_path(new_root)
         ui_state.sandbox_root = new_root
 
-        # Re-initialize session store for new sandbox
-        nonlocal session_store
+        # Re-initialize session store and knowledge store for new sandbox
+        nonlocal session_store, knowledge_store
         new_db = Path(new_root) / "_sessions" / "sessions.db"
         session_store.close()
         session_store = SessionStore(new_db)
+        knowledge_store = KnowledgeStore(session_store._conn)
+        engine.set_knowledge_store(
+            knowledge_store,
+            session_id_fn=lambda: active_session["sid"],
+        )
 
         # Create initial session in new sandbox
         on_session_new()
         activity.info("sandbox", f"Sandbox changed to: {new_root}")
+
+    # ── Action button handlers ────────────────────────
+    def _handle_faux_click(label: str):
+        if label == "Load Self":
+            # Load project source into sandbox for agent self-iteration
+            from src.core.sandbox.project_loader import load_project, list_project_files, snapshot_manifest
+            dest = load_project(PROJECT_ROOT, config.sandbox_root)
+            files = list_project_files(config.sandbox_root)
+            activity.info("project", f"Project loaded: {len(files)} files -> sandbox/project/")
+            window.chat_pane.add_message("system",
+                f"📂 Project source loaded into sandbox/project/ ({len(files)} files). "
+                f"This is YOUR source code — the MindshardAGENT application. "
+                f"You can read and modify files here. Changes stay in sandbox until the user syncs back.")
+            # Journal it
+            if engine.journal:
+                engine.journal.record(aj.PROJECT_LOAD,
+                    f"Loaded {len(files)} source files into sandbox/project/",
+                    {"file_count": len(files), "dest": str(dest)})
+
+        elif label == "Sync Back":
+            # Diff sandbox/project/ against real source and apply changes
+            from src.core.sandbox.project_syncer import diff_sandbox_to_source, apply_sync, log_sync
+            diff = diff_sandbox_to_source(config.sandbox_root, PROJECT_ROOT)
+
+            if diff.get("error"):
+                activity.error("sync", diff["error"])
+                window.chat_pane.add_message("system", f"⚠ Sync failed: {diff['error']}")
+                return
+
+            n_add = len(diff["added"])
+            n_mod = len(diff["modified"])
+            n_del = len(diff["removed"])
+
+            if n_add == 0 and n_mod == 0 and n_del == 0:
+                activity.info("sync", "No changes to sync — sandbox matches source")
+                window.chat_pane.add_message("system", "✓ No changes detected — sandbox matches source.")
+                return
+
+            # Show diff summary and confirm
+            summary_lines = []
+            if n_add:
+                summary_lines.append(f"  + {n_add} new file(s): {', '.join(diff['added'][:5])}")
+                if n_add > 5:
+                    summary_lines.append(f"    ... and {n_add - 5} more")
+            if n_mod:
+                summary_lines.append(f"  ~ {n_mod} modified: {', '.join(diff['modified'][:5])}")
+                if n_mod > 5:
+                    summary_lines.append(f"    ... and {n_mod - 5} more")
+            if n_del:
+                summary_lines.append(f"  - {n_del} deleted: {', '.join(diff['removed'][:5])}")
+                if n_del > 5:
+                    summary_lines.append(f"    ... and {n_del - 5} more")
+
+            summary_text = "\n".join(summary_lines)
+            from tkinter import messagebox
+            proceed = messagebox.askyesno("Sync Back to Source",
+                f"Apply sandbox changes to real source?\n\n{summary_text}\n\n"
+                f"Deletions will NOT be applied (safety).\n"
+                f"This overwrites real source files.")
+            if not proceed:
+                activity.info("sync", "Sync cancelled by user")
+                return
+
+            result = apply_sync(config.sandbox_root, PROJECT_ROOT, apply_deletes=False)
+            log_sync(config.sandbox_root, result, direction="sandbox_to_source")
+
+            total = result["total_applied"]
+            errors = len(result["errors"])
+            activity.info("sync",
+                f"Sync complete: +{len(result['added'])} ~{len(result['modified'])} ({errors} errors)")
+            window.chat_pane.add_message("system",
+                f"🔄 Synced {total} file(s) back to source. "
+                f"+{len(result['added'])} new, ~{len(result['modified'])} modified. "
+                f"{f'{errors} error(s).' if errors else 'No errors.'}")
+
+            if engine.journal:
+                engine.journal.record(aj.PROJECT_SYNC,
+                    f"Synced {total} files: +{len(result['added'])} ~{len(result['modified'])}",
+                    {"added": result["added"], "modified": result["modified"],
+                     "errors": result["errors"]})
+
+        elif label == "Tools":
+            tools_dir = Path(config.sandbox_root) / "_tools"
+            tools = list(tools_dir.glob("*.py")) if tools_dir.exists() else []
+            if tools:
+                names = ", ".join(t.stem for t in tools)
+                activity.info("tools", f"Sandbox tools: {names}")
+            else:
+                activity.info("tools", "No sandbox tools found. Agent can create them.")
+
+        elif label == "Clear":
+            from tkinter import messagebox
+            if messagebox.askyesno("Clear Chat", "Clear the chat transcript? (Session history is preserved.)"):
+                window.chat_pane.clear()
+                engine.clear_history()
+                activity.info("ui", "Chat transcript cleared")
+
+        else:
+            activity.info("ui", f"Button '{label}' clicked (reserved)")
+
+    # ── Docker callbacks ─────────────────────────────
+    def _refresh_docker_status():
+        """Update the Docker panel with current container state."""
+        try:
+            info = engine.docker_manager.get_info()
+            window.control_pane.docker_panel.set_status(
+                info["status"],
+                docker_available=info["docker_available"],
+                image_exists=info["image_exists"],
+            )
+            window.control_pane.docker_panel.set_enabled(config.docker_enabled)
+        except Exception:
+            pass
+
+    def on_docker_toggle(enabled: bool):
+        config.docker_enabled = enabled
+        activity.info("docker", f"Docker mode {'enabled' if enabled else 'disabled'}")
+        if config.sandbox_root:
+            engine.set_sandbox(config.sandbox_root)
+        _refresh_docker_status()
+        mode = "Docker container" if engine.docker_runner else "local subprocess"
+        window.set_status(f"Sandbox mode: {mode}")
+        if engine.journal:
+            engine.journal.record(aj.DOCKER_EVENT,
+                f"Docker mode {'enabled' if enabled else 'disabled'} → {mode}")
+
+    def on_docker_build():
+        activity.info("docker", "Building sandbox image...")
+
+        def _build():
+            dockerfile_dir = str(PROJECT_ROOT / "docker")
+            success = engine.docker_manager.build_image(dockerfile_dir)
+            root.after(0, lambda: _on_build_done(success))
+
+        def _on_build_done(success):
+            if success:
+                activity.info("docker", "Image built successfully")
+            else:
+                activity.error("docker", "Image build failed — check Docker Desktop")
+            _refresh_docker_status()
+
+        threading.Thread(target=_build, daemon=True, name="docker-build").start()
+
+    def on_docker_start():
+        activity.info("docker", "Starting container...")
+
+        def _start():
+            # Ensure image exists
+            if not engine.docker_manager.image_exists():
+                root.after(0, lambda: activity.error("docker",
+                    "No image — press Build first"))
+                return
+            success = engine.docker_manager.create_and_start(
+                config.sandbox_root,
+                memory_limit=config.docker_memory_limit,
+                cpu_limit=config.docker_cpu_limit,
+            )
+            root.after(0, lambda: _on_start_done(success))
+
+        def _on_start_done(success):
+            if success:
+                # If Docker mode is enabled, re-initialize to pick up the runner
+                if config.docker_enabled:
+                    engine.set_sandbox(config.sandbox_root)
+                activity.info("docker", "Container started")
+            else:
+                activity.error("docker", "Container start failed")
+            _refresh_docker_status()
+
+        threading.Thread(target=_start, daemon=True, name="docker-start").start()
+
+    def on_docker_stop():
+        engine.docker_manager.stop()
+        # If we were using Docker runner, re-init to fall back to local
+        if engine.docker_runner:
+            engine.set_sandbox(config.sandbox_root)
+        _refresh_docker_status()
+        activity.info("docker", "Container stopped")
+
+    def on_docker_destroy():
+        from tkinter import messagebox
+        if not messagebox.askyesno("Destroy Container",
+                "This will remove the sandbox container.\n"
+                "Files in the sandbox directory are NOT affected.\n\n"
+                "Proceed?"):
+            return
+        engine.docker_manager.destroy()
+        if engine.docker_runner:
+            engine.set_sandbox(config.sandbox_root)
+        _refresh_docker_status()
+        activity.info("docker", "Container destroyed")
 
     # ── Close callback ────────────────────────────────
     def on_close():
@@ -348,6 +568,12 @@ def main() -> None:
         on_session_delete=on_session_delete,
         on_session_branch=on_session_branch,
         on_sandbox_pick=on_sandbox_pick,
+        on_faux_click=_handle_faux_click,
+        on_docker_toggle=on_docker_toggle,
+        on_docker_build=on_docker_build,
+        on_docker_start=on_docker_start,
+        on_docker_stop=on_docker_stop,
+        on_docker_destroy=on_docker_destroy,
     )
 
     # ── Apply window geometry ─────────────────────────
@@ -355,14 +581,20 @@ def main() -> None:
 
     # ── Start engine ──────────────────────────────────
     engine.start()
-    activity.info("app", "AgenticTOOLBOX ready")
+    activity.info("app", "MindshardAGENT ready")
     activity.info("app", f"Sandbox: {config.sandbox_root}")
     window.set_status("Ready — refresh models to begin")
     window.set_sandbox_path(config.sandbox_root)
     ui_state.sandbox_root = config.sandbox_root
 
     # ── Initialize first session ──────────────────────
+    # Purge empty sessions from previous launches (keep at most one)
     existing = session_store.list_sessions()
+    if existing:
+        session_store.purge_empty(keep_sid=existing[0]["session_id"])
+        # Re-fetch after purge
+        existing = session_store.list_sessions()
+
     if existing:
         _load_session(existing[0]["session_id"])
     else:
@@ -370,6 +602,14 @@ def main() -> None:
 
     # ── Auto-refresh models on startup ────────────────
     root.after(500, on_model_refresh)
+
+    # ── Check embedding model availability ───────────
+    def _check_embeddings():
+        import threading
+        def _worker():
+            engine.check_embeddings()
+        threading.Thread(target=_worker, daemon=True, name="embed-check").start()
+    root.after(1500, _check_embeddings)
 
     # ── Resource monitor polling ──────────────────────
     def _poll_resources():
@@ -385,10 +625,24 @@ def main() -> None:
 
     root.after(1000, _poll_resources)
 
+    # ── Docker status check on startup ─────────────
+    def _init_docker_status():
+        _refresh_docker_status()
+    root.after(800, _init_docker_status)
+
+    # ── Docker status polling (every 10s) ──────────
+    def _poll_docker():
+        try:
+            _refresh_docker_status()
+        except Exception:
+            pass
+        root.after(10000, _poll_docker)
+    root.after(10000, _poll_docker)
+
     # ── Main loop ─────────────────────────────────────
     log.info("Entering main loop")
     root.mainloop()
-    log.info("=== AgenticTOOLBOX shutdown complete ===")
+    log.info("=== MindshardAGENT shutdown complete ===")
 
 
 if __name__ == "__main__":

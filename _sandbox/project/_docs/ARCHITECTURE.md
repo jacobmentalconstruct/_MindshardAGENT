@@ -1,4 +1,4 @@
-# AgenticTOOLBOX Architecture
+# MindshardAGENT Architecture
 
 ## Overview
 
@@ -9,20 +9,23 @@ A lean Tkinter desktop chatbot shell for a local Ollama-backed agent with sandbo
 ```
 app.py (composition root)
   ├── Engine (runtime coordinator)
-  │     ├── SandboxManager → PathGuard + CLIRunner
-  │     ├── ToolCatalog (builtin + sandbox-local tools)
+  │     ├── SandboxManager → PathGuard + CLIRunner + AuditLog
+  │     ├── FileWriter (write_file / read_file — sandbox-contained)
+  │     ├── ToolCatalog (3 builtins + sandbox-local tools via discovery)
   │     ├── ToolRouter (parse + dispatch tool calls)
-  │     ├── ResponseLoop (streaming + tool round-trips)
-  │     └── OllamaClient (chat streaming)
+  │     ├── ResponseLoop (streaming + tool round-trips + RAG)
+  │     ├── KnowledgeStore (session-scoped RAG via all-minilm embeddings)
+  │     ├── TokenizerAdapter (adaptive per-model chars/token learning)
+  │     └── OllamaClient (chat streaming + embeddings)
   ├── StateRegistry (lean in-memory graph-semantic registry)
   ├── SessionStore (SQLite persistence)
   ├── ActivityStream (runtime event feed)
   ├── EventBus (internal pub/sub)
   └── MainWindow (Tkinter GUI)
-        ├── ChatPane (scrollable transcript)
+        ├── ChatPane (scrollable transcript with streaming resize)
         ├── ActivityLogPane (runtime terminal)
         ├── CLIPane (direct sandbox CLI)
-        └── ControlPane (model picker, resources, input, buttons)
+        └── ControlPane (model picker, sessions, resources, input, buttons)
 ```
 
 ## Key Design Decisions
@@ -48,7 +51,7 @@ app.py (composition root)
 - `src/core/sessions/` — SQLite session persistence
 - `src/core/ollama/` — model scanning, chat client, tokenizer adapter
 - `src/core/runtime/` — logging, event bus, activity stream, resource monitor
-- `src/core/sandbox/` — sandbox manager, path guard, CLI runner, tool catalog
-- `src/core/agent/` — prompt builder, response loop, tool router
+- `src/core/sandbox/` — sandbox manager, path guard, CLI runner, file writer, tool catalog, tool discovery, audit log
+- `src/core/agent/` — prompt builder, response loop, tool router, OS knowledge, model chain
 - `src/core/utils/` — IDs, clock, text metrics
 - `src/ui/` — Tkinter GUI (theme, panes, widgets)

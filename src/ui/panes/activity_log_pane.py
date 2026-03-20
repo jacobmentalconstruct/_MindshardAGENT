@@ -33,7 +33,7 @@ class ActivityLogPane(tk.Frame):
 
         self._text = tk.Text(
             self, wrap="word", font=T.FONT_LOG,
-            fg=T.TEXT_DIM, bg="#080c14",
+            fg=T.TEXT_DIM, bg=T.BG_LOG,
             relief="flat", bd=0, highlightthickness=1,
             highlightcolor=T.BORDER, highlightbackground=T.BORDER,
             insertbackground=T.CYAN, padx=8, pady=4,
@@ -48,7 +48,7 @@ class ActivityLogPane(tk.Frame):
         # Tag colors
         for level, color in _LEVEL_COLORS.items():
             self._text.tag_configure(level, foreground=color)
-        self._text.tag_configure("TS", foreground="#3a4a6b")
+        self._text.tag_configure("TS", foreground=T.TS_DIM)
 
     def append_entry(self, entry: ActivityEntry) -> None:
         self._text.config(state="normal")

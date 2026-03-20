@@ -22,10 +22,15 @@ from src.core.sandbox.docker_manager import DockerManager
 from src.core.sandbox.docker_runner import DockerRunner
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.response_loop import ResponseLoop
+from src.core.agent.thought_chain import ThoughtChain
 from src.core.sandbox.command_policy import CommandPolicy
 from src.core.sandbox.tool_discovery import register_discovered_tools
 from src.core.sessions.knowledge_store import KnowledgeStore
 from src.core.runtime.action_journal import ActionJournal
+from src.core.vcs.mindshard_vcs import MindshardVCS
+from src.core.project.project_meta import ProjectMeta
+from src.core.vault.memory_vault import MemoryVault
+from src.core.agent.prompt_builder import PromptBuildResult
 import src.core.runtime.action_journal as aj
 
 log = get_logger("engine")
@@ -35,7 +40,7 @@ class Engine:
     """Central runtime coordinator for the application."""
 
     def __init__(self, config: AppConfig, activity: ActivityStream, bus: EventBus,
-                 on_confirm_destructive=None):
+                 on_confirm_destructive=None, on_tools_reloaded=None):
         self.config = config
         self.activity = activity
         self.bus = bus
@@ -43,10 +48,18 @@ class Engine:
         self._running = False
         self._chat_history: list[dict[str, str]] = []
         self._on_confirm_destructive = on_confirm_destructive
+        self._on_tools_reloaded = on_tools_reloaded  # callback(count, names)
+
+        # Active project path (relative to sandbox root)
+        # "" means sandbox root IS the project; "my_app" means sandbox/my_app/ is the project
+        self.active_project: str = ""
+
+        # Project metadata — .mindshard/state/project_meta.json (set in set_sandbox)
+        self.project_meta: ProjectMeta | None = None
 
         # Sandbox + tools (initialized when sandbox is set)
         self.sandbox: SandboxManager | None = None
-        self.docker_manager = DockerManager(activity)
+        self.docker_manager = DockerManager(activity, sandbox_root=config.sandbox_root or "")
         self.docker_runner: DockerRunner | None = None
         self.tool_catalog = ToolCatalog()
         self.tool_router: ToolRouter | None = None
@@ -59,6 +72,12 @@ class Engine:
 
         # Action journal (initialized when sandbox is set)
         self.journal: ActionJournal | None = None
+
+        # Local VCS — .mindshard/ git repo inside sandbox root
+        self.vcs = MindshardVCS()
+
+        # Global memory vault — index of all detached projects
+        self.vault = MemoryVault()
 
         log.info("Engine created")
 
@@ -85,12 +104,27 @@ class Engine:
         commands execute inside a container. Otherwise falls back to
         local subprocess with allowlist policy.
         """
+        # Update Docker container name for this sandbox path
+        self.docker_manager.set_sandbox_root(sandbox_root)
+
         # Always create the local sandbox manager (for PathGuard, AuditLog, structure)
         self.sandbox = SandboxManager(sandbox_root, self.activity,
                                        on_confirm_destructive=self._on_confirm_destructive)
 
+        # Ensure standard workspace dirs exist
+        self._init_workspace_dirs(sandbox_root)
+
+        # Project metadata
+        self.project_meta = ProjectMeta(sandbox_root)
+
         # Action journal
         self.journal = ActionJournal(sandbox_root)
+
+        # VCS — attach to sandbox root (creates .mindshard/ if new)
+        try:
+            self.vcs.attach(sandbox_root)
+        except Exception as e:
+            log.warning("VCS attach failed: %s", e)
 
         # File writer always operates host-side (volume mount keeps files in sync)
         self.file_writer = FileWriter(
@@ -122,6 +156,8 @@ class Engine:
         self.tool_router = ToolRouter(
             self.tool_catalog, cli_runner, self.activity,
             file_writer=self.file_writer,
+            sandbox_root=sandbox_root,
+            on_tools_reloaded=self._on_tools_reloaded,
         )
         self.response_loop = ResponseLoop(
             self.config, self.tool_catalog, self.tool_router, self.activity,
@@ -132,6 +168,9 @@ class Engine:
             docker_mode=bool(self.docker_runner),
             journal=self.journal,
         )
+        self.response_loop._vcs = self.vcs
+        self.response_loop._active_project = self.active_project
+        self.response_loop._project_meta = self.project_meta
         self.config.sandbox_root = sandbox_root
         # Discover sandbox-local tools
         n_tools = register_discovered_tools(self.tool_catalog, sandbox_root)
@@ -147,6 +186,25 @@ class Engine:
                             {"sandbox_root": sandbox_root, "mode": mode_str,
                              "tools_discovered": n_tools})
         log.info("Sandbox initialized: %s (mode=%s)", sandbox_root, mode_str)
+
+    def _init_workspace_dirs(self, sandbox_root: str) -> None:
+        """Create .mindshard/ sidecar subdirectories if they don't exist."""
+        from pathlib import Path
+        root = Path(sandbox_root)
+        sidecar = root / ".mindshard"
+        for d in ("vcs", "sessions", "logs", "tools", "parts", "ref", "outputs", "state"):
+            (sidecar / d).mkdir(parents=True, exist_ok=True)
+
+    def set_active_project(self, project_path: str) -> None:
+        """Set the focal project path (relative to sandbox root).
+
+        Pass "" to clear (sandbox root = workspace).
+        Pass "my_app" when that folder is the thing being worked on.
+        """
+        self.active_project = project_path
+        if self.response_loop:
+            self.response_loop._active_project = project_path
+        log.info("Active project: %s", project_path or "(sandbox root)")
 
     def set_knowledge_store(self, knowledge: KnowledgeStore,
                             session_id_fn=None) -> None:
@@ -225,6 +283,19 @@ class Engine:
         else:
             self._simple_chat(user_text, on_token, on_complete, on_error)
 
+    def run_thought_chain(
+        self,
+        goal: str,
+        depth: int = 3,
+        on_round: Callable[[int, str], None] | None = None,
+        on_complete: Callable[[dict[str, Any]], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ) -> None:
+        """Run a Cannibalistic Thought Chain to decompose a goal into tasks."""
+        chain = ThoughtChain(self.config, self.activity)
+        chain.run(goal, depth=depth,
+                  on_round=on_round, on_complete=on_complete, on_error=on_error)
+
     def _handle_loop_complete(self, result: dict, on_complete) -> None:
         additions = result.get("history_addition", [])
         self._chat_history.extend(additions)
@@ -286,6 +357,83 @@ class Engine:
 
     def get_history(self) -> list[dict[str, str]]:
         return list(self._chat_history)
+
+    def preview_system_prompt(
+        self,
+        user_text: str = "",
+        chat_history: list[dict[str, str]] | None = None,
+    ) -> PromptBuildResult | None:
+        """Build the prompt bundle used for previews and the next agent turn."""
+        if not self.response_loop:
+            return None
+        history = list(chat_history) if chat_history is not None else list(self._chat_history)
+        return self.response_loop.preview_prompt(user_text=user_text, chat_history=history)
+
+    def detach_project(self, on_progress=None, keep_sidecar: bool = False) -> dict:
+        """Final snapshot → archive .mindshard/ → register in vault → delete sidecar."""
+        from src.core.project.project_archiver import archive_sidecar, remove_sidecar
+        result = {"success": False, "error": None, "archive_path": "", "sidecar_retained": keep_sidecar}
+
+        if not self.config.sandbox_root:
+            result["error"] = "No project attached"
+            return result
+
+        # 1. Final VCS snapshot
+        snap_hash = None
+        if self.vcs.is_attached:
+            try:
+                snap_hash = self.vcs.snapshot("Final snapshot — MindshardAGENT detaching")
+            except Exception as e:
+                log.warning("Final snapshot failed: %s", e)
+
+        if on_progress:
+            on_progress("Archiving .mindshard/ ...")
+
+        # 2. Archive sidecar
+        archive_result = archive_sidecar(
+            self.config.sandbox_root,
+            self.vault.vault_dir,
+            final_snapshot_hash=snap_hash,
+        )
+        if not archive_result["success"]:
+            result["error"] = archive_result.get("error", "Archive failed")
+            return result
+
+        if on_progress:
+            on_progress("Registering in memory vault ...")
+
+        # 3. Register in vault
+        meta_data = {}
+        if self.project_meta:
+            meta_data = {
+                "project_root": self.config.sandbox_root,
+                "source_path": self.project_meta.source_path or "",
+                "profile": self.project_meta.profile,
+                "project_purpose": self.project_meta.get("project_purpose", ""),
+                "current_goal": self.project_meta.get("current_goal", ""),
+            }
+        self.vault.register(archive_result, meta_data)
+
+        if not keep_sidecar:
+            if on_progress:
+                on_progress("Removing .mindshard/ ...")
+
+            # 4. Remove sidecar
+            removed = remove_sidecar(self.config.sandbox_root)
+            if not removed:
+                result["error"] = "Archive saved but sidecar removal failed"
+                result["archive_path"] = archive_result["archive_path"]
+                return result
+
+        # 5. Clear runtime state
+        self.vcs = MindshardVCS()  # reset
+        self.project_meta = None
+        self.config.sandbox_root = ""
+
+        result["success"] = True
+        result["archive_path"] = archive_result["archive_path"]
+        result["project_name"] = archive_result["project_name"]
+        return result
 
     def set_history(self, history: list[dict[str, str]]) -> None:
         self._chat_history = list(history)

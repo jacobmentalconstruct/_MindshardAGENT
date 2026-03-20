@@ -171,6 +171,60 @@ class FileWriter:
                             reason=str(e), duration_ms=elapsed)
             return {"path": path, "success": False, "error": str(e)}
 
+    def list_files(self, path: str = "", depth: int = 3) -> dict[str, Any]:
+        """Return a structured directory listing within the sandbox.
+
+        Args:
+            path: Directory path relative to sandbox root (empty = root)
+            depth: Max recursion depth (default 3)
+
+        Returns:
+            Dict with: path, success, tree (list of file/dir entries), error (if any)
+        """
+        try:
+            start = self._guard.validate(path) if path else self._guard.root
+        except ValueError as e:
+            return {"path": path, "success": False, "error": str(e)}
+
+        if not start.exists():
+            return {"path": str(start), "success": False, "error": "Path not found"}
+        if not start.is_dir():
+            return {"path": str(start), "success": False, "error": "Not a directory"}
+
+        def _walk(directory: Path, current_depth: int) -> list:
+            entries = []
+            try:
+                items = sorted(directory.iterdir(),
+                               key=lambda p: (p.is_file(), p.name.lower()))
+            except PermissionError:
+                return entries
+            for item in items:
+                # Skip hidden and internal dirs
+                if item.name.startswith(".") or item.name in (
+                        "__pycache__", "venv", ".venv", "node_modules"):
+                    continue
+                rel = item.relative_to(self._guard.root)
+                entry: dict[str, Any] = {
+                    "name": item.name,
+                    "path": str(rel).replace("\\", "/"),
+                    "type": "dir" if item.is_dir() else "file",
+                }
+                if item.is_file():
+                    entry["size"] = item.stat().st_size
+                if item.is_dir() and current_depth > 1:
+                    entry["children"] = _walk(item, current_depth - 1)
+                entries.append(entry)
+            return entries
+
+        tree = _walk(start, depth)
+        rel_start = str(start.relative_to(self._guard.root)).replace("\\", "/") if start != self._guard.root else ""
+        self._activity.tool("file_writer", f"list_files: {rel_start or '.'} ({len(tree)} entries)")
+        return {
+            "path": rel_start or ".",
+            "success": True,
+            "tree": tree,
+        }
+
     def _log_audit(self, operation: str, path: str, outcome: str,
                    exit_code: int | None = None, reason: str = "",
                    duration_ms: float = 0) -> None:

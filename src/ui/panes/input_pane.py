@@ -29,6 +29,7 @@ class InputPane(tk.Frame):
         self._text.pack(fill="both", expand=True, padx=8, pady=(0, 4))
         self._text.bind("<KeyRelease>", self._update_token_count)
         self._text.bind("<Control-Return>", self._handle_submit)
+        self._text.bind("<Alt-Return>", self._handle_submit)
 
         # Bottom row: token count + submit
         bottom = tk.Frame(self, bg=T.BG_DARK)

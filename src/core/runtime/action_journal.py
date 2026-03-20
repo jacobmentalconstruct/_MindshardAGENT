@@ -4,7 +4,7 @@ Records every meaningful event (project load, sync, session switch, tool use,
 file operations, config changes) so the agent can query recent history and
 orient itself after context loss or between operations.
 
-Stored as JSON-lines at _sandbox/_logs/action_journal.jsonl.
+Stored as JSON-lines at .mindshard/logs/action_journal.jsonl.
 Queryable by action type, recency, or full dump.
 
 This is the agent's "short-term memory" for what has happened in the workspace.
@@ -38,7 +38,7 @@ class ActionJournal:
     """Append-only structured event log for agent orientation."""
 
     def __init__(self, sandbox_root: str | Path):
-        self._path = Path(sandbox_root).resolve() / "_logs" / "action_journal.jsonl"
+        self._path = Path(sandbox_root).resolve() / ".mindshard" / "logs" / "action_journal.jsonl"
         self._path.parent.mkdir(parents=True, exist_ok=True)
         log.info("ActionJournal active: %s", self._path)
 

@@ -1,6 +1,6 @@
 """Tool scaffold — creates new sandbox-local tools with clean headers.
 
-When the agent creates a tool, it goes under <sandbox_root>/_tools/
+When the agent creates a tool, it goes under <sandbox_root>/.mindshard/tools/
 with standard metadata headers.
 """
 
@@ -14,7 +14,7 @@ log = get_logger("tool_scaffold")
 _TOOL_TEMPLATE = '''"""
 Tool: {name}
 Purpose: {purpose}
-Usage: python _tools/{filename} [args]
+Usage: python .mindshard/tools/{filename} [args]
 Constraints: Runs only within sandbox root. No external writes.
 Generated-by: MindshardAGENT sandbox agent
 Created: {created_at}
@@ -44,7 +44,7 @@ def create_tool_script(
     """Create a new tool script in the sandbox tools directory.
 
     Args:
-        tools_dir: Path to _tools/ directory
+        tools_dir: Path to .mindshard/tools/ directory
         guard: PathGuard to validate output path
         name: Tool name (used for filename)
         purpose: One-line description

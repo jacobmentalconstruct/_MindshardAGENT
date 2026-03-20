@@ -49,15 +49,20 @@
 - [x] Session auto-naming with timestamps (no more generic "New Session")
 - [x] Empty session purge on startup (cleans orphaned skeletons)
 - [x] Delete-active-session loads next available instead of creating new
-- [ ] Tab breakout into standalone columns (left or right of app)
-- [ ] Panel and column resizability (PanedWindow sash tuning)
+- [x] Tab breakout into standalone columns (right-click tab → pop out left/right, Dock button to return)
+- [x] Panel and column resizability (visible sashes on all PanedWindows, raised relief, 6px grab area)
 - [ ] Dark theme refinement and DPI scaling
 - [ ] Keyboard shortcuts (Ctrl+Enter submit already works)
 
 ## Low Priority / Future
 
+- [ ] Teach agent project tidiness (folder structures, naming conventions, not dumping everything flat in sandbox root)
 - [ ] Sandbox-authored tool creation (agent creates tools under _tools/)
-- [ ] Cannibalistic Thought Chains (agent self-talk spiral → task list generation)
+- [x] Cannibalistic Thought Chains (agent self-talk spiral → task list generation)
+  - 3-round spiral: brainstorm → refine → concrete task list
+  - Each round's prompt demands more specificity than previous
+  - Task parser extracts numbered items with complexity tags
+  - "Plan" button triggers dialog → rounds shown in chat → final task list
 - [ ] Official toolbox root configuration and external tool loading
 - [ ] Per-session command policy customization
 

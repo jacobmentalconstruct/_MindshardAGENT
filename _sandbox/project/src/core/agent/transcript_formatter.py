@@ -13,6 +13,25 @@ def format_tool_result(tool_result: dict[str, Any]) -> str:
         return f"[Tool '{name}' failed: {error}]"
 
     result = tool_result.get("result", {})
+
+    # Handle file tool results (write_file, read_file) — different shape than CLI
+    if name == "write_file":
+        path = result.get("path", "?")
+        bw = result.get("bytes_written", 0)
+        action = result.get("action", "write")
+        verb = "Appended to" if action == "append" else "Wrote"
+        return f"[Tool '{name}' completed] {verb} {path} ({bw} bytes)"
+
+    if name == "read_file":
+        path = result.get("path", "?")
+        content = result.get("content", "")
+        size = result.get("size", 0)
+        # Truncate very long file content
+        if len(content) > 3000:
+            content = content[:3000] + "\n... (truncated)"
+        return f"[Tool '{name}' completed] {path} ({size} bytes):\n{content}"
+
+    # Default: CLI-style result with exit_code/stdout/stderr
     parts = [f"[Tool '{name}' completed (exit code {result.get('exit_code', '?')})]"]
 
     stdout = result.get("stdout", "").strip()

@@ -1,0 +1,135 @@
+{
+  "ok": true,
+  "widget_version": "0.1.0",
+  "language_version": "0.1.0",
+  "symbol_hash": "1f6edcc834f08ac21d3cbaecfaaef5a16898fd1691d676132975d5f0cd194db8",
+  "plan": {
+    "statements": [
+      {
+        "type": "pipeline",
+        "steps": [
+          {
+            "index": 0,
+            "service": "ServiceRegistry",
+            "endpoint": "scan",
+            "service_id": "service:ServiceRegistry",
+            "endpoint_id": "endpoint:ServiceRegistry.scan",
+            "args": {
+              "save_to": "registry.json"
+            },
+            "facets": [
+              "filesystem",
+              "service",
+              "tokenization"
+            ]
+          },
+          {
+            "index": 1,
+            "service": "ProjectForge",
+            "endpoint": "forge_project",
+            "service_id": "service:ProjectForge",
+            "endpoint_id": "endpoint:ProjectForge.forge_project",
+            "args": {
+              "parent_path": ".",
+              "project_name": "AdvancedTextSplitter",
+              "dependencies": [
+                "langchain",
+                "spacy",
+                "tiktoken",
+                "sentence-transformers"
+              ],
+              "type": "text-processing-microservice"
+            },
+            "facets": [
+              "filesystem",
+              "service"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "step_count": 2,
+    "touched_services": [
+      "ProjectForge",
+      "ServiceRegistry"
+    ],
+    "touched_endpoints": [
+      "ProjectForge.forge_project",
+      "ServiceRegistry.scan"
+    ],
+    "predicted_side_effects": [
+      "filesystem:read",
+      "filesystem:write"
+    ],
+    "capabilities": [
+      "filesystem:read",
+      "filesystem:write"
+    ],
+    "facets": [
+      "filesystem",
+      "service",
+      "tokenization"
+    ],
+    "warnings": [
+      "Dry run only: no changes were applied.",
+      "Execution mode would request write-like side effects."
+    ],
+    "steps": [
+      {
+        "index": 0,
+        "service": "ServiceRegistry",
+        "endpoint": "scan",
+        "args": {
+          "save_to": "registry.json"
+        },
+        "declared_side_effects": [
+          "filesystem:read",
+          "filesystem:write"
+        ],
+        "capabilities": [
+          "filesystem:read",
+          "filesystem:write"
+        ],
+        "facets": [
+          "filesystem",
+          "service",
+          "tokenization"
+        ],
+        "warnings": [
+          "Execution mode would request write-like side effects."
+        ]
+      },
+      {
+        "index": 1,
+        "service": "ProjectForge",
+        "endpoint": "forge_project",
+        "args": {
+          "parent_path": ".",
+          "project_name": "AdvancedTextSplitter",
+          "dependencies": [
+            "langchain",
+            "spacy",
+            "tiktoken",
+            "sentence-transformers"
+          ],
+          "type": "text-processing-microservice"
+        },
+        "declared_side_effects": [
+          "filesystem:write"
+        ],
+        "capabilities": [
+          "filesystem:write"
+        ],
+        "facets": [
+          "filesystem",
+          "service"
+        ],
+        "warnings": [
+          "Execution mode would request write-like side effects."
+        ]
+      }
+    ]
+  }
+}

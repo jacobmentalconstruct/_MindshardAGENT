@@ -33,7 +33,7 @@ from src.core.sandbox.file_writer import FileWriter
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.transcript_formatter import format_tool_result, format_all_results
-from src.core.agent.prompt_builder import build_system_prompt
+from src.core.agent.prompt_builder import build_system_prompt, build_system_prompt_bundle
 
 
 # ── Test helpers ─────────────────────────────────────
@@ -196,6 +196,7 @@ def test_prompt_builder():
     _check("Contains tool instructions", "tool_call" in system)
     _check("Contains cli_in_sandbox", "cli_in_sandbox" in system)
     _check("Contains MindshardAGENT", "MindshardAGENT" in system)
+    _check("Contains externalized workspace semantics", "Workspace Semantics" in system)
 
     # With RAG context
     system_rag = build_system_prompt(
@@ -206,6 +207,20 @@ def test_prompt_builder():
     )
     _check("RAG context injected", "Python 3.10" in system_rag)
     _check("RAG section header present", "Relevant Context" in system_rag)
+
+    bundle = build_system_prompt_bundle(
+        sandbox_root="/tmp/sandbox",
+        tools=catalog,
+        command_policy=policy,
+        model_name="qwen3.5:2b",
+    )
+    _check("Prompt bundle includes diagnostics", len(bundle.sections) > 5)
+    _check("Prompt bundle has source fingerprint", len(bundle.source_fingerprint) > 10)
+    _check("Prompt bundle has prompt fingerprint", len(bundle.prompt_fingerprint) > 10)
+    _check(
+        "Prompt bundle records doc sources",
+        any(section.layer == "global_doc" and section.source_path for section in bundle.sections),
+    )
 
 
 # ── Test 5: Full Router Round-Trip ───────────────────

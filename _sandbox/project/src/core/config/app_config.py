@@ -41,6 +41,18 @@ class AppConfig:
     # Resource polling
     resource_poll_interval_ms: int = 5000
 
+    # RAG / Embeddings
+    embedding_model: str = "all-minilm:latest"
+    rag_enabled: bool = True
+    rag_top_k: int = 5
+    rag_min_score: float = 0.3
+    rag_chunk_max_chars: int = 512
+
+    # Docker sandbox
+    docker_enabled: bool = False
+    docker_memory_limit: str = "512m"
+    docker_cpu_limit: float = 1.0
+
     # Logging
     log_dir: str = "_logs"
 

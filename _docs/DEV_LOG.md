@@ -408,3 +408,72 @@ after each streaming update.
 ### Testing
 - 70/70 unit tests pass
 - All new imports verified clean
+
+---
+
+## 2026-03-20 — FEAT-005: Prompt Docs Externalization + Tkinter Workbench Refactor
+
+### Summary
+Completed the next architecture step for MindshardAGENT in two connected parts:
+
+1. **Prompt behavior externalization** — prompt semantics, response style, and interpretation guidance now load from editable docs instead of being trapped in hardcoded Python strings.
+2. **Workbench UI refactor** — the overloaded right-side control stack was replaced with a three-region workstation shell: workspace rail, interaction center, and prompt workbench, plus a runtime strip.
+
+This closes the first major usability loop: behavior is now editable, inspectable, and much easier to reason about in the UI.
+
+### Files Created
+- `src/core/agent/prompt_sources.py` — ordered prompt-doc loader with override precedence, diagnostics, and source fingerprinting
+- `_docs/agent_prompt/00_identity.md`
+- `_docs/agent_prompt/10_workspace_semantics.md`
+- `_docs/agent_prompt/20_intent_interpretation.md`
+- `_docs/agent_prompt/30_file_listing_rules.md`
+- `_docs/agent_prompt/40_response_style.md`
+- `_docs/agent_prompt/50_tool_usage_preferences.md`
+- `_docs/agent_prompt/90_local_notes.md`
+- `src/ui/dialogs/detach_project_dialog.py` — detach confirmation dialog with keep-sidecar option
+- `tests/test_prompt_sources.py` — prompt source loader coverage
+
+### Files Modified
+- `src/core/agent/prompt_builder.py` — prompt composition rewritten around layered prompt sources + runtime sections
+- `src/core/agent/response_loop.py` — prompt bundle/preview integration and source fingerprint tracking
+- `src/core/engine.py` — prompt preview method and detach keep-sidecar support
+- `src/core/project/project_meta.py` — brief form helpers and prompt override scaffold support
+- `src/ui/dialogs/project_brief_dialog.py` — editable `display_name` + edit flow support
+- `src/ui/panes/control_pane.py` — rebuilt as workstation shell with:
+  - left notebook: `Session`, `Sandbox`, `Git`
+  - center notebook: `Compose`, `Sandbox CLI`
+  - right notebook: `Prompt`, `Sources`, `Inspect`, `Tools`
+  - summary cards for session/project/prompt state
+  - structured source-layer cards in `Sources`
+  - inline source editor with `New`, `Load`, `Save`, `Save As`, `Edit`, and folder-open actions
+  - startup sash stabilization and pane minimum sizes
+- `src/ui/gui_main.py` — vertical shell/root composition updated to match the new workstation layout
+- `src/app.py` — prompt inspector wiring, prompt/response mirror updates, workspace tab cycling, brief/prompt edit actions
+- `tests/test_project_lifecycle.py` — project brief + detach retention coverage
+- `tests/test_tool_roundtrip.py` — prompt bundle expectations updated
+- `_docs/TKINTER_UI_TREE.md` — implementation status and current-shell notes added
+
+### Behavior Changes
+- Global prompt defaults now live in `_docs/agent_prompt/`
+- Project-specific prompt overrides now live in `.mindshard/state/prompt_overrides/`
+- Effective prompt sources are visible in the UI and reloadable without code edits
+- Project brief can be edited after attach
+- Detach can preserve the full `.mindshard/` sidecar when requested
+- The old cluttered `Watch` stack has been replaced by a dedicated prompt workbench
+
+### Testing
+- `py -3 -m compileall src tests`
+- Python smoke tests for:
+  - prompt override precedence
+  - prompt bundle generation
+  - prompt override scaffold creation
+  - detach with `keep_sidecar=True`
+- Tk smoke tests for:
+  - notebook counts / shell initialization
+  - startup pane widths after sash stabilization
+
+### Notes For Continuation
+- The architectural UI phases are complete; future work is polish and interaction refinement, not shell redesign.
+- `Sources` now has a structured layer view, but source toggles/diffing are still deferred.
+- `Sources` also now supports direct prompt-doc editing for file-backed layers; runtime layers remain read-only by design.
+- Tab breakout behavior was intentionally not carried forward into the new notebook shell.

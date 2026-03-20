@@ -1,0 +1,56 @@
+{
+  "ok": true,
+  "widget_version": "0.1.0",
+  "language_version": "0.1.0",
+  "schema_version": "0.1.0",
+  "symbol_hash": "1f6edcc834f08ac21d3cbaecfaaef5a16898fd1691d676132975d5f0cd194db8",
+  "generated_at": "2026-03-15T03:00:42.629179+00:00",
+  "syntax_guide": {
+    "surface": "service_pipeline",
+    "grammar": "Service.endpoint(arg: value) -> Service.endpoint(arg: value)",
+    "accepted_values": [
+      "string",
+      "number",
+      "boolean",
+      "null",
+      "list",
+      "object",
+      "identifier"
+    ],
+    "notes": [
+      "Only discovered service names and endpoint names are valid.",
+      "Arguments must be named.",
+      "Comments beginning with # are allowed.",
+      "This widget plans and validates only; it does not execute file mutations in V1."
+    ],
+    "example": "ServiceRegistry.scan(save_to: \"registry.json\") -> ProjectForge.forge_project(parent_path: \".\", project_name: \"Demo\", dependencies: [\"numpy\"], type: \"microservice\")"
+  },
+  "transport_examples": {
+    "base_url": "http://127.0.0.1:8000",
+    "bash": {
+      "handshake": "curl http://127.0.0.1:8000/v1/handshake",
+      "dry_run": "curl -X POST http://127.0.0.1:8000/v1/dry-run -H \"Content-Type: application/json\" -d '{\"script\":\"ServiceRegistry.scan(save_to: \\\"registry.json\\\") -> ProjectForge.forge_project(parent_path: \\\".\\\", project_name: \\\"Demo\\\", dependencies: [\\\"numpy\\\"], type: \\\"microservice\\\")\",\"client_symbol_hash\":\"<symbol_hash>\"}'"
+    },
+    "powershell": {
+      "handshake": "Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:8000/v1/handshake'",
+      "dry_run": "$body = @{ script = 'ServiceRegistry.scan(save_to: \"registry.json\") -> ProjectForge.forge_project(parent_path: \".\", project_name: \"Demo\", dependencies: [\"numpy\"], type: \"microservice\")'; client_symbol_hash = '<symbol_hash>' } | ConvertTo-Json\nInvoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/v1/dry-run' -ContentType 'application/json' -Body $body"
+    }
+  },
+  "counts": {
+    "symbol_count": 1710,
+    "relation_count": 1538,
+    "python_file_count": 201,
+    "service_count": 117,
+    "endpoint_count": 442,
+    "module_count": 188,
+    "function_count": 119,
+    "class_count": 179,
+    "method_count": 665
+  },
+  "cache_note": "Full widget payload was split into chunk files because it exceeded sandbox file limits.",
+  "chunk_index_path": "_tools/builder_widget/refresh_latest.index.json",
+  "symbol_chunk_count": 4,
+  "relation_chunk_count": 1,
+  "symbols_included_inline": false,
+  "relations_included_inline": false
+}

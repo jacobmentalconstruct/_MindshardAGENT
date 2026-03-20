@@ -13,7 +13,7 @@ class SessionPanel(tk.Frame):
     """Session list with management controls."""
 
     def __init__(self, parent, on_new=None, on_select=None, on_rename=None,
-                 on_delete=None, on_branch=None, **kw):
+                 on_delete=None, on_branch=None, on_policy=None, **kw):
         kw.setdefault("bg", T.BG_MID)
         super().__init__(parent, **kw)
 
@@ -22,6 +22,7 @@ class SessionPanel(tk.Frame):
         self._on_rename = on_rename
         self._on_delete = on_delete
         self._on_branch = on_branch
+        self._on_policy = on_policy
         self._sessions: list[dict] = []
         self._selected_sid: str | None = None
 
@@ -70,6 +71,7 @@ class SessionPanel(tk.Frame):
         for label, cmd, color in [
             ("Rename", self._handle_rename, T.CYAN),
             ("Branch", self._handle_branch, T.PURPLE),
+            ("Policy", self._handle_policy, T.AMBER),
             ("Delete", self._handle_delete, T.RED),
         ]:
             btn = tk.Button(
@@ -126,6 +128,13 @@ class SessionPanel(tk.Frame):
             return
         if self._on_branch:
             self._on_branch(session["session_id"])
+
+    def _handle_policy(self) -> None:
+        session = self._get_selected_session()
+        if not session:
+            return
+        if self._on_policy:
+            self._on_policy(session["session_id"])
 
     def _handle_delete(self) -> None:
         session = self._get_selected_session()

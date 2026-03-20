@@ -1,0 +1,25 @@
+{
+  "action": "handshake",
+  "summary_path": "_tools/builder_widget/handshake_latest.json",
+  "symbol_hash": "1f6edcc834f08ac21d3cbaecfaaef5a16898fd1691d676132975d5f0cd194db8",
+  "counts": {
+    "symbol_count": 1710,
+    "relation_count": 1538,
+    "python_file_count": 201,
+    "service_count": 117,
+    "endpoint_count": 442,
+    "module_count": 188,
+    "function_count": 119,
+    "class_count": 179,
+    "method_count": 665
+  },
+  "symbol_chunk_paths": [
+    "_tools/builder_widget/handshake_latest.symbols.part001.json",
+    "_tools/builder_widget/handshake_latest.symbols.part002.json",
+    "_tools/builder_widget/handshake_latest.symbols.part003.json",
+    "_tools/builder_widget/handshake_latest.symbols.part004.json"
+  ],
+  "relation_chunk_paths": [
+    "_tools/builder_widget/handshake_latest.relations.part001.json"
+  ]
+}

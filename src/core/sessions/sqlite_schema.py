@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     updated_at    TEXT NOT NULL,
     active_model  TEXT DEFAULT '',
     sandbox_root  TEXT DEFAULT '',
+    command_policy_json TEXT DEFAULT '',
     FOREIGN KEY (parent_session_id) REFERENCES sessions(session_id)
 );
 
@@ -63,3 +64,23 @@ CREATE INDEX IF NOT EXISTS idx_tool_runs_session ON tool_runs(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_runs_message ON tool_runs(message_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_session ON knowledge(session_id);
 """
+
+# ── Migrations for existing databases ────────────────────────
+MIGRATIONS = [
+    # Add command_policy_json column (v2)
+    "ALTER TABLE sessions ADD COLUMN command_policy_json TEXT DEFAULT ''",
+]
+
+
+def run_migrations(conn) -> None:
+    """Apply schema migrations idempotently.
+
+    Each migration is tried; if the column/table already exists,
+    the ALTER will raise and we skip it.
+    """
+    for sql in MIGRATIONS:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except Exception:
+            pass  # column/table already exists

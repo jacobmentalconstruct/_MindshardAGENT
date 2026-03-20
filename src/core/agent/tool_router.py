@@ -26,11 +26,14 @@ class ToolRouter:
     """Parse and dispatch tool calls from model responses."""
 
     def __init__(self, catalog: ToolCatalog, cli: CLIRunner, activity: ActivityStream,
-                 file_writer: FileWriter | None = None):
+                 file_writer: FileWriter | None = None, sandbox_root: str = "",
+                 on_tools_reloaded=None):
         self._catalog = catalog
         self._cli = cli
         self._file_writer = file_writer
         self._activity = activity
+        self._sandbox_root = sandbox_root
+        self._on_tools_reloaded = on_tools_reloaded  # callback(count, names)
 
     def extract_tool_calls(self, text: str) -> list[dict[str, Any]]:
         """Extract tool_call JSON blocks from assistant text."""
@@ -87,6 +90,13 @@ class ToolRouter:
                 return {"tool_name": tool_name, "success": False, "error": "No content provided"}
 
             result = self._file_writer.write_file(path, content, mode=mode)
+
+            # Auto-reload tools if a file was written to .mindshard/tools/
+            if result.get("success") and self._sandbox_root and (
+                    ".mindshard/tools/" in path.replace("\\", "/") or
+                    ".mindshard\\tools\\" in path):
+                self._auto_reload_tools()
+
             return {
                 "tool_name": tool_name,
                 "success": result["success"],
@@ -107,7 +117,75 @@ class ToolRouter:
                 "result": result,
             }
 
+        if tool_name == "list_files":
+            if not self._file_writer:
+                return {"tool_name": tool_name, "success": False, "error": "File writer not initialized"}
+            path = tool_call.get("path", "")
+            depth = int(tool_call.get("depth", 3))
+            result = self._file_writer.list_files(path, depth=depth)
+            return {
+                "tool_name": tool_name,
+                "success": result["success"],
+                "result": result,
+            }
+
+        if tool_name == "reload_tools":
+            if not self._sandbox_root:
+                return {"tool_name": tool_name, "success": False,
+                        "error": "No sandbox root configured"}
+            names = self._catalog.reload_sandbox_tools(self._sandbox_root)
+            self._activity.tool("tool_router",
+                f"Tools reloaded: {len(names)} sandbox tool(s) available")
+            if names:
+                summary = f"Reloaded. Sandbox tools now available: {', '.join(names)}"
+            else:
+                summary = "Reloaded. No sandbox tools found in .mindshard/tools/ yet."
+            if self._on_tools_reloaded:
+                self._on_tools_reloaded(len(names), names)
+            return {
+                "tool_name": tool_name,
+                "success": True,
+                "result": {"summary": summary, "tools": names},
+            }
+
+        # Sandbox-local tool: execute Python script via CLI
+        if entry.source == "sandbox_local":
+            return self._execute_sandbox_tool(tool_name, tool_call, entry)
+
         return {"tool_name": tool_name, "success": False, "error": f"No handler for tool: {tool_name}"}
+
+    def _execute_sandbox_tool(self, tool_name: str, tool_call: dict[str, Any],
+                               entry) -> dict[str, Any]:
+        """Execute a sandbox-local tool by running its Python script via CLI.
+
+        The script is invoked as: python .mindshard/tools/<callable_name>.py --json '<params>'
+        Parameters are passed as a JSON string on stdin or as a --json argument.
+        """
+        import json as _json
+        params = {k: v for k, v in tool_call.items() if k != "tool"}
+        params_json = _json.dumps(params)
+        # Escape for shell
+        escaped = params_json.replace("'", "'\"'\"'")
+        command = f"python .mindshard/tools/{entry.callable_name}.py --json '{escaped}'"
+        self._activity.tool("tool_router", f"Sandbox tool: {tool_name}")
+        result = self._cli.run(command)
+        return {
+            "tool_name": tool_name,
+            "success": result["exit_code"] == 0,
+            "result": result,
+        }
+
+    def _auto_reload_tools(self) -> None:
+        """Silently reload sandbox tools after a write to .mindshard/tools/."""
+        try:
+            names = self._catalog.reload_sandbox_tools(self._sandbox_root)
+            if names:
+                self._activity.tool("tool_router",
+                    f"Auto-registered new tool(s): {', '.join(names)}")
+            if self._on_tools_reloaded:
+                self._on_tools_reloaded(len(names), names)
+        except Exception as e:
+            log.warning("Auto tool reload failed: %s", e)
 
     def execute_all(self, text: str) -> list[dict[str, Any]]:
         """Extract and execute all tool calls in a response."""

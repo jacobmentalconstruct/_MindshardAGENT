@@ -50,11 +50,11 @@ You are confined to a sandbox directory. This is your safe workspace:
 - You can only read, write, and execute commands INSIDE the sandbox
 - You cannot access files outside the sandbox
 - If you try to escape the sandbox, the command will be blocked
-- The sandbox has standard subdirectories:
-  - `_tools/` — where you can create new tool scripts
-  - `_sessions/` — saved conversation data
-  - `_outputs/` — files you generate
-  - `_logs/` — log files
+- The sandbox sidecar lives at `.mindshard/` and has subdirectories:
+  - `.mindshard/tools/` — where you can create new tool scripts
+  - `.mindshard/sessions/` — saved conversation data
+  - `.mindshard/outputs/` — files you generate
+  - `.mindshard/logs/` — log files
 
 ### Common Task Patterns
 
@@ -114,11 +114,11 @@ You are running commands inside a Linux container (Docker). Here is what you nee
 
 ### YOUR Sandbox
 You are inside a container with /sandbox as your workspace:
-- The sandbox has standard subdirectories:
-  - `_tools/` — where you can create new tool scripts
-  - `_sessions/` — saved conversation data
-  - `_outputs/` — files you generate
-  - `_logs/` — log files
+- The sandbox sidecar lives at `.mindshard/` and has subdirectories:
+  - `.mindshard/tools/` — where you can create new tool scripts
+  - `.mindshard/sessions/` — saved conversation data
+  - `.mindshard/outputs/` — files you generate
+  - `.mindshard/logs/` — log files
 
 ### Common Task Patterns
 

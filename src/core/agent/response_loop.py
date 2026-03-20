@@ -13,7 +13,7 @@ Flow:
 import threading
 from typing import Any, Callable
 
-from src.core.agent.prompt_builder import build_system_prompt, build_messages
+from src.core.agent.prompt_builder import PromptBuildResult, build_messages, build_system_prompt_bundle
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.transcript_formatter import format_all_results
 from src.core.ollama.ollama_client import chat_stream
@@ -55,6 +55,11 @@ class ResponseLoop:
         self._session_id_fn = session_id_fn  # Callable() -> str | None
         self._docker_mode = docker_mode
         self._journal = journal            # ActionJournal | None
+        self._vcs = None                   # MindshardVCS | None — set by engine
+        self._active_project: str = ""     # relative path within sandbox; "" = root
+        self._project_meta = None          # ProjectMeta | None — set by engine
+        self._last_prompt_build: PromptBuildResult | None = None
+        self._last_source_fingerprint: str = ""
 
     def run_turn(
         self,
@@ -91,53 +96,12 @@ class ResponseLoop:
         on_token, on_complete, on_error,
         on_tool_start, on_tool_result,
     ) -> None:
-        # RAG: retrieve relevant context for the user's query
-        rag_context = ""
-        if (self._config.rag_enabled and self._knowledge
-                and self._embed_fn and self._session_id_fn):
-            try:
-                sid = self._session_id_fn()
-                if sid and self._knowledge.count(sid) > 0:
-                    query_vec = self._embed_fn(user_text)
-                    hits = self._knowledge.query(
-                        sid, query_vec,
-                        top_k=self._config.rag_top_k,
-                        min_score=self._config.rag_min_score,
-                    )
-                    if hits:
-                        rag_context = "\n---\n".join(
-                            f"[{h['source_role']}/{h['source']}] {h['content']}"
-                            for h in hits
-                        )
-                        self._activity.info("rag",
-                            f"Retrieved {len(hits)} chunks (best={hits[0]['score']:.3f})")
-            except Exception as e:
-                log.warning("RAG retrieval failed: %s", e)
-
-        # Get recent action journal for orientation
-        journal_context = ""
-        if self._journal:
-            try:
-                journal_context = self._journal.summary_since(10)
-            except Exception:
-                pass
-
-        # Build system prompt
-        system = build_system_prompt(
-            sandbox_root=self._config.sandbox_root,
-            tools=self._catalog,
-            command_policy=self._command_policy,
-            session_title="",
-            model_name=self._config.selected_model,
-            rag_context=rag_context,
-            docker_mode=self._docker_mode,
-            journal_context=journal_context,
-        )
+        prompt_build = self.preview_prompt(user_text=user_text)
 
         # Add user message
         history = list(chat_history)
         history.append({"role": "user", "content": user_text})
-        messages = build_messages(system, history)
+        messages = build_messages(prompt_build.prompt, history)
 
         total_content = []
         rounds = 0
@@ -217,8 +181,97 @@ class ResponseLoop:
             on_complete({
                 "content": "\n".join(total_content),
                 "metadata": meta,
+                "prompt_build": prompt_build,
                 "history_addition": [
                     {"role": "user", "content": user_text},
                     {"role": "assistant", "content": "\n".join(total_content)},
                 ],
             })
+
+    def preview_prompt(
+        self,
+        user_text: str = "",
+        chat_history: list[dict[str, str]] | None = None,
+    ) -> PromptBuildResult:
+        """Build the exact prompt bundle used for the next agent turn."""
+
+        rag_context = self._build_rag_context(user_text)
+        journal_context = self._build_journal_context()
+        vcs_context = self._build_vcs_context()
+        project_brief = ""
+        project_meta_path = ""
+        if self._project_meta is not None:
+            try:
+                project_brief = self._project_meta.prompt_context()
+                project_meta_path = str(self._project_meta.path)
+            except Exception:
+                pass
+
+        prompt_build = build_system_prompt_bundle(
+            sandbox_root=self._config.sandbox_root,
+            tools=self._catalog,
+            command_policy=self._command_policy,
+            session_title="",
+            model_name=self._config.selected_model,
+            rag_context=rag_context,
+            docker_mode=self._docker_mode,
+            journal_context=journal_context,
+            vcs_context=vcs_context,
+            active_project=self._active_project,
+            project_brief=project_brief,
+            project_meta_path=project_meta_path,
+        )
+
+        if (
+            self._last_source_fingerprint
+            and prompt_build.source_fingerprint != self._last_source_fingerprint
+        ):
+            self._activity.info("prompt", "Prompt docs changed; using refreshed prompt sources")
+
+        for warning in prompt_build.warnings:
+            log.warning("Prompt source warning: %s", warning)
+
+        self._last_source_fingerprint = prompt_build.source_fingerprint
+        self._last_prompt_build = prompt_build
+        return prompt_build
+
+    def _build_rag_context(self, user_text: str) -> str:
+        rag_context = ""
+        if (self._config.rag_enabled and self._knowledge
+                and self._embed_fn and self._session_id_fn):
+            try:
+                sid = self._session_id_fn()
+                if sid and self._knowledge.count(sid) > 0:
+                    query_vec = self._embed_fn(user_text)
+                    hits = self._knowledge.query(
+                        sid, query_vec,
+                        top_k=self._config.rag_top_k,
+                        min_score=self._config.rag_min_score,
+                    )
+                    if hits:
+                        rag_context = "\n---\n".join(
+                            f"[{h['source_role']}/{h['source']}] {h['content']}"
+                            for h in hits
+                        )
+                        self._activity.info(
+                            "rag", f"Retrieved {len(hits)} chunks (best={hits[0]['score']:.3f})"
+                        )
+            except Exception as exc:
+                log.warning("RAG retrieval failed: %s", exc)
+        return rag_context
+
+    def _build_journal_context(self) -> str:
+        if self._journal:
+            try:
+                return self._journal.summary_since(10)
+            except Exception:
+                return ""
+        return ""
+
+    def _build_vcs_context(self) -> str:
+        if self._vcs and self._vcs.is_attached:
+            try:
+                return self._vcs.onboarding_context(limit=5)
+            except Exception:
+                return ""
+        return ""
