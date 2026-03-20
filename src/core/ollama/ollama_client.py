@@ -21,6 +21,7 @@ def chat_stream(
     messages: list[dict[str, str]],
     on_token: Callable[[str], None] | None = None,
     on_done: Callable[[dict[str, Any]], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
     temperature: float = 0.7,
     num_ctx: int = 8192,
     timeout: int = 120,
@@ -58,6 +59,14 @@ def chat_stream(
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             for raw_line in resp:
+                if should_stop and should_stop():
+                    final_meta = {
+                        "content": "".join(full_content),
+                        "model": model,
+                        "done_reason": "stopped",
+                        "stopped": True,
+                    }
+                    break
                 line = raw_line.decode("utf-8").strip()
                 if not line:
                     continue
@@ -90,6 +99,7 @@ def chat_stream(
     elapsed = sw.elapsed_ms()
     final_meta.setdefault("content", "".join(full_content))
     final_meta.setdefault("model", model)
+    final_meta.setdefault("stopped", False)
     final_meta["wall_ms"] = round(elapsed, 1)
 
     log.info("Chat complete: model=%s, tokens_out=%s, wall=%.0fms",

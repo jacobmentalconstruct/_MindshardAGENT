@@ -355,6 +355,12 @@ class Engine:
         self._chat_history.clear()
         self.activity.info("engine", "Chat history cleared")
 
+    def request_stop(self) -> None:
+        """Request that the active response loop stop as soon as possible."""
+        if self.response_loop:
+            self.response_loop.request_stop()
+        self.activity.info("engine", "Stop requested")
+
     def get_history(self) -> list[dict[str, str]]:
         return list(self._chat_history)
 

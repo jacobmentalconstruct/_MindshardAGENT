@@ -1,6 +1,13 @@
-"""Transcript formatter — formats tool results for reinsertion into chat history."""
+"""Transcript formatter — formats tool results and compacts tool-call transcripts."""
 
+import json
+import re
 from typing import Any
+
+_TOOL_CALL_RE = re.compile(
+    r"```tool_call\s*\n(.*?)\n```",
+    re.DOTALL,
+)
 
 
 def format_tool_result(tool_result: dict[str, Any]) -> str:
@@ -82,3 +89,59 @@ def format_all_results(results: list[dict[str, Any]]) -> str:
     if not results:
         return ""
     return "\n\n".join(format_tool_result(r) for r in results)
+
+
+def compact_tool_call_transcript(text: str) -> str:
+    """Replace verbose fenced tool-call JSON with a compact summary line."""
+
+    summaries: list[str] = []
+    prose_parts: list[str] = []
+    last_end = 0
+
+    for match in _TOOL_CALL_RE.finditer(text):
+        prose = text[last_end:match.start()].strip()
+        if prose:
+            prose_parts.append(prose)
+
+        raw = match.group(1).strip()
+        try:
+            tool_call = json.loads(raw)
+            summaries.append(_format_tool_call(tool_call))
+        except json.JSONDecodeError:
+            summaries.append("malformed_tool_call")
+        last_end = match.end()
+
+    tail = text[last_end:].strip()
+    if tail:
+        prose_parts.append(tail)
+
+    if summaries:
+        prose_parts.append("TOOL_CALLS: " + ", ".join(summaries))
+
+    compact = "\n\n".join(part for part in prose_parts if part)
+    return compact or text
+
+
+def _format_tool_call(tool_call: dict[str, Any]) -> str:
+    tool_name = str(tool_call.get("tool", "unknown"))
+    params: list[str] = []
+    for key, value in tool_call.items():
+        if key == "tool":
+            continue
+        rendered = _compact_value(value)
+        params.append(f"{key}:{rendered}")
+    return f"{tool_name}({', '.join(params)})" if params else tool_name
+
+
+def _compact_value(value: Any) -> str:
+    if isinstance(value, str):
+        compact = value.replace("\n", "\\n")
+        return compact if len(compact) <= 60 else compact[:57] + "..."
+    if isinstance(value, list):
+        items = ", ".join(_compact_value(item) for item in value[:4])
+        return f"[{items}{', ...' if len(value) > 4 else ''}]"
+    if isinstance(value, dict):
+        items = ", ".join(f"{k}:{_compact_value(v)}" for k, v in list(value.items())[:4])
+        suffix = ", ..." if len(value) > 4 else ""
+        return "{" + items + suffix + "}"
+    return str(value)

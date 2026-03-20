@@ -549,6 +549,36 @@ def main() -> None:
     def on_reload_prompt_docs():
         refresh_prompt_inspector(ui_state.last_user_input, announce=True)
 
+    def on_set_tool_round_limit(value: int):
+        config.max_tool_rounds = max(1, int(value))
+        config.save(PROJECT_ROOT)
+        window.control_pane.set_tool_round_limit(config.max_tool_rounds)
+        activity.info("tools", f"Max tool rounds set to {config.max_tool_rounds}")
+
+    def on_open_settings():
+        from src.ui.dialogs.settings_dialog import SettingsDialog
+
+        dialog = SettingsDialog(
+            root,
+            initial_tool_round_limit=config.max_tool_rounds,
+            initial_gui_launch_policy=config.gui_launch_policy,
+        )
+        if not dialog.result:
+            return
+
+        config.max_tool_rounds = max(1, int(dialog.result.get("max_tool_rounds", config.max_tool_rounds)))
+        config.gui_launch_policy = str(dialog.result.get("gui_launch_policy", config.gui_launch_policy) or "ask")
+        config.save(PROJECT_ROOT)
+        window.control_pane.set_tool_round_limit(config.max_tool_rounds)
+        window.set_status(
+            f"Settings saved — GUI policy: {config.gui_launch_policy}, tool rounds: {config.max_tool_rounds}"
+        )
+        activity.info(
+            "settings",
+            f"Updated settings: gui_launch_policy={config.gui_launch_policy}, "
+            f"max_tool_rounds={config.max_tool_rounds}",
+        )
+
     def on_edit_project_brief():
         if not engine.project_meta:
             window.chat_pane.add_message("system", "No project attached.")
@@ -1064,6 +1094,9 @@ def main() -> None:
         on_vcs_snapshot=lambda: window.control_pane.vcs_panel.refresh(),
         on_reload_tools=on_reload_tools,
         on_reload_prompt_docs=on_reload_prompt_docs,
+        on_set_tool_round_limit=on_set_tool_round_limit,
+        on_open_settings=on_open_settings,
+        initial_tool_round_limit=config.max_tool_rounds,
     )
 
     # ── Wire VCS panel to engine ──────────────────────
@@ -1145,6 +1178,7 @@ def main() -> None:
     def _on_escape(event=None):
         """Stop streaming if active."""
         if ui_state.is_streaming:
+            engine.request_stop()
             ui_state.is_streaming = False
             if _stream_flush_id["id"] is not None:
                 root.after_cancel(_stream_flush_id["id"])
@@ -1171,12 +1205,18 @@ def main() -> None:
         window.control_pane.cycle_workspace_tabs()
         return "break"
 
+    def _on_ctrl_comma(event=None):
+        """Open settings."""
+        on_open_settings()
+        return "break"
+
     root.bind("<Escape>", _on_escape)
     root.bind("<Control-n>", _on_ctrl_n)
     root.bind("<Control-N>", _on_ctrl_n)
     root.bind("<Control-l>", _on_ctrl_l)
     root.bind("<Control-L>", _on_ctrl_l)
     root.bind("<Control-Tab>", _on_ctrl_tab)
+    root.bind("<Control-comma>", _on_ctrl_comma)
 
     # ── Main loop ─────────────────────────────────────
     log.info("Entering main loop")

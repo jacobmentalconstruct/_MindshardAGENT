@@ -25,6 +25,7 @@ Current polish-level additions beyond the original tree:
 - structured source-layer cards in the `Sources` tab
 - inline source editor and prompt-doc file actions in the `Sources` tab
 - mirrored prompt/response views between summary and inspect tabs
+- tools-tab loop controls for max tool rounds and stop guidance
 
 What is still intentionally deferred:
 

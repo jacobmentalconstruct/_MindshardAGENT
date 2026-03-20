@@ -51,11 +51,15 @@ class MainWindow:
         on_vcs_snapshot=None,
         on_reload_tools=None,
         on_reload_prompt_docs=None,
+        on_set_tool_round_limit=None,
+        on_open_settings=None,
+        initial_tool_round_limit: int = 12,
     ):
         self.root = root
         self.ui_state = ui_state
         self.activity = activity
         self._on_close = on_close
+        self._on_open_settings = on_open_settings
         self._vertical_layout_initialized = False
 
         root.title("MindshardAGENT — Sandboxed Agent Shell")
@@ -122,6 +126,25 @@ class MainWindow:
         )
         self._save_indicator.pack(side="right", padx=6)
 
+        self._settings_btn = tk.Button(
+            self._title_bar,
+            text="⚙",
+            font=T.FONT_BUTTON,
+            fg=T.CYAN,
+            bg=T.BG_MID,
+            activebackground=T.BG_LIGHT,
+            activeforeground=T.GREEN,
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=2,
+            cursor="hand2",
+            command=self._handle_open_settings,
+        )
+        self._settings_btn.pack(side="right", padx=(6, 8))
+        self._settings_btn.bind("<Enter>", lambda _e: self._settings_btn.config(bg=T.BG_LIGHT))
+        self._settings_btn.bind("<Leave>", lambda _e: self._settings_btn.config(bg=T.BG_MID))
+
         tk.Frame(root, bg=T.CYAN, height=1).pack(fill="x")
 
         self._main_vertical_split = tk.PanedWindow(
@@ -158,6 +181,8 @@ class MainWindow:
             on_vcs_snapshot=on_vcs_snapshot,
             on_reload_tools=on_reload_tools,
             on_reload_prompt_docs=on_reload_prompt_docs,
+            on_set_tool_round_limit=on_set_tool_round_limit,
+            initial_tool_round_limit=initial_tool_round_limit,
         )
         self._main_vertical_split.add(self.control_pane, stretch="always")
 
@@ -244,6 +269,10 @@ class MainWindow:
 
     def _handle_faux_click(self, label: str) -> None:
         self.activity.info("ui", f"Button '{label}' clicked (reserved)")
+
+    def _handle_open_settings(self) -> None:
+        if self._on_open_settings:
+            self._on_open_settings()
 
     def set_model(self, name: str) -> None:
         self._model_label.config(text=f"model: {name}")

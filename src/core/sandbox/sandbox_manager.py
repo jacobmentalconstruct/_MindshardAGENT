@@ -13,7 +13,8 @@ from src.core.runtime.runtime_logger import get_logger
 
 log = get_logger("sandbox_manager")
 
-_SANDBOX_SUBDIRS = ["_tools", "_sessions", "_outputs", "_logs"]
+_MINDSHARD_SUBDIRS = ["logs", "outputs", "sessions", "state", "tools", "parts", "ref", "vcs"]
+_LEGACY_ROOT_DIRS = ["_tools", "_sessions", "_outputs", "_logs"]
 
 
 class SandboxManager:
@@ -24,11 +25,13 @@ class SandboxManager:
         self._root = Path(sandbox_root).resolve()
         self._activity = activity
         self._guard = PathGuard(self._root)
+        self._mindshard_root = self._root / ".mindshard"
 
         self._ensure_structure()
+        self._cleanup_legacy_dirs()
 
         # Audit log lives in .mindshard/logs/
-        self._audit = AuditLog(self._root / "_logs" / "audit.jsonl")
+        self._audit = AuditLog(self._mindshard_root / "logs" / "audit.jsonl")
         self._cli = CLIRunner(self._guard, activity,
                               on_confirm_destructive=on_confirm_destructive,
                               audit_log=self._audit)
@@ -36,9 +39,30 @@ class SandboxManager:
         activity.info("sandbox", f"Sandbox root: {self._root}")
 
     def _ensure_structure(self) -> None:
-        for subdir in _SANDBOX_SUBDIRS:
-            d = self._root / subdir
+        for subdir in _MINDSHARD_SUBDIRS:
+            d = self._mindshard_root / subdir
             d.mkdir(parents=True, exist_ok=True)
+
+    def _cleanup_legacy_dirs(self) -> None:
+        """Remove empty legacy root folders left over from the pre-.mindshard layout."""
+        for subdir in _LEGACY_ROOT_DIRS:
+            legacy_dir = self._root / subdir
+            if not legacy_dir.exists() or not legacy_dir.is_dir():
+                continue
+            try:
+                next(legacy_dir.iterdir())
+                self._activity.warn(
+                    "sandbox",
+                    f"Legacy folder still present outside .mindshard/: {legacy_dir.name}",
+                )
+            except StopIteration:
+                try:
+                    legacy_dir.rmdir()
+                    self._activity.info("sandbox", f"Removed empty legacy folder: {legacy_dir.name}")
+                except OSError:
+                    pass
+            except Exception:
+                pass
 
     @property
     def root(self) -> Path:
@@ -46,19 +70,19 @@ class SandboxManager:
 
     @property
     def tools_dir(self) -> Path:
-        return self._root / "_tools"
+        return self._mindshard_root / "tools"
 
     @property
     def sessions_dir(self) -> Path:
-        return self._root / "_sessions"
+        return self._mindshard_root / "sessions"
 
     @property
     def outputs_dir(self) -> Path:
-        return self._root / "_outputs"
+        return self._mindshard_root / "outputs"
 
     @property
     def logs_dir(self) -> Path:
-        return self._root / "_logs"
+        return self._mindshard_root / "logs"
 
     @property
     def guard(self) -> PathGuard:

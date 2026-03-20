@@ -461,6 +461,8 @@ class ControlPane(tk.Frame):
         on_vcs_snapshot=None,
         on_reload_tools=None,
         on_reload_prompt_docs=None,
+        on_set_tool_round_limit=None,
+        initial_tool_round_limit: int = 12,
         **kw,
     ):
         kw.setdefault("bg", T.BG_DARK)
@@ -477,6 +479,8 @@ class ControlPane(tk.Frame):
         self._source_editor_path: Path | None = None
         self._source_editor_dirty = False
         self._source_editor_runtime = False
+        self._on_set_tool_round_limit = on_set_tool_round_limit
+        self._tool_round_limit_var = tk.IntVar(value=max(1, int(initial_tool_round_limit)))
         self._layout_initialized = False
         self._center_layout_initialized = False
 
@@ -1038,12 +1042,81 @@ class ControlPane(tk.Frame):
         reload_btn.bind("<Enter>", lambda e: reload_btn.config(bg=T.BG_MID))
         reload_btn.bind("<Leave>", lambda e: reload_btn.config(bg=T.BG_DARK))
 
+        tool_settings = tk.Frame(
+            tools_tab,
+            bg=T.BG_MID,
+            highlightthickness=1,
+            highlightbackground=T.BORDER,
+            highlightcolor=T.BORDER,
+        )
+        tool_settings.pack(fill="x", padx=8, pady=(0, 8))
+
+        settings_header = tk.Frame(tool_settings, bg=T.BG_MID)
+        settings_header.pack(fill="x", padx=8, pady=(6, 2))
+        tk.Label(
+            settings_header,
+            text="TOOL LOOP",
+            font=T.FONT_SMALL,
+            fg=T.CYAN,
+            bg=T.BG_MID,
+        ).pack(side="left")
+
+        tk.Label(
+            tool_settings,
+            text="Max Tool Rounds",
+            font=T.FONT_SMALL,
+            fg=T.TEXT_PRIMARY,
+            bg=T.BG_MID,
+            anchor="w",
+        ).pack(fill="x", padx=8)
+
+        settings_row = tk.Frame(tool_settings, bg=T.BG_MID)
+        settings_row.pack(fill="x", padx=8, pady=(4, 4))
+
+        self._tool_round_spinbox = tk.Spinbox(
+            settings_row,
+            from_=1,
+            to=50,
+            width=5,
+            textvariable=self._tool_round_limit_var,
+            font=T.FONT_SMALL,
+            fg=T.TEXT_INPUT,
+            bg=T.BG_LIGHT,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=T.BORDER,
+            highlightcolor=T.BORDER_GLOW,
+            buttonbackground=T.BG_LIGHT,
+        )
+        self._tool_round_spinbox.pack(side="left")
+
+        apply_limit_btn = self._make_toolbar_btn(
+            settings_row,
+            "Apply",
+            self._apply_tool_round_limit,
+        )
+        apply_limit_btn.pack(side="left", padx=(8, 0))
+
+        self._tool_round_status = tk.Label(
+            tool_settings,
+            text="Escape stops the current turn as soon as the stream yields.",
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_MID,
+            anchor="w",
+            justify="left",
+            wraplength=300,
+        )
+        self._tool_round_status.pack(fill="x", padx=8, pady=(0, 8))
+
         self._tools_list_frame = tk.Frame(tools_tab, bg=T.BG_MID)
         self._tools_list_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         self._update_workspace_summaries()
         self._update_prompt_summaries()
         self.set_tool_count(0, None)
+        self.set_tool_round_limit(self._tool_round_limit_var.get())
         self._set_source_editor_state(
             "Select a file-backed source layer to edit it here.\nRuntime layers remain read-only.",
             editable=False,
@@ -1052,22 +1125,24 @@ class ControlPane(tk.Frame):
         )
 
     def _make_toolbar_btn(self, parent, text: str, command, width: int | None = None) -> tk.Button:
-        btn = tk.Button(
-            parent,
-            text=text,
-            font=T.FONT_SMALL,
-            fg=T.CYAN,
-            bg=T.BG_LIGHT,
-            activebackground=T.BG_SURFACE,
-            activeforeground=T.GREEN,
-            relief="flat",
-            bd=0,
-            padx=8,
-            pady=3,
-            cursor="hand2",
-            command=command,
-            width=width,
-        )
+        btn_kwargs = {
+            "master": parent,
+            "text": text,
+            "font": T.FONT_SMALL,
+            "fg": T.CYAN,
+            "bg": T.BG_LIGHT,
+            "activebackground": T.BG_SURFACE,
+            "activeforeground": T.GREEN,
+            "relief": "flat",
+            "bd": 0,
+            "padx": 8,
+            "pady": 3,
+            "cursor": "hand2",
+            "command": command,
+        }
+        if width is not None:
+            btn_kwargs["width"] = width
+        btn = tk.Button(**btn_kwargs)
         btn.bind("<Enter>", lambda _e, b=btn: b.config(bg=T.BG_SURFACE))
         btn.bind("<Leave>", lambda _e, b=btn: b.config(bg=T.BG_LIGHT))
         return btn
@@ -1116,6 +1191,20 @@ class ControlPane(tk.Frame):
     def _refresh_prompt_docs(self) -> None:
         if self._on_reload_prompt_docs:
             self._on_reload_prompt_docs()
+
+    def _apply_tool_round_limit(self) -> None:
+        try:
+            value = max(1, int(self._tool_round_limit_var.get()))
+        except (tk.TclError, ValueError):
+            self._tool_round_status.config(text="Enter a valid whole number between 1 and 50.", fg=T.RED)
+            return
+        self._tool_round_limit_var.set(value)
+        if self._on_set_tool_round_limit:
+            self._on_set_tool_round_limit(value)
+        self._tool_round_status.config(
+            text=f"Max tool rounds set to {value}. Escape stops the active turn.",
+            fg=T.TEXT_DIM,
+        )
 
     def _confirm_discard_unsaved(self) -> bool:
         if not self._source_editor_dirty:
@@ -1326,6 +1415,13 @@ class ControlPane(tk.Frame):
     def set_session_title(self, title: str) -> None:
         self._current_session_title = title or "New Session"
         self._update_workspace_summaries()
+
+    def set_tool_round_limit(self, value: int) -> None:
+        self._tool_round_limit_var.set(max(1, int(value)))
+        self._tool_round_status.config(
+            text=f"Max tool rounds set to {max(1, int(value))}. Escape stops the active turn.",
+            fg=T.TEXT_DIM,
+        )
 
     def set_tool_count(self, count: int, tool_names: list[str] | None = None) -> None:
         if count > 0:

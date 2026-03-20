@@ -53,6 +53,10 @@ class AppConfig:
     docker_memory_limit: str = "512m"
     docker_cpu_limit: float = 1.0
 
+    # Agent tool loop behavior
+    max_tool_rounds: int = 12
+    gui_launch_policy: str = "ask"  # deny | ask | allow
+
     # Logging
     log_dir: str = "_logs"
 

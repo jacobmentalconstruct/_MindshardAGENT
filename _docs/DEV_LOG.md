@@ -477,3 +477,64 @@ This closes the first major usability loop: behavior is now editable, inspectabl
 - `Sources` now has a structured layer view, but source toggles/diffing are still deferred.
 - `Sources` also now supports direct prompt-doc editing for file-backed layers; runtime layers remain read-only by design.
 - Tab breakout behavior was intentionally not carried forward into the new notebook shell.
+
+---
+
+## 2026-03-20 — FEAT-006: Compact Tool Transcript + Configurable Tool Loop Limit
+
+### Summary
+Testing exposed two pain points in agentic exploration turns:
+
+1. tool-call transcripts were being preserved as verbose fenced JSON blocks
+2. the response loop had a hardcoded 5-round tool limit with no user control
+
+This pass makes tool-heavy turns much easier to inspect and manage.
+
+### Files Modified
+- `src/core/config/app_config.py` — added persisted `max_tool_rounds`
+- `src/core/agent/transcript_formatter.py` — added compact tool-call transcript formatting:
+  - raw fenced `tool_call` JSON becomes a concise `TOOL_CALLS: ...` summary
+- `src/core/agent/response_loop.py` — now uses configurable tool round limits, appends a clear note when the round cap is hit, and supports stop requests
+- `src/core/ollama/ollama_client.py` — added cooperative stream stop hook
+- `src/core/engine.py` — added `request_stop()` passthrough
+- `src/ui/panes/control_pane.py` — added Tools-tab loop controls (`Max Tool Rounds` + apply/status)
+- `src/ui/gui_main.py` — passed tool loop settings wiring through to the control pane
+- `src/app.py` — saves tool loop settings, updates UI status, and sends Escape stop requests into the live response loop
+- `_docs/TKINTER_UI_TREE.md` — noted the Tools-tab loop controls
+
+### Behavior Changes
+- Tool-heavy assistant turns now save/display compact summaries such as:
+  - `TOOL_CALLS: read_file(path:src/app.py, start:0, end:20000), ...`
+- The max tool round limit is now adjustable in the `Tools` tab instead of hardcoded in code
+- Escape now requests a real stop on the active response loop rather than only halting the UI flush timer
+
+### Testing
+- `py -3 -m compileall src tests`
+- direct compact-transcript smoke test
+- Tk smoke test for Tools-tab round-limit callback wiring
+
+---
+
+## 2026-03-20 — FIX-002: Legacy Root Folders Removed From Sandbox Layout
+
+### Summary
+User testing revealed that the app was still creating the pre-`.mindshard/`
+root folders (`_tools`, `_sessions`, `_outputs`, `_logs`) even though the
+new sidecar architecture had already moved those concerns under `.mindshard/`.
+
+Root cause: `SandboxManager` had not been migrated with the rest of the
+architecture and was still initializing the old root-level structure.
+
+### Files Modified
+- `src/core/sandbox/sandbox_manager.py`
+  - moved managed directories to `.mindshard/{logs,outputs,sessions,state,tools,parts,ref,vcs}`
+  - moved audit log path to `.mindshard/logs/audit.jsonl`
+  - added safe cleanup of empty legacy root folders
+  - warns when non-empty legacy folders are still present outside `.mindshard/`
+
+### Testing
+- `py -3 -m compileall src`
+- temporary sandbox smoke test confirming:
+  - `.mindshard/` subdirs are created
+  - empty legacy root folders are removed
+  - audit log path resolves to `.mindshard/logs/audit.jsonl`

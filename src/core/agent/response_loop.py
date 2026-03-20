@@ -15,7 +15,7 @@ from typing import Any, Callable
 
 from src.core.agent.prompt_builder import PromptBuildResult, build_messages, build_system_prompt_bundle
 from src.core.agent.tool_router import ToolRouter
-from src.core.agent.transcript_formatter import format_all_results
+from src.core.agent.transcript_formatter import compact_tool_call_transcript, format_all_results
 from src.core.ollama.ollama_client import chat_stream
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.command_policy import CommandPolicy
@@ -25,9 +25,6 @@ from src.core.runtime.runtime_logger import get_logger
 from src.core.sessions.knowledge_store import KnowledgeStore
 
 log = get_logger("response_loop")
-
-MAX_TOOL_ROUNDS = 5
-
 
 class ResponseLoop:
     """Manages a single user turn including tool round-trips."""
@@ -60,6 +57,7 @@ class ResponseLoop:
         self._project_meta = None          # ProjectMeta | None — set by engine
         self._last_prompt_build: PromptBuildResult | None = None
         self._last_source_fingerprint: str = ""
+        self._stop_requested = False
 
     def run_turn(
         self,
@@ -77,6 +75,7 @@ class ResponseLoop:
         """
         def _worker():
             try:
+                self._stop_requested = False
                 self._run_turn_sync(
                     user_text, chat_history,
                     on_token, on_complete, on_error,
@@ -105,8 +104,10 @@ class ResponseLoop:
 
         total_content = []
         rounds = 0
+        result: dict[str, Any] = {}
+        assistant_text = ""
 
-        while rounds < MAX_TOOL_ROUNDS:
+        while rounds < self._config.max_tool_rounds and not self._stop_requested:
             rounds += 1
             round_tokens: list[str] = []
 
@@ -117,12 +118,17 @@ class ResponseLoop:
                 model=self._config.selected_model,
                 messages=messages,
                 on_token=lambda t: (round_tokens.append(t), on_token(t) if on_token else None),
+                should_stop=lambda: self._stop_requested,
                 temperature=self._config.temperature,
                 num_ctx=self._config.max_context_tokens,
             )
 
             assistant_text = result.get("content", "".join(round_tokens))
-            total_content.append(assistant_text)
+            total_content.append(compact_tool_call_transcript(assistant_text))
+
+            if result.get("stopped"):
+                self._activity.info("agent", "Response loop interrupted by user request")
+                break
 
             # Check for tool calls
             if self._router.has_tool_calls(assistant_text):
@@ -145,6 +151,19 @@ class ResponseLoop:
             else:
                 # No tool calls, we're done
                 break
+
+        if (
+            not self._stop_requested
+            and rounds >= self._config.max_tool_rounds
+            and assistant_text
+            and self._router.has_tool_calls(assistant_text)
+        ):
+            total_content.append(
+                f"[Stopped after {self._config.max_tool_rounds} tool rounds. "
+                "Increase Tools > Max Tool Rounds to allow deeper exploration.]"
+            )
+        elif self._stop_requested or result.get("stopped"):
+            total_content.append("[Stopped by user request.]")
 
         # RAG: store user query and assistant response as knowledge
         final_text = "\n".join(total_content)
@@ -175,6 +194,7 @@ class ResponseLoop:
             "tokens_out": f"~{result.get('eval_count', '?')}",
             "time": f"{result.get('wall_ms', 0):.0f}ms",
             "rounds": rounds,
+            "stopped": bool(result.get("stopped", False) or self._stop_requested),
         }
 
         if on_complete:
@@ -187,6 +207,10 @@ class ResponseLoop:
                     {"role": "assistant", "content": "\n".join(total_content)},
                 ],
             })
+
+    def request_stop(self) -> None:
+        """Request that the current response loop stop after the next stream chunk."""
+        self._stop_requested = True
 
     def preview_prompt(
         self,
