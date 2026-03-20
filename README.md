@@ -1,6 +1,6 @@
 # MindshardAGENT
 
-A lean Tkinter desktop chatbot shell for local Ollama-backed agents with sandboxed CLI tool execution.
+A lean Tkinter desktop chatbot shell for local Ollama-backed agents with sandboxed DOCKER & CLI tool execution.
 
 ## Quick Start
 
