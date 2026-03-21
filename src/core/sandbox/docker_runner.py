@@ -15,6 +15,7 @@ from typing import Any
 
 from src.core.sandbox.docker_manager import DockerManager, CONTAINER_WORKDIR
 from src.core.sandbox.audit_log import AuditLog
+from src.core.sandbox.gui_launch_guard import detect_gui_launch
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
 from src.core.utils.clock import utc_iso, Stopwatch
@@ -69,6 +70,8 @@ class DockerRunner:
         else:
             work_dir = CONTAINER_WORKDIR
 
+        host_cwd = self._host_cwd(work_dir)
+
         # Check container is running
         if not self._docker.is_running():
             msg = "Docker container is not running"
@@ -97,6 +100,19 @@ class DockerRunner:
                     "exit_code": -1,
                     "started_at": started_at, "finished_at": utc_iso(),
                 }
+
+        gui_match = detect_gui_launch(command, self._docker.sandbox_root, host_cwd)
+        if gui_match:
+            msg = "Docker mode blocks GUI launches because desktop windows will not display meaningfully."
+            self._activity.warn("docker_cli.policy", f"BLOCKED: {command[:60]} — {msg}")
+            if self._audit:
+                self._audit.record(command, work_dir, "blocked", reason=msg)
+            return {
+                "command": command, "cwd": work_dir,
+                "stdout": "", "stderr": msg,
+                "exit_code": -1,
+                "started_at": started_at, "finished_at": utc_iso(),
+            }
 
         # Destructive command confirmation (user safety, not system safety)
         if stripped:
@@ -155,3 +171,11 @@ class DockerRunner:
             "started_at": started_at,
             "finished_at": finished_at,
         }
+
+    def _host_cwd(self, docker_cwd: str) -> str:
+        if not docker_cwd.startswith(CONTAINER_WORKDIR):
+            return str(self._docker.sandbox_root)
+        suffix = docker_cwd[len(CONTAINER_WORKDIR):].lstrip("/")
+        if not suffix:
+            return str(self._docker.sandbox_root)
+        return str((self._docker.sandbox_root / suffix).resolve())

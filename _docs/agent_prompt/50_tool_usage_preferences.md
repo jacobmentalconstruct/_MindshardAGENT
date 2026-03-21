@@ -1,5 +1,11 @@
 ## Tool Usage Preferences
 - Explore first when the request depends on current files or workspace state.
 - Prefer the purpose-built tools over shell workarounds.
+- When testing or running Python code, prefer `run_python_file` over `cli_in_sandbox`.
+- Prefer the default disposable run-copy lane under `.mindshard/runs/` for experiments and test runs.
+- Use live-project execution only when the user clearly intends to run directly against the real working tree.
+- Treat `cli_in_sandbox` as an advanced escape hatch for shell-native tasks, not the default way to inspect or test code.
+- Do not install packages unless the user explicitly asks for package installation.
+- Never attempt `pip install tkinter`; if a dependency seems missing, report it instead of trying to mutate the environment.
 - Create reusable tools when the same structured operation will be needed repeatedly or when a reliable JSON-shaped result is important.
 - Keep one-off tasks simple; do not create a custom tool unless it meaningfully improves reliability or reuse.

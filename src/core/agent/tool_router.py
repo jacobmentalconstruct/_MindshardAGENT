@@ -11,6 +11,7 @@ from typing import Any
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.cli_runner import CLIRunner
 from src.core.sandbox.file_writer import FileWriter
+from src.core.sandbox.python_runner import PythonRunner
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
 
@@ -27,13 +28,14 @@ class ToolRouter:
 
     def __init__(self, catalog: ToolCatalog, cli: CLIRunner, activity: ActivityStream,
                  file_writer: FileWriter | None = None, sandbox_root: str = "",
-                 on_tools_reloaded=None):
+                 on_tools_reloaded=None, python_runner: PythonRunner | None = None):
         self._catalog = catalog
         self._cli = cli
         self._file_writer = file_writer
         self._activity = activity
         self._sandbox_root = sandbox_root
         self._on_tools_reloaded = on_tools_reloaded  # callback(count, names)
+        self._python_runner = python_runner
 
     def extract_tool_calls(self, text: str) -> list[dict[str, Any]]:
         """Extract tool_call JSON blocks from assistant text."""
@@ -126,6 +128,36 @@ class ToolRouter:
             return {
                 "tool_name": tool_name,
                 "success": result["success"],
+                "result": result,
+            }
+
+        if tool_name == "run_python_file":
+            if not self._python_runner:
+                return {"tool_name": tool_name, "success": False, "error": "Python runner not initialized"}
+            path = tool_call.get("path", "")
+            args = tool_call.get("args", [])
+            cwd = tool_call.get("cwd", None)
+            timeout = tool_call.get("timeout", None)
+            workspace = tool_call.get("workspace", None)
+            if not path:
+                return {"tool_name": tool_name, "success": False, "error": "No path provided"}
+            if isinstance(args, str):
+                args = [args]
+            if args is None:
+                args = []
+            if not isinstance(args, list):
+                return {"tool_name": tool_name, "success": False, "error": "args must be a list of strings"}
+
+            result = self._python_runner.run_file(
+                path,
+                args=args,
+                cwd=cwd,
+                timeout=timeout,
+                workspace=workspace,
+            )
+            return {
+                "tool_name": tool_name,
+                "success": result["exit_code"] == 0,
                 "result": result,
             }
 

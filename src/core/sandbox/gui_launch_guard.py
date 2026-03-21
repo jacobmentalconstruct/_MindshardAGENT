@@ -1,4 +1,4 @@
-"""Heuristics for detecting likely local GUI launches from CLI commands."""
+"""Heuristics for detecting likely local GUI launches from CLI commands or scripts."""
 
 from __future__ import annotations
 
@@ -18,6 +18,19 @@ class GuiLaunchMatch:
     reason: str
     target_path: str = ""
     module_name: str = ""
+
+
+def detect_gui_script(path: str | Path) -> GuiLaunchMatch | None:
+    """Return match details when a Python file looks like a Tkinter GUI script."""
+
+    script_path = Path(path).resolve()
+    if script_path.suffix.lower() not in {".py", ".pyw"}:
+        return None
+    if not script_path.exists():
+        return None
+    if _file_uses_tkinter(script_path):
+        return GuiLaunchMatch(reason="python_script_tkinter", target_path=str(script_path))
+    return None
 
 
 def detect_gui_launch(command: str, root: str | Path, cwd: str | Path | None = None) -> GuiLaunchMatch | None:
@@ -46,16 +59,15 @@ def detect_gui_launch(command: str, root: str | Path, cwd: str | Path | None = N
             return None
 
         script_path = _resolve_script(candidate[1], work_dir, root_path)
-        if not script_path or not script_path.exists():
+        if not script_path:
             return None
-        if _file_uses_tkinter(script_path):
-            return GuiLaunchMatch(reason="python_script_tkinter", target_path=str(script_path))
-        return None
+        return detect_gui_script(script_path)
 
     direct_path = _resolve_script(tokens[0], work_dir, root_path)
     if direct_path and direct_path.exists() and direct_path.suffix.lower() in {".py", ".pyw"}:
-        if _file_uses_tkinter(direct_path):
-            return GuiLaunchMatch(reason="direct_python_script_tkinter", target_path=str(direct_path))
+        match = detect_gui_script(direct_path)
+        if match:
+            return GuiLaunchMatch(reason="direct_python_script_tkinter", target_path=match.target_path)
 
     return None
 

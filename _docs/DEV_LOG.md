@@ -118,6 +118,62 @@ The original CLIRunner only validated that working directories stayed inside the
 - `src/core/sandbox/cli_runner.py` — Now validates all commands through CommandPolicy before execution
 - `src/core/agent/prompt_builder.py` — Injects OS knowledge + allowed command reference into system prompt
 - `src/core/agent/response_loop.py` — Passes command_policy to prompt builder
+
+---
+
+## 2026-03-20T19:10 — SAFETY-004: Structured Python Runner + GUI HITL Gate
+
+### Summary
+Added a dedicated `run_python_file` tool so the agent can test Python scripts without leaning on raw CLI. Local Tkinter / GUI launches are now governed by settings-backed policy (`deny | ask | allow`) with a human approval dialog, while Docker mode blocks GUI windows outright.
+
+### Files Created
+- `src/core/sandbox/python_runner.py` — structured sandbox-local Python execution with path validation, timeout control, Docker support, audit logging, and GUI gating
+- `src/ui/dialogs/gui_launch_dialog.py` — approval modal with `Allow Once`, `Always Allow`, and `Deny`
+
+### Files Modified
+- `src/core/sandbox/gui_launch_guard.py` — now detects GUI/Tkinter scripts directly, not just CLI commands
+- `src/core/sandbox/cli_runner.py` — local GUI launches from raw CLI now respect GUI policy and return better structured-tool suggestions on blocked commands
+- `src/core/sandbox/sandbox_manager.py` — passes GUI policy/callback plumbing into the local CLI runner
+- `src/core/sandbox/tool_catalog.py` — registers builtin `run_python_file`
+- `src/core/agent/tool_router.py` — dispatches `run_python_file`
+- `src/core/engine.py` — creates and wires `PythonRunner` in both local and Docker modes
+- `src/app.py` — app-owned GUI approval callback persists `Always Allow` back into config
+- `src/core/agent/prompt_builder.py` — prompt now teaches `run_python_file` as the preferred Python execution lane
+- `src/core/agent/os_knowledge.py` — OS teaching now demotes CLI for routine inspection/testing
+- `_docs/agent_prompt/50_tool_usage_preferences.md` — preference doc now nudges toward structured tools for Python testing
+- `src/core/agent/transcript_formatter.py` — clearer formatting for `run_python_file` results
+- `tests/test_tool_roundtrip.py` — added structured runner and router coverage
+
+### Design Notes
+- `run_python_file` only accepts sandbox-local `.py` / `.pyw` files; no inline code, shell chaining, or arbitrary interpreter flags
+- GUI detection is intentionally heuristic and Tkinter-focused for now
+- Docker mode blocks GUI launch attempts with an explicit explanation because desktop windows will not render meaningfully there
+- Raw CLI remains available for advanced shell-native tasks, but the prompt now steers the model toward structured file and Python tools first
+
+---
+
+## 2026-03-20T20:05 — SAFETY-005: Disposable Run Workspaces
+
+### Summary
+Promoted Python execution into a disposable run lane. `run_python_file` now defaults to snapshotting the sandbox into `.mindshard/runs/<run_id>/workspace/` before execution, so experiments and test runs happen against a throwaway copy instead of the live project tree.
+
+### Files Created
+- `src/core/sandbox/run_workspace.py` — creates disposable execution snapshots and persists run manifests/results
+
+### Files Modified
+- `src/core/sandbox/python_runner.py` — defaults `run_python_file` to `workspace="run_copy"` and records `run_root`, `workspace_root`, and persisted stdout/stderr/result artifacts
+- `src/core/sandbox/sandbox_manager.py` — provisions `.mindshard/runs/`
+- `src/core/engine.py` — provisions `.mindshard/runs/` on workspace init
+- `src/core/sandbox/tool_catalog.py` — documents the new `workspace` parameter
+- `src/core/agent/tool_router.py` — passes the `workspace` option through
+- `src/core/agent/prompt_builder.py`, `src/core/agent/os_knowledge.py`, `_docs/agent_prompt/50_tool_usage_preferences.md` — teach disposable run-copy behavior as the default execution lane
+- `src/core/agent/transcript_formatter.py` — includes run-workspace metadata in tool results
+- `tests/test_tool_roundtrip.py` — verifies disposable run-copy behavior and persisted run artifacts
+
+### Design Notes
+- Direct live-project execution is still available via `workspace: "sandbox"` when the user explicitly intends it
+- Disposable snapshots intentionally exclude `.mindshard/`, `.git/`, `venv/`, `.venv/`, `node_modules/`, and `__pycache__/`
+- Each run stores `manifest.json`, `stdout.txt`, `stderr.txt`, and `result.json` under the run root for inspection
 - `src/core/engine.py` — Creates and wires CommandPolicy on sandbox initialization
 
 ### Testing

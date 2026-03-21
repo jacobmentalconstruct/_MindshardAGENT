@@ -30,6 +30,7 @@ from src.core.sandbox.cli_runner import CLIRunner
 from src.core.sandbox.path_guard import PathGuard
 from src.core.sandbox.command_policy import CommandPolicy
 from src.core.sandbox.file_writer import FileWriter
+from src.core.sandbox.python_runner import PythonRunner
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.transcript_formatter import format_tool_result, format_all_results
@@ -195,6 +196,8 @@ def test_prompt_builder():
     _check("Contains sandbox root", "/tmp/sandbox" in system)
     _check("Contains tool instructions", "tool_call" in system)
     _check("Contains cli_in_sandbox", "cli_in_sandbox" in system)
+    _check("Contains run_python_file", "run_python_file" in system)
+    _check("Mentions disposable runs", ".mindshard/runs/" in system or ".mindshard\\runs\\" in system)
     _check("Contains MindshardAGENT", "MindshardAGENT" in system)
     _check("Contains externalized workspace semantics", "Workspace Semantics" in system)
 
@@ -387,15 +390,73 @@ def test_prompt_builder_file_tools():
 
     _check("Prompt includes write_file", "write_file" in system)
     _check("Prompt includes read_file", "read_file" in system)
+    _check("Prompt includes run_python_file", "run_python_file" in system)
     _check("Prompt discourages echo for files", "never use echo" in system.lower())
     _check("Prompt shows write_file example", '"tool": "write_file"' in system)
     _check("Prompt shows read_file example", '"tool": "read_file"' in system)
 
 
-# ── Test 9: Live Model Round-Trip ────────────────────
+# ── Test 9: Structured Python Runner ─────────────────
+
+def test_run_python_file():
+    _section("Test 9: Structured Python Runner")
+
+    sandbox = tempfile.mkdtemp()
+    activity = ActivityStream()
+    guard = PathGuard(sandbox)
+    runner = PythonRunner(guard, activity)
+
+    script_path = Path(sandbox) / "scripts" / "hello.py"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text("print('PY_RUNNER_OK')\n", encoding="utf-8")
+
+    result = runner.run_file("scripts/hello.py")
+    _check("run_python_file succeeds", result["exit_code"] == 0)
+    _check("run_python_file captures output", "PY_RUNNER_OK" in result.get("stdout", ""))
+    _check("run_python_file defaults to disposable copy", result.get("workspace_mode") == "run_copy")
+    _check("run_python_file records run root", bool(result.get("run_root")))
+    _check("run workspace stdout persisted", Path(result["run_root"], "stdout.txt").exists())
+
+    gui_script = Path(sandbox) / "scripts" / "gui.py"
+    gui_script.write_text("import tkinter as tk\nprint('blocked before run')\n", encoding="utf-8")
+    deny_runner = PythonRunner(guard, activity, gui_policy_getter=lambda: "deny")
+    gui_result = deny_runner.run_file("scripts/gui.py")
+    _check("GUI script blocked by policy", gui_result["exit_code"] == -1)
+    _check("GUI policy message returned", "blocked" in gui_result.get("stderr", "").lower())
+
+
+# ── Test 10: run_python_file via Router ──────────────
+
+def test_run_python_file_via_router():
+    _section("Test 10: run_python_file via Router")
+
+    sandbox = tempfile.mkdtemp()
+    activity = ActivityStream()
+    guard = PathGuard(sandbox)
+    cli = CLIRunner(guard, activity, policy=CommandPolicy(mode="allowlist"))
+    python_runner = PythonRunner(guard, activity)
+    catalog = ToolCatalog()
+    router = ToolRouter(catalog, cli, activity, python_runner=python_runner)
+
+    script = Path(sandbox) / "run_me.py"
+    script.write_text("import sys\nprint('ARGS=' + '|'.join(sys.argv[1:]))\n", encoding="utf-8")
+
+    response = '''Testing the script.
+
+```tool_call
+{"tool": "run_python_file", "path": "run_me.py", "args": ["one", "two"], "workspace": "run_copy"}
+```'''
+    results = router.execute_all(response)
+    _check("Router returned run_python_file result", len(results) == 1)
+    _check("Router run_python_file succeeded", results[0]["success"])
+    _check("Router passed args through", "ARGS=one|two" in results[0]["result"].get("stdout", ""))
+    _check("Router run_python_file reports run workspace", bool(results[0]["result"].get("run_root")))
+
+
+# ── Test 11: Live Model Round-Trip ───────────────────
 
 def test_live_model(model: str = "qwen3.5:2b"):
-    _section(f"Test 9: LIVE Model Round-Trip ({model})")
+    _section(f"Test 11: LIVE Model Round-Trip ({model})")
 
     import threading
     from src.core.config.app_config import AppConfig
@@ -499,6 +560,8 @@ def main():
     test_file_tools()
     test_file_tools_via_router()
     test_prompt_builder_file_tools()
+    test_run_python_file()
+    test_run_python_file_via_router()
 
     if live:
         # Test with smallest capable models

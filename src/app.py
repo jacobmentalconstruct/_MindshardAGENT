@@ -84,6 +84,47 @@ def main() -> None:
         _confirm_result["event"].wait(timeout=60)
         return _confirm_result["value"]
 
+    _gui_confirm_result = {"value": "deny", "event": threading.Event()}
+
+    def _confirm_gui_launch(command: str, match) -> str:
+        """Ask user whether an agent-triggered GUI launch should be allowed."""
+        _gui_confirm_result["event"].clear()
+        _gui_confirm_result["value"] = "deny"
+
+        def _ask():
+            from src.ui.dialogs.gui_launch_dialog import GuiLaunchDialog
+
+            reason_map = {
+                "python_tkinter_module": "The agent is trying to launch Tkinter directly via the Python module.",
+                "python_script_tkinter": "The target script appears to import or construct Tkinter widgets.",
+                "direct_python_script_tkinter": "The target script appears to import or construct Tkinter widgets.",
+            }
+            dialog = GuiLaunchDialog(
+                root,
+                command=command,
+                target_path=getattr(match, "target_path", ""),
+                reason=reason_map.get(getattr(match, "reason", ""), "This looks like a local GUI or Tkinter launch."),
+            )
+            decision = dialog.result or "deny"
+            if decision == "always_allow":
+                config.gui_launch_policy = "allow"
+                config.save(PROJECT_ROOT)
+                activity.info("settings", "GUI launch policy changed to allow")
+                try:
+                    window.set_status("GUI policy updated — local windows now allowed")
+                except Exception:
+                    pass
+            elif decision == "allow_once":
+                activity.info("safety", f"GUI launch approved once: {command}")
+            else:
+                activity.warn("safety", f"GUI launch denied: {command}")
+            _gui_confirm_result["value"] = decision
+            _gui_confirm_result["event"].set()
+
+        root.after(0, _ask)
+        _gui_confirm_result["event"].wait(timeout=120)
+        return _gui_confirm_result["value"]
+
     # ── Engine ────────────────────────────────────────
     def _on_tools_reloaded(count: int, names: list):
         """Update tool count badge on the main thread."""
@@ -91,7 +132,8 @@ def main() -> None:
 
     engine = Engine(config=config, activity=activity, bus=bus,
                     on_confirm_destructive=_confirm_destructive,
-                    on_tools_reloaded=_on_tools_reloaded)
+                    on_tools_reloaded=_on_tools_reloaded,
+                    on_confirm_gui_launch=_confirm_gui_launch)
 
     # ── Default sandbox ───────────────────────────────
     default_sandbox = PROJECT_ROOT / "_sandbox"

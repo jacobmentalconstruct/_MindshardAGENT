@@ -13,7 +13,7 @@ from src.core.runtime.runtime_logger import get_logger
 
 log = get_logger("sandbox_manager")
 
-_MINDSHARD_SUBDIRS = ["logs", "outputs", "sessions", "state", "tools", "parts", "ref", "vcs"]
+_MINDSHARD_SUBDIRS = ["logs", "outputs", "sessions", "state", "tools", "parts", "ref", "vcs", "runs"]
 _LEGACY_ROOT_DIRS = ["_tools", "_sessions", "_outputs", "_logs"]
 
 
@@ -21,7 +21,9 @@ class SandboxManager:
     """Manages the sandbox root directory and its standard structure."""
 
     def __init__(self, sandbox_root: str | Path, activity: ActivityStream,
-                 on_confirm_destructive=None):
+                 on_confirm_destructive=None,
+                 gui_policy_getter=None,
+                 on_confirm_gui_launch=None):
         self._root = Path(sandbox_root).resolve()
         self._activity = activity
         self._guard = PathGuard(self._root)
@@ -34,7 +36,9 @@ class SandboxManager:
         self._audit = AuditLog(self._mindshard_root / "logs" / "audit.jsonl")
         self._cli = CLIRunner(self._guard, activity,
                               on_confirm_destructive=on_confirm_destructive,
-                              audit_log=self._audit)
+                              audit_log=self._audit,
+                              gui_policy_getter=gui_policy_getter,
+                              on_confirm_gui_launch=on_confirm_gui_launch)
         log.info("SandboxManager active: %s", self._root)
         activity.info("sandbox", f"Sandbox root: {self._root}")
 

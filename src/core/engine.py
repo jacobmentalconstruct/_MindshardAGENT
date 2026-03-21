@@ -20,6 +20,7 @@ from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.file_writer import FileWriter
 from src.core.sandbox.docker_manager import DockerManager
 from src.core.sandbox.docker_runner import DockerRunner
+from src.core.sandbox.python_runner import PythonRunner
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.response_loop import ResponseLoop
 from src.core.agent.thought_chain import ThoughtChain
@@ -40,7 +41,8 @@ class Engine:
     """Central runtime coordinator for the application."""
 
     def __init__(self, config: AppConfig, activity: ActivityStream, bus: EventBus,
-                 on_confirm_destructive=None, on_tools_reloaded=None):
+                 on_confirm_destructive=None, on_tools_reloaded=None,
+                 on_confirm_gui_launch=None):
         self.config = config
         self.activity = activity
         self.bus = bus
@@ -49,6 +51,7 @@ class Engine:
         self._chat_history: list[dict[str, str]] = []
         self._on_confirm_destructive = on_confirm_destructive
         self._on_tools_reloaded = on_tools_reloaded  # callback(count, names)
+        self._on_confirm_gui_launch = on_confirm_gui_launch
 
         # Active project path (relative to sandbox root)
         # "" means sandbox root IS the project; "my_app" means sandbox/my_app/ is the project
@@ -64,6 +67,7 @@ class Engine:
         self.tool_catalog = ToolCatalog()
         self.tool_router: ToolRouter | None = None
         self.response_loop: ResponseLoop | None = None
+        self.python_runner: PythonRunner | None = None
 
         # RAG
         self.knowledge: KnowledgeStore | None = None
@@ -109,7 +113,9 @@ class Engine:
 
         # Always create the local sandbox manager (for PathGuard, AuditLog, structure)
         self.sandbox = SandboxManager(sandbox_root, self.activity,
-                                       on_confirm_destructive=self._on_confirm_destructive)
+                                       on_confirm_destructive=self._on_confirm_destructive,
+                                       gui_policy_getter=lambda: self.config.gui_launch_policy,
+                                       on_confirm_gui_launch=self._on_confirm_gui_launch)
 
         # Ensure standard workspace dirs exist
         self._init_workspace_dirs(sandbox_root)
@@ -142,6 +148,14 @@ class Engine:
             )
             self.command_policy = CommandPolicy(mode="permissive")
             cli_runner = self.docker_runner
+            self.python_runner = PythonRunner(
+                self.sandbox.guard,
+                self.activity,
+                audit_log=self.sandbox.audit,
+                docker_manager=self.docker_manager,
+                gui_policy_getter=lambda: self.config.gui_launch_policy,
+                on_confirm_gui_launch=self._on_confirm_gui_launch,
+            )
             self.activity.info("engine",
                 f"Docker sandbox mode — container: {self.docker_manager.container_status()}")
         else:
@@ -149,6 +163,13 @@ class Engine:
             self.command_policy = CommandPolicy(mode="allowlist")
             cli_runner = self.sandbox.cli
             self.docker_runner = None
+            self.python_runner = PythonRunner(
+                self.sandbox.guard,
+                self.activity,
+                audit_log=self.sandbox.audit,
+                gui_policy_getter=lambda: self.config.gui_launch_policy,
+                on_confirm_gui_launch=self._on_confirm_gui_launch,
+            )
             if self.config.docker_enabled:
                 self.activity.warn("engine",
                     "Docker enabled but not available — falling back to local sandbox")
@@ -158,6 +179,7 @@ class Engine:
             file_writer=self.file_writer,
             sandbox_root=sandbox_root,
             on_tools_reloaded=self._on_tools_reloaded,
+            python_runner=self.python_runner,
         )
         self.response_loop = ResponseLoop(
             self.config, self.tool_catalog, self.tool_router, self.activity,
@@ -192,7 +214,7 @@ class Engine:
         from pathlib import Path
         root = Path(sandbox_root)
         sidecar = root / ".mindshard"
-        for d in ("vcs", "sessions", "logs", "tools", "parts", "ref", "outputs", "state"):
+        for d in ("vcs", "sessions", "logs", "tools", "parts", "ref", "outputs", "state", "runs"):
             (sidecar / d).mkdir(parents=True, exist_ok=True)
 
     def set_active_project(self, project_path: str) -> None:

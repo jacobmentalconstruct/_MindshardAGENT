@@ -38,6 +38,25 @@ def format_tool_result(tool_result: dict[str, Any]) -> str:
             content = content[:3000] + "\n... (truncated)"
         return f"[Tool '{name}' completed] {path} ({size} bytes):\n{content}"
 
+    if name == "run_python_file":
+        path = result.get("path", "?")
+        exit_code = result.get("exit_code", "?")
+        stdout = result.get("stdout", "").strip()
+        stderr = result.get("stderr", "").strip()
+        workspace_mode = result.get("workspace_mode", "sandbox")
+        parts = [f"[Tool '{name}' completed] {path} (exit code {exit_code}, workspace={workspace_mode})"]
+        if result.get("run_root"):
+            parts.append(f"run_root:\n{result['run_root']}")
+        if stdout:
+            if len(stdout) > 2000:
+                stdout = stdout[:2000] + "\n... (truncated)"
+            parts.append(f"stdout:\n{stdout}")
+        if stderr:
+            if len(stderr) > 1000:
+                stderr = stderr[:1000] + "\n... (truncated)"
+            parts.append(f"stderr:\n{stderr}")
+        return "\n".join(parts)
+
     if name == "reload_tools":
         summary = result.get("summary", "Tools reloaded.")
         tools = result.get("tools", [])

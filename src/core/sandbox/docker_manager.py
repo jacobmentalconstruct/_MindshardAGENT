@@ -36,6 +36,7 @@ class DockerManager:
 
     def __init__(self, activity: ActivityStream, sandbox_root: str | Path = ""):
         self._activity = activity
+        self._sandbox_root = Path(sandbox_root).resolve() if sandbox_root else Path.cwd()
         # Container name derived from sandbox path — unique per install
         self._container_name = (
             _derive_container_name(sandbox_root) if sandbox_root
@@ -44,12 +45,17 @@ class DockerManager:
 
     def set_sandbox_root(self, sandbox_root: str | Path) -> None:
         """Update the container name when sandbox root changes."""
+        self._sandbox_root = Path(sandbox_root).resolve()
         self._container_name = _derive_container_name(sandbox_root)
         log.info("Container name set: %s", self._container_name)
 
     @property
     def container_name(self) -> str:
         return self._container_name
+
+    @property
+    def sandbox_root(self) -> Path:
+        return self._sandbox_root
 
     def is_docker_available(self) -> bool:
         """Check if Docker daemon is running."""

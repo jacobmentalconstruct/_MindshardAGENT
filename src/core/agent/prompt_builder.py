@@ -169,14 +169,15 @@ def _format_environment_block(
 - Operating system: Linux (Docker container)
 - Shell: bash
 - Python: python / python3 (both work)
-- Package manager: pip (available)
 
 ## Sandbox Rules
 - You are inside a Docker container. The container IS your sandbox.
 - All files are under /sandbox.
 - You have full bash access; most Linux commands work.
-- pip install is available for Python packages.
+- Do not install packages unless the user explicitly asks for that workflow.
+- Never try `pip install tkinter` for this app.
 - Reusable agent tools must live under `.mindshard/tools/`.
+- Disposable execution snapshots live under `.mindshard/runs/`.
 """
 
     return f"""## Your Environment
@@ -192,6 +193,7 @@ def _format_environment_block(
 - All CLI commands execute within the sandbox boundary.
 - Only allowlisted commands may be used. Blocked commands will be rejected.
 - Reusable agent tools must live under `.mindshard\\tools\\`.
+- Disposable execution snapshots live under `.mindshard\\runs\\`.
 """
 
 
@@ -220,7 +222,8 @@ def _tool_rules_block() -> str:
 |------|-------------|----------------------|
 | Create/write a file | write_file | ~~echo ... > file~~ |
 | Read a file | read_file | ~~type file~~ ~~cat file~~ |
-| Run a program | cli_in_sandbox | — |
+| Run a Python script | run_python_file | ~~cli_in_sandbox with python ...~~ |
+| Run a shell-native command | cli_in_sandbox | ~~use shell for file creation or file reading~~ |
 | List/explore files | list_files | ~~dir~~ ~~ls~~ |
 | Create a directory | cli_in_sandbox | — |
 | Create a reusable tool | write_file to .mindshard/tools/ + reload_tools | — |
@@ -229,6 +232,10 @@ def _tool_rules_block() -> str:
 NEVER use echo, python -c, or any CLI command to create files.
 NEVER use type, cat, or any CLI command to read files.
 ALWAYS use write_file to create files. ALWAYS use read_file to read files.
+Use run_python_file to test Python code. Reserve cli_in_sandbox for shell-native tasks that do not have a better structured tool.
+By default, run_python_file uses a disposable copied workspace under `.mindshard/runs/` so experiments do not mutate the live project.
+Use `workspace: "sandbox"` only when the user clearly wants to run directly against the real working tree.
+Do not install packages unless the user explicitly asks. Never attempt `pip install tkinter`.
 """
 
 
@@ -297,9 +304,9 @@ Wrap a JSON object in triple-backtick `tool_call` fences. One tool call per bloc
 {"tool": "read_file", "path": "hello_app/src/hello.py"}
 ```
 
-### Example: Run a program
+### Example: Run a Python script in a disposable copy
 ```tool_call
-{"tool": "cli_in_sandbox", "command": "python hello_app/src/hello.py"}
+{"tool": "run_python_file", "path": "hello_app/src/hello.py", "workspace": "run_copy"}
 ```
 
 ### Example: Append to a file
@@ -322,7 +329,11 @@ Wrap a JSON object in triple-backtick `tool_call` fences. One tool call per bloc
 - Only one tool call per `tool_call` block.
 - You may include explanation text before and after tool call blocks.
 - Wait for tool results before making your next tool call.
-- To create and run a script: FIRST use `write_file`, THEN use `cli_in_sandbox` to run it.
+- To create and run a Python script: FIRST use `write_file`, THEN use `run_python_file`.
+- `run_python_file` defaults to a disposable run copy under `.mindshard/runs/`.
+- Use `workspace: "sandbox"` only when direct execution against the live project is intentional.
+- Local GUI / Tkinter scripts may trigger a human approval dialog before they open a window.
+- Docker mode blocks GUI windows even if the script is otherwise valid.
 """
 
 

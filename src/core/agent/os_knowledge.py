@@ -55,14 +55,15 @@ You are confined to a sandbox directory. This is your safe workspace:
   - `.mindshard/sessions/` — saved conversation data
   - `.mindshard/outputs/` — files you generate
   - `.mindshard/logs/` — log files
+  - `.mindshard/runs/` — disposable execution copies for testing and experimentation
 
 ### Common Task Patterns
 
 **See what's in a directory:**
-Use cli_in_sandbox with: `dir`
+Prefer the `list_files` tool. Only use cli_in_sandbox with `dir` if you specifically need shell output.
 
 **See the full tree of a directory:**
-Use cli_in_sandbox with: `tree /f`
+Prefer the `list_files` tool. Use cli_in_sandbox with `tree /f` only if you specifically need shell output.
 
 **Create a file (ALWAYS use the write_file tool for this!):**
 Use the write_file tool — NOT echo, NOT python -c. The write_file tool handles multi-line content, special characters, and quoting automatically.
@@ -86,11 +87,14 @@ Use cli_in_sandbox with: `del unwanted.txt`
 Use cli_in_sandbox with: `findstr /s /i "search_term" *.txt`
 
 **Run a Python script:**
-Use cli_in_sandbox with: `python myscript.py`
+Use the `run_python_file` tool with the script path. By default it runs in a disposable copy under `.mindshard/runs/`.
 
 **Create and run a Python script (two steps):**
 Step 1 — use write_file to create the script
-Step 2 — use cli_in_sandbox with: `python myscript.py`
+Step 2 — use run_python_file on that script
+
+**Run directly against the live project:**
+Only use `run_python_file` with `workspace: "sandbox"` when the user clearly wants live-project execution.
 """
 
 
@@ -103,7 +107,6 @@ You are running commands inside a Linux container (Docker). Here is what you nee
 - **Shell**: bash
 - **OS**: Debian Linux (slim)
 - **Python**: python3 / python (both work)
-- **Package manager**: pip is available (use `pip install <package>`)
 - **Working directory**: /sandbox
 
 ### Filesystem
@@ -119,14 +122,15 @@ You are inside a container with /sandbox as your workspace:
   - `.mindshard/sessions/` — saved conversation data
   - `.mindshard/outputs/` — files you generate
   - `.mindshard/logs/` — log files
+  - `.mindshard/runs/` — disposable execution copies for testing and experimentation
 
 ### Common Task Patterns
 
 **See what's in a directory:**
-Use cli_in_sandbox with: `ls -la`
+Prefer the `list_files` tool. Only use cli_in_sandbox with `ls -la` if you specifically need shell output.
 
 **See the full tree of a directory:**
-Use cli_in_sandbox with: `tree`
+Prefer the `list_files` tool. Use cli_in_sandbox with `tree` only if you specifically need shell output.
 
 **Create a file (ALWAYS use the write_file tool for this!):**
 Use the write_file tool — NOT echo, NOT cat, NOT python -c. The write_file tool handles multi-line content, special characters, and quoting automatically.
@@ -149,15 +153,19 @@ Use cli_in_sandbox with: `rm unwanted.txt`
 **Search for text inside files:**
 Use cli_in_sandbox with: `grep -r "search_term" .`
 
-**Install a Python package:**
-Use cli_in_sandbox with: `pip install package_name`
-
 **Run a Python script:**
-Use cli_in_sandbox with: `python myscript.py`
+Use the `run_python_file` tool with the script path. By default it runs in a disposable copy under `.mindshard/runs/`.
 
 **Create and run a Python script (two steps):**
 Step 1 — use write_file to create the script
-Step 2 — use cli_in_sandbox with: `python myscript.py`
+Step 2 — use run_python_file on that script
+
+**Run directly against the live project:**
+Only use `run_python_file` with `workspace: "sandbox"` when the user clearly wants live-project execution.
+
+**Package installation:**
+Do not install packages unless the user explicitly asks for that workflow.
+Never try `pip install tkinter` for this app.
 """
 
 
@@ -176,7 +184,7 @@ def get_command_teaching(command_reference: str, docker_mode: bool = False) -> s
 ## Command Environment
 You are inside a Docker container with full bash access.
 Most standard Linux commands are available (ls, cp, mv, rm, grep, find, etc.).
-Python 3 and pip are available for package installation and script execution.
+Python 3 is available for script execution.
 Git is available for version control.
 
 ### Safety Rules
@@ -198,6 +206,10 @@ You may ONLY use the following commands. Any other command will be blocked.
 - You CANNOT use backticks or $() for subshell execution
 - You CANNOT use absolute paths outside the sandbox
 - You CANNOT use .. to escape the sandbox directory
-- If a command is blocked, try a different approach using allowed commands
-- When in doubt, use `dir` to look around and `read_file` to read files
+- If a command is blocked, try a different approach using structured tools
+- Prefer `list_files`, `read_file`, `write_file`, and `run_python_file` over CLI for routine work
+- Do not install packages unless the user explicitly asks
+- Never attempt `pip install tkinter`; if a dependency is genuinely missing, explain that instead
+- Prefer disposable run copies under `.mindshard/runs/` for testing and experimentation
+- When in doubt, use `list_files` to look around and `read_file` to read files
 """

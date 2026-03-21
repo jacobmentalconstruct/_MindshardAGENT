@@ -1,6 +1,7 @@
 """Tool catalog — registry of built-in, official, and sandbox-local tools.
 
-Built-in tools: cli_in_sandbox, write_file, read_file, list_files, reload_tools
+Built-in tools: cli_in_sandbox, write_file, read_file, list_files,
+run_python_file, reload_tools
 """
 
 from dataclasses import dataclass, field
@@ -72,6 +73,23 @@ LIST_FILES = ToolEntry(
     },
 )
 
+RUN_PYTHON_FILE = ToolEntry(
+    name="run_python_file",
+    description="Run a Python file located inside the sandbox without using freeform shell. "
+                "Use this for testing scripts or apps. By default it runs in a disposable copied workspace "
+                "under .mindshard/runs/ so experiments do not mutate the live project. "
+                "Local GUI launches may ask for approval; Docker mode blocks GUI windows.",
+    source="builtin",
+    callable_name="run_python_file",
+    parameters={
+        "path": {"type": "string", "description": "Python file path relative to sandbox root", "required": True},
+        "args": {"type": "array", "description": "Optional list of string arguments to pass to the script"},
+        "cwd": {"type": "string", "description": "Optional working directory relative to sandbox root"},
+        "timeout": {"type": "integer", "description": "Optional timeout in seconds (1-120, default: 30)"},
+        "workspace": {"type": "string", "description": "Execution workspace: 'run_copy' (default, disposable snapshot) or 'sandbox' (live project)"},
+    },
+)
+
 RELOAD_TOOLS = ToolEntry(
     name="reload_tools",
     description="Re-scan .mindshard/tools/ and register any new or updated sandbox tools. "
@@ -92,6 +110,7 @@ class ToolCatalog:
         self.register(WRITE_FILE)
         self.register(READ_FILE)
         self.register(LIST_FILES)
+        self.register(RUN_PYTHON_FILE)
         self.register(RELOAD_TOOLS)
 
     def register(self, entry: ToolEntry) -> None:

@@ -35,6 +35,7 @@
 - [x] OS knowledge module for agent teaching
 - [x] User confirmation modal for destructive commands (del, rm, rmdir)
 - [x] Command audit log (persistent JSON-lines at _sandbox/_logs/audit.jsonl)
+- [x] Disposable run workspace for Python execution under `.mindshard/runs/`
 
 - [x] Docker containerized sandbox (v2 containment upgrade)
   - Dockerfile, DockerManager, DockerRunner, dual-mode engine, Docker-aware prompt builder
