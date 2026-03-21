@@ -146,7 +146,7 @@ def main() -> None:
     session_store = SessionStore(sessions_db)
 
     # ── Knowledge store (RAG) ─────────────────────────
-    knowledge_store = KnowledgeStore(session_store._conn)
+    knowledge_store = KnowledgeStore(sessions_db)
     engine.set_knowledge_store(
         knowledge_store,
         session_id_fn=lambda: active_session["sid"],
@@ -557,7 +557,7 @@ def main() -> None:
         new_db = Path(new_root) / ".mindshard" / "sessions" / "sessions.db"
         session_store.close()
         session_store = SessionStore(new_db)
-        knowledge_store = KnowledgeStore(session_store._conn)
+        knowledge_store = KnowledgeStore(new_db)
         engine.set_knowledge_store(
             knowledge_store,
             session_id_fn=lambda: active_session["sid"],
@@ -721,7 +721,7 @@ def main() -> None:
                 new_db = Path(actual_root) / ".mindshard" / "sessions" / "sessions.db"
                 session_store.close()
                 session_store = SessionStore(new_db)
-                knowledge_store = KnowledgeStore(session_store._conn)
+                knowledge_store = KnowledgeStore(new_db)
                 engine.set_knowledge_store(
                     knowledge_store,
                     session_id_fn=lambda: active_session["sid"],

@@ -6,7 +6,7 @@ session's knowledge base (fast enough for <10k chunks per session).
 
 Usage:
     from src.core.sessions.knowledge_store import KnowledgeStore
-    ks = KnowledgeStore(conn)
+    ks = KnowledgeStore(db_path)
     ks.add_chunk(session_id, "some text", embedding_vec, source="assistant")
     results = ks.query(session_id, query_vec, top_k=5)
 """
@@ -14,6 +14,7 @@ Usage:
 import struct
 import math
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from src.core.utils.ids import make_id
@@ -96,13 +97,19 @@ def chunk_text(text: str, max_chars: int = 512, overlap: int = 64) -> list[str]:
 class KnowledgeStore:
     """Session-scoped knowledge base with vector retrieval."""
 
-    def __init__(self, conn: sqlite3.Connection):
-        """Initialize with an existing SQLite connection (shared with SessionStore).
+    def __init__(self, db_path: str | Path):
+        """Initialize against the sessions database path.
 
         Args:
-            conn: SQLite connection (schema must already include the knowledge table).
+            db_path: SQLite DB path (schema must already include the knowledge table).
         """
-        self._conn = conn
+        self._db_path = str(db_path)
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
 
     def add_chunk(
         self,
@@ -126,13 +133,14 @@ class KnowledgeStore:
         """
         chunk_id = make_id("knw")
         blob = _vec_to_blob(embedding)
-        self._conn.execute(
-            "INSERT INTO knowledge (chunk_id, session_id, content, embedding, "
-            "source, source_role, dim, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (chunk_id, session_id, content, blob, source, source_role,
-             len(embedding), utc_iso()),
-        )
-        self._conn.commit()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO knowledge (chunk_id, session_id, content, embedding, "
+                "source, source_role, dim, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (chunk_id, session_id, content, blob, source, source_role,
+                 len(embedding), utc_iso()),
+            )
+            conn.commit()
         return chunk_id
 
     def add_text(
@@ -192,49 +200,53 @@ class KnowledgeStore:
             List of dicts with keys: chunk_id, content, source, source_role,
             score, created_at — sorted by descending score.
         """
-        cur = self._conn.execute(
-            "SELECT chunk_id, content, embedding, source, source_role, created_at "
-            "FROM knowledge WHERE session_id = ?",
-            (session_id,),
-        )
+        with self._connect() as conn:
+            cur = conn.execute(
+                "SELECT chunk_id, content, embedding, source, source_role, created_at "
+                "FROM knowledge WHERE session_id = ?",
+                (session_id,),
+            )
 
-        scored = []
-        for row in cur:
-            chunk_id, content, blob, source, source_role, created_at = row
-            stored_vec = _blob_to_vec(blob)
-            score = _cosine_similarity(query_embedding, stored_vec)
-            if score >= min_score:
-                scored.append({
-                    "chunk_id": chunk_id,
-                    "content": content,
-                    "source": source,
-                    "source_role": source_role,
-                    "score": round(score, 4),
-                    "created_at": created_at,
-                })
+            scored = []
+            for row in cur:
+                chunk_id, content, blob, source, source_role, created_at = row
+                stored_vec = _blob_to_vec(blob)
+                score = _cosine_similarity(query_embedding, stored_vec)
+                if score >= min_score:
+                    scored.append({
+                        "chunk_id": chunk_id,
+                        "content": content,
+                        "source": source,
+                        "source_role": source_role,
+                        "score": round(score, 4),
+                        "created_at": created_at,
+                    })
 
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
     def count(self, session_id: str) -> int:
         """Count knowledge chunks in a session."""
-        cur = self._conn.execute(
-            "SELECT COUNT(*) FROM knowledge WHERE session_id = ?", (session_id,))
-        return cur.fetchone()[0]
+        with self._connect() as conn:
+            cur = conn.execute(
+                "SELECT COUNT(*) FROM knowledge WHERE session_id = ?", (session_id,))
+            return cur.fetchone()[0]
 
     def delete_session_knowledge(self, session_id: str) -> int:
         """Delete all knowledge chunks for a session. Returns count deleted."""
-        cur = self._conn.execute(
-            "DELETE FROM knowledge WHERE session_id = ?", (session_id,))
-        self._conn.commit()
-        return cur.rowcount
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM knowledge WHERE session_id = ?", (session_id,))
+            conn.commit()
+            return cur.rowcount
 
     def get_all_chunks(self, session_id: str) -> list[dict[str, Any]]:
         """Get all chunks for a session (without embeddings, for inspection)."""
-        cur = self._conn.execute(
-            "SELECT chunk_id, content, source, source_role, dim, created_at "
-            "FROM knowledge WHERE session_id = ? ORDER BY created_at",
-            (session_id,),
-        )
-        cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        with self._connect() as conn:
+            cur = conn.execute(
+                "SELECT chunk_id, content, source, source_role, dim, created_at "
+                "FROM knowledge WHERE session_id = ? ORDER BY created_at",
+                (session_id,),
+            )
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]

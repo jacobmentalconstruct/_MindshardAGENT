@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import shutil
@@ -67,7 +67,7 @@ def create_run_workspace(
 
     manifest = {
         "run_id": run_id,
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "source_script": script_rel.as_posix(),
         "source_cwd": cwd_rel.as_posix(),
         "args": list(args),
@@ -104,7 +104,7 @@ def record_run_result(run_workspace: RunWorkspace, result: dict) -> None:
     stdout_path.write_text(str(result.get("stdout", "")), encoding="utf-8")
     stderr_path.write_text(str(result.get("stderr", "")), encoding="utf-8")
 
-    manifest["completed_at"] = datetime.now(UTC).isoformat()
+    manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
     manifest["exit_code"] = result.get("exit_code", -1)
     manifest["stdout_path"] = str(stdout_path)
     manifest["stderr_path"] = str(stderr_path)
@@ -114,7 +114,7 @@ def record_run_result(run_workspace: RunWorkspace, result: dict) -> None:
 
 
 def _new_run_id() -> str:
-    stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"run_{stamp}_{uuid4().hex[:6]}"
 
 
