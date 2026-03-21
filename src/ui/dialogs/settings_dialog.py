@@ -5,6 +5,16 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from src.core.agent.model_roles import (
+    CODING_ROLE,
+    EMBEDDING_ROLE,
+    FAST_PROBE_ROLE,
+    PLANNER_ROLE,
+    PRIMARY_CHAT_ROLE,
+    RECOVERY_PLANNER_ROLE,
+    REVIEW_ROLE,
+    ROLE_LABELS,
+)
 from src.ui import theme as T
 
 
@@ -15,8 +25,12 @@ class SettingsDialog(tk.Toplevel):
         self,
         parent,
         *,
+        available_models: list[str],
+        initial_model_roles: dict[str, str],
         initial_tool_round_limit: int,
         initial_gui_launch_policy: str,
+        initial_planning_enabled: bool,
+        initial_recovery_planning_enabled: bool,
     ):
         super().__init__(parent)
         self.title("Settings")
@@ -26,8 +40,22 @@ class SettingsDialog(tk.Toplevel):
         self.grab_set()
         self.result: dict | None = None
 
+        merged_models = [model for model in available_models if model]
+        merged_models.extend(value for value in initial_model_roles.values() if value)
+        self._available_models = list(dict.fromkeys(merged_models))
         self._tool_round_limit = tk.IntVar(value=max(1, int(initial_tool_round_limit)))
         self._gui_launch_policy = tk.StringVar(value=initial_gui_launch_policy or "ask")
+        self._planning_enabled = tk.IntVar(value=1 if initial_planning_enabled else 0)
+        self._recovery_planning_enabled = tk.IntVar(value=1 if initial_recovery_planning_enabled else 0)
+        self._role_vars = {
+            PRIMARY_CHAT_ROLE: tk.StringVar(value=initial_model_roles.get(PRIMARY_CHAT_ROLE, "")),
+            PLANNER_ROLE: tk.StringVar(value=initial_model_roles.get(PLANNER_ROLE, "")),
+            RECOVERY_PLANNER_ROLE: tk.StringVar(value=initial_model_roles.get(RECOVERY_PLANNER_ROLE, "")),
+            CODING_ROLE: tk.StringVar(value=initial_model_roles.get(CODING_ROLE, "")),
+            REVIEW_ROLE: tk.StringVar(value=initial_model_roles.get(REVIEW_ROLE, "")),
+            FAST_PROBE_ROLE: tk.StringVar(value=initial_model_roles.get(FAST_PROBE_ROLE, "")),
+            EMBEDDING_ROLE: tk.StringVar(value=initial_model_roles.get(EMBEDDING_ROLE, "")),
+        }
 
         shell = tk.Frame(self, bg=T.BG_DARK)
         shell.pack(fill="both", expand=True, padx=12, pady=12)
@@ -46,16 +74,19 @@ class SettingsDialog(tk.Toplevel):
         notebook.pack(fill="both", expand=True)
 
         general_tab = tk.Frame(notebook, bg=T.BG_DARK)
+        models_tab = tk.Frame(notebook, bg=T.BG_DARK)
         tools_tab = tk.Frame(notebook, bg=T.BG_DARK)
         gui_tab = tk.Frame(notebook, bg=T.BG_DARK)
         safety_tab = tk.Frame(notebook, bg=T.BG_DARK)
 
         notebook.add(general_tab, text="General")
+        notebook.add(models_tab, text="Models")
         notebook.add(tools_tab, text="Tools")
         notebook.add(gui_tab, text="GUI / Tkinter")
         notebook.add(safety_tab, text="Safety")
 
         self._build_general_tab(general_tab)
+        self._build_models_tab(models_tab)
         self._build_tools_tab(tools_tab)
         self._build_gui_tab(gui_tab)
         self._build_safety_tab(safety_tab)
@@ -131,6 +162,110 @@ class SettingsDialog(tk.Toplevel):
             ),
             font=T.FONT_SMALL,
             fg=T.TEXT_PRIMARY,
+            bg=T.BG_MID,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        ).pack(fill="x", padx=10, pady=(0, 10))
+
+        card = self._card(parent, "PLANNING STAGES")
+        tk.Checkbutton(
+            card,
+            text="Use planner model before non-trivial execution loops",
+            variable=self._planning_enabled,
+            bg=T.BG_MID,
+            fg=T.TEXT_PRIMARY,
+            activebackground=T.BG_MID,
+            activeforeground=T.CYAN,
+            selectcolor=T.BG_LIGHT,
+            font=T.FONT_BODY,
+            anchor="w",
+            justify="left",
+        ).pack(fill="x", padx=10, pady=(2, 4))
+        tk.Checkbutton(
+            card,
+            text="Ask the recovery planner for a different approach after repeated failures",
+            variable=self._recovery_planning_enabled,
+            bg=T.BG_MID,
+            fg=T.TEXT_PRIMARY,
+            activebackground=T.BG_MID,
+            activeforeground=T.CYAN,
+            selectcolor=T.BG_LIGHT,
+            font=T.FONT_BODY,
+            anchor="w",
+            justify="left",
+        ).pack(fill="x", padx=10, pady=(0, 4))
+        tk.Label(
+            card,
+            text=(
+                "This phase establishes model-role slots and explicit planner controls.\n"
+                "The full initial-plan and repeated-failure recovery loop will build on these settings."
+            ),
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_MID,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        ).pack(fill="x", padx=10, pady=(2, 10))
+
+    def _build_models_tab(self, parent) -> None:
+        card = self._card(parent, "MODEL ROLE SLOTS")
+        tk.Label(
+            card,
+            text=(
+                "Assign models by responsibility. This makes it easy to plug in stronger planners,\n"
+                "specialist coders, or lightweight probe models without rewriting the app."
+            ),
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_MID,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        ).pack(fill="x", padx=10, pady=(0, 8))
+
+        wrap = tk.Frame(card, bg=T.BG_MID)
+        wrap.pack(fill="x", padx=10, pady=(0, 10))
+        wrap.columnconfigure(1, weight=1)
+        row = 0
+        for role in (
+            PRIMARY_CHAT_ROLE,
+            PLANNER_ROLE,
+            RECOVERY_PLANNER_ROLE,
+            CODING_ROLE,
+            REVIEW_ROLE,
+            FAST_PROBE_ROLE,
+            EMBEDDING_ROLE,
+        ):
+            tk.Label(
+                wrap,
+                text=ROLE_LABELS[role],
+                font=T.FONT_SMALL,
+                fg=T.TEXT_PRIMARY,
+                bg=T.BG_MID,
+                anchor="w",
+            ).grid(row=row, column=0, sticky="w", pady=(0, 6))
+            combo = ttk.Combobox(
+                wrap,
+                textvariable=self._role_vars[role],
+                values=self._available_models,
+                state="readonly",
+                width=32,
+            )
+            combo.grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=(0, 6))
+            row += 1
+
+        tk.Label(
+            card,
+            text=(
+                "Typical pattern:\n"
+                "- Primary Chat / Coding / Review = your default worker model\n"
+                "- Planner = a smaller fast strategist\n"
+                "- Recovery Planner = a larger deeper strategist when the worker gets stuck"
+            ),
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
             bg=T.BG_MID,
             anchor="w",
             justify="left",
@@ -263,8 +398,11 @@ class SettingsDialog(tk.Toplevel):
         except (tk.TclError, ValueError):
             rounds = 12
         self.result = {
+            "model_roles": {role: var.get().strip() for role, var in self._role_vars.items()},
             "max_tool_rounds": rounds,
             "gui_launch_policy": self._gui_launch_policy.get() or "ask",
+            "planning_enabled": bool(self._planning_enabled.get()),
+            "recovery_planning_enabled": bool(self._recovery_planning_enabled.get()),
         }
         self.destroy()
 

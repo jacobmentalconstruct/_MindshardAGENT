@@ -2,11 +2,24 @@
 
 ## High Priority
 
+- [x] Internal diagnostic lab utility for prompt/model/engine probes under `_utils/`
+- [x] Hybrid prompt tuning history (`.prompt-versioning/` Git + SQLite probe tracking)
+- [x] Repeatable benchmark runner with token-aware scoring exposed in the diagnostic lab
 - [x] Wire session store into app.py (save/load/new/delete/branch through UI)
 - [x] Add session management UI (list, select, rename, branch, delete)
 - [x] Wire StateRegistry into engine for runtime node tracking
 - [x] Install psutil into venv for resource monitor to work
 - [x] Add sandbox root folder picker dialog in UI
+
+- [x] Add cross-run comparison views and version rollback UI on top of prompt tuning history
+- [ ] Standardize diagnostic event schema so probe exports can be reused across apps
+- [ ] Expand benchmark suites beyond the initial intent / reality / architecture core
+- [x] Add cross-run comparison views to the diagnostic lab
+- [x] Add explicit model-role slots and settings UI for planner / recovery / coding / review / probe routing
+- [ ] Route initial execution planning through the planner model before non-trivial agent loops
+- [ ] Trigger recovery replanning after repeated failure patterns
+- [ ] Expose model-role usage and per-role benchmark results in the diagnostic lab
+- [ ] Add prompt-version diff views and richer restore previews in the diagnostic lab
 
 ## Medium Priority
 

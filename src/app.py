@@ -26,7 +26,9 @@ from src.core.runtime.runtime_logger import init_logging, get_logger
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.event_bus import EventBus
 from src.core.config.app_config import AppConfig
+from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, current_model_roles, resolve_model_for_role
 from src.core.engine import Engine
+from src.core.agent.prompt_tuning_store import PromptTuningStore
 from src.core.sessions.session_store import SessionStore
 from src.core.sessions.knowledge_store import KnowledgeStore
 from src.core.registry.state_registry import StateRegistry
@@ -46,6 +48,7 @@ def main() -> None:
     log = get_logger("app")
     log.info("=== MindshardAGENT starting ===")
     log.info("Project root: %s", PROJECT_ROOT)
+    prompt_tuning = PromptTuningStore(PROJECT_ROOT)
 
     # ── Runtime infrastructure ────────────────────────
     activity = ActivityStream()
@@ -162,6 +165,21 @@ def main() -> None:
     _stream_dirty = {"val": False}    # new tokens since last flush
 
     # ── Session helpers ───────────────────────────────
+
+    def _log_model_roles():
+        roles = current_model_roles(config)
+        recovery_label = roles.get("recovery_planner") if config.recovery_planning_enabled else "(disabled)"
+        activity.info(
+            "models",
+            "Roles: "
+            f"primary={roles.get('primary_chat') or '(none)'}, "
+            f"planner={roles.get('planner') or '(none)'}, "
+            f"recovery={recovery_label}, "
+            f"coding={roles.get('coding') or '(none)'}, "
+            f"review={roles.get('review') or '(none)'}, "
+            f"probe={roles.get('fast_probe') or '(none)'}, "
+            f"embedding={roles.get('embedding') or '(none)'}",
+        )
 
     def _refresh_session_list():
         sessions = session_store.list_sessions()
@@ -364,6 +382,28 @@ def main() -> None:
                 )
         return prompt_build
 
+    def _snapshot_prompt_state(reason: str, *, changed_path: str | Path | None = None, prompt_build=None, notes: str = ""):
+        snapshot = prompt_tuning.snapshot_current_state(
+            reason=reason,
+            sandbox_root=config.sandbox_root or "",
+            changed_path=changed_path,
+            prompt_build=prompt_build,
+            notes=notes,
+        )
+        if snapshot:
+            activity.info("prompt", f"Prompt version snapshot saved ({snapshot.git_commit[:8]})")
+        else:
+            activity.warn("prompt", "Prompt version snapshot failed")
+        return snapshot
+
+    def on_prompt_source_saved(path: Path) -> None:
+        prompt_build = refresh_prompt_inspector(ui_state.last_user_input, announce=True)
+        _snapshot_prompt_state(
+            "prompt source saved",
+            changed_path=path,
+            prompt_build=prompt_build,
+        )
+
     # ── Chat submit callback ──────────────────────────
     def on_submit(text: str):
         activity.info("user", f"Prompt submitted ({len(text)} chars)")
@@ -483,11 +523,14 @@ def main() -> None:
 
     # ── Model callbacks ───────────────────────────────
     def on_model_select(model: str):
+        config.primary_chat_model = model
         config.selected_model = model
+        config.normalize_model_roles()
         ui_state.selected_model = model
         engine.tokenizer.set_model(model)
         window.set_model(model)
         activity.info("model", f"Model selected: {model}")
+        _log_model_roles()
         refresh_prompt_inspector(ui_state.last_user_input)
 
     def on_model_refresh():
@@ -495,7 +538,8 @@ def main() -> None:
         try:
             from src.core.ollama.model_scanner import scan_models
             models = scan_models(config.ollama_base_url)
-            window.control_pane.model_picker.set_models(models, config.selected_model)
+            primary_model = resolve_model_for_role(config, PRIMARY_CHAT_ROLE)
+            window.control_pane.model_picker.set_models(models, primary_model)
             ui_state.available_models = models
             activity.info("model", f"Found {len(models)} model(s)")
         except Exception as e:
@@ -602,24 +646,55 @@ def main() -> None:
 
         dialog = SettingsDialog(
             root,
+            available_models=ui_state.available_models,
+            initial_model_roles=current_model_roles(config),
             initial_tool_round_limit=config.max_tool_rounds,
             initial_gui_launch_policy=config.gui_launch_policy,
+            initial_planning_enabled=config.planning_enabled,
+            initial_recovery_planning_enabled=config.recovery_planning_enabled,
         )
         if not dialog.result:
             return
 
+        role_updates = dialog.result.get("model_roles", {})
+        config.primary_chat_model = str(role_updates.get(PRIMARY_CHAT_ROLE, config.primary_chat_model) or "").strip()
+        config.selected_model = config.primary_chat_model
+        config.planner_model = str(role_updates.get("planner", config.planner_model) or "").strip()
+        config.recovery_planner_model = str(
+            role_updates.get("recovery_planner", config.recovery_planner_model) or ""
+        ).strip()
+        config.coding_model = str(role_updates.get("coding", config.coding_model) or "").strip()
+        config.review_model = str(role_updates.get("review", config.review_model) or "").strip()
+        config.fast_probe_model = str(role_updates.get("fast_probe", config.fast_probe_model) or "").strip()
+        config.embedding_model = str(role_updates.get("embedding", config.embedding_model) or "").strip()
         config.max_tool_rounds = max(1, int(dialog.result.get("max_tool_rounds", config.max_tool_rounds)))
         config.gui_launch_policy = str(dialog.result.get("gui_launch_policy", config.gui_launch_policy) or "ask")
+        config.planning_enabled = bool(dialog.result.get("planning_enabled", config.planning_enabled))
+        config.recovery_planning_enabled = bool(
+            dialog.result.get("recovery_planning_enabled", config.recovery_planning_enabled)
+        )
+        config.normalize_model_roles()
         config.save(PROJECT_ROOT)
+        ui_state.selected_model = config.primary_chat_model
+        engine.tokenizer.set_model(config.primary_chat_model)
+        window.set_model(config.primary_chat_model)
+        window.control_pane.model_picker.set_models(ui_state.available_models, config.primary_chat_model)
         window.control_pane.set_tool_round_limit(config.max_tool_rounds)
         window.set_status(
-            f"Settings saved — GUI policy: {config.gui_launch_policy}, tool rounds: {config.max_tool_rounds}"
+            f"Settings saved — primary={config.primary_chat_model or '(none)'}, "
+            f"planner={config.planner_model or '(none)'}, tool rounds: {config.max_tool_rounds}"
         )
         activity.info(
             "settings",
-            f"Updated settings: gui_launch_policy={config.gui_launch_policy}, "
+            f"Updated settings: primary={config.primary_chat_model or '(none)'}, "
+            f"planner={config.planner_model or '(none)'}, "
+            f"recovery_planner={config.recovery_planner_model or '(none)'}, "
+            f"gui_launch_policy={config.gui_launch_policy}, "
+            f"planning_enabled={config.planning_enabled}, "
+            f"recovery_planning_enabled={config.recovery_planning_enabled}, "
             f"max_tool_rounds={config.max_tool_rounds}",
         )
+        _log_model_roles()
 
     def on_edit_project_brief():
         if not engine.project_meta:
@@ -645,7 +720,12 @@ def main() -> None:
         window.set_project_name(display)
         window.set_project_paths(source_path, config.sandbox_root)
         activity.info("project", f"Project brief updated: {display}")
-        refresh_prompt_inspector(ui_state.last_user_input, announce=True)
+        prompt_build = refresh_prompt_inspector(ui_state.last_user_input, announce=True)
+        _snapshot_prompt_state(
+            "project brief updated",
+            changed_path=meta.path,
+            prompt_build=prompt_build,
+        )
 
     def on_edit_prompt_overrides():
         if not engine.project_meta:
@@ -667,9 +747,15 @@ def main() -> None:
 
         if created:
             activity.info("prompt", f"Prompt override scaffold created at {override_dir}")
+            prompt_build = refresh_prompt_inspector(ui_state.last_user_input, announce=True)
+            _snapshot_prompt_state(
+                "prompt override scaffold created",
+                changed_path=override_dir,
+                prompt_build=prompt_build,
+            )
         else:
             activity.info("prompt", f"Opened prompt overrides at {override_dir}")
-        refresh_prompt_inspector(ui_state.last_user_input, announce=True)
+            refresh_prompt_inspector(ui_state.last_user_input, announce=True)
 
     # ── Action button handlers ────────────────────────
     def _handle_faux_click(label: str):
@@ -1136,6 +1222,7 @@ def main() -> None:
         on_vcs_snapshot=lambda: window.control_pane.vcs_panel.refresh(),
         on_reload_tools=on_reload_tools,
         on_reload_prompt_docs=on_reload_prompt_docs,
+        on_prompt_source_saved=on_prompt_source_saved,
         on_set_tool_round_limit=on_set_tool_round_limit,
         on_open_settings=on_open_settings,
         initial_tool_round_limit=config.max_tool_rounds,
@@ -1160,6 +1247,7 @@ def main() -> None:
     engine.start()
     activity.info("app", "MindshardAGENT ready")
     activity.info("app", f"Sandbox: {config.sandbox_root}")
+    _log_model_roles()
     window.set_status("Ready — refresh models to begin")
     ui_state.sandbox_root = config.sandbox_root
     refresh_prompt_inspector()

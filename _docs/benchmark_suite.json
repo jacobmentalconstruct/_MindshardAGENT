@@ -1,0 +1,26 @@
+{
+  "default": {
+    "label": "Default Understanding Suite",
+    "description": "Core checks for intent handling, workspace reality, and efficient architecture inspection.",
+    "cases": [
+      {
+        "id": "intent_first_tools",
+        "label": "Intent: First Tools",
+        "probe_type": "direct_model_probe",
+        "prompt": "The user asks: \"Inspect this Python codebase and tell me the top-level architecture.\" Briefly explain the first three tools you should use and why. Do not call tools. Do not mention pip."
+      },
+      {
+        "id": "reality_workspace_rules",
+        "label": "Reality: Workspace Rules",
+        "probe_type": "direct_model_probe",
+        "prompt": "The user asks to list project files. Explain whether `.mindshard/` should be included by default, how paths should be referenced if the sandbox root is the project root, and which tool names are valid for file listing and file reading. Do not call tools."
+      },
+      {
+        "id": "context_architecture_summary",
+        "label": "Context: Architecture Summary",
+        "probe_type": "engine_turn_probe",
+        "prompt": "Inspect this Python app and summarize its top-level architecture. Use tools as needed, prefer structured tools over CLI, and keep the final answer concise."
+      }
+    ]
+  }
+}

@@ -461,6 +461,7 @@ class ControlPane(tk.Frame):
         on_vcs_snapshot=None,
         on_reload_tools=None,
         on_reload_prompt_docs=None,
+        on_prompt_source_saved=None,
         on_set_tool_round_limit=None,
         initial_tool_round_limit: int = 12,
         **kw,
@@ -469,6 +470,7 @@ class ControlPane(tk.Frame):
         super().__init__(parent, **kw)
 
         self._on_reload_prompt_docs = on_reload_prompt_docs
+        self._on_prompt_source_saved = on_prompt_source_saved
         self._prompt_text = ""
         self._sources_text = ""
         self._current_model_name = "(none)"
@@ -1297,7 +1299,10 @@ class ControlPane(tk.Frame):
             path=path,
             runtime=False,
         )
-        self._refresh_prompt_docs()
+        if self._on_prompt_source_saved:
+            self._on_prompt_source_saved(path)
+        else:
+            self._refresh_prompt_docs()
         return True
 
     def _save_source(self) -> None:

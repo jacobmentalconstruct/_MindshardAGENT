@@ -27,6 +27,12 @@ class AppConfig:
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
     selected_model: str = ""
+    primary_chat_model: str = ""
+    planner_model: str = ""
+    recovery_planner_model: str = ""
+    coding_model: str = ""
+    review_model: str = ""
+    fast_probe_model: str = ""
     max_context_tokens: int = 8192       # constrain num_ctx to protect VRAM
     temperature: float = 0.7
 
@@ -56,13 +62,29 @@ class AppConfig:
     # Agent tool loop behavior
     max_tool_rounds: int = 12
     gui_launch_policy: str = "ask"  # deny | ask | allow
+    planning_enabled: bool = True
+    recovery_planning_enabled: bool = True
 
     # Logging
     log_dir: str = "_logs"
 
+    def normalize_model_roles(self) -> None:
+        """Keep role-based model slots coherent with legacy selected_model usage."""
+        primary = (self.primary_chat_model or self.selected_model or "").strip()
+        self.primary_chat_model = primary
+        self.selected_model = primary
+
+        self.planner_model = (self.planner_model or primary).strip()
+        self.recovery_planner_model = (self.recovery_planner_model or self.planner_model or primary).strip()
+        self.coding_model = (self.coding_model or primary).strip()
+        self.review_model = (self.review_model or primary).strip()
+        self.fast_probe_model = (self.fast_probe_model or primary).strip()
+        self.embedding_model = (self.embedding_model or "all-minilm:latest").strip() or "all-minilm:latest"
+
     def save(self, project_root: Path) -> None:
         path = project_root / _CONFIG_FILE
         try:
+            self.normalize_model_roles()
             path.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
             log.info("Config saved to %s", path)
         except Exception:
@@ -75,7 +97,11 @@ class AppConfig:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 log.info("Config loaded from %s", path)
-                return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+                config = cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+                config.normalize_model_roles()
+                return config
             except Exception:
                 log.exception("Failed to load config, using defaults")
-        return cls()
+        config = cls()
+        config.normalize_model_roles()
+        return config

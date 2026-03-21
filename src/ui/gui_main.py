@@ -51,6 +51,7 @@ class MainWindow:
         on_vcs_snapshot=None,
         on_reload_tools=None,
         on_reload_prompt_docs=None,
+        on_prompt_source_saved=None,
         on_set_tool_round_limit=None,
         on_open_settings=None,
         initial_tool_round_limit: int = 12,
@@ -181,6 +182,7 @@ class MainWindow:
             on_vcs_snapshot=on_vcs_snapshot,
             on_reload_tools=on_reload_tools,
             on_reload_prompt_docs=on_reload_prompt_docs,
+            on_prompt_source_saved=on_prompt_source_saved,
             on_set_tool_round_limit=on_set_tool_round_limit,
             initial_tool_round_limit=initial_tool_round_limit,
         )

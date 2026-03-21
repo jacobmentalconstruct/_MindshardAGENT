@@ -78,6 +78,298 @@ Built the complete V1 sandboxed chatbot agent shell from blueprint in a single s
 **Root files**
 - `src/app.py` — composition root with full wiring
 - `run.bat` — launcher script
+
+---
+
+## 2026-03-21 — FEAT-010: Diagnostic Lab Version History Loop Closed
+
+### Summary
+The prompt-tuning backend was already in place, but the diagnostic lab still
+stopped short of a safe workflow. This pass finishes the human-visible history
+loop so prompt versions and benchmark runs can be inspected, compared, and
+restored directly from the utility before promoting changes into the main app.
+
+### Files Modified
+- `_utils/agent_diagnostic_lab/src/diaglab/view.py`
+  - finished the History tab controls
+  - added restore confirmation
+  - added comparison / history messaging
+  - included history actions in busy-state handling
+- `_utils/agent_diagnostic_lab/src/diaglab/controller.py`
+  - wired prompt history refresh at startup
+  - added restore + benchmark comparison actions
+  - added restore/comparison formatting for the History tab
+- `_utils/agent_diagnostic_lab/README.md`
+  - documented version history, restore, and comparison workflow
+- `_docs/TODO.md`
+  - updated remaining tuning follow-up items
+
+### Behavior Changes
+- The diagnostic lab now exposes:
+  - recent prompt versions from `.prompt-versioning/`
+  - recent benchmark runs from `prompt_eval.db`
+  - restore by prompt version id
+  - benchmark comparison by run id
+- Restore now writes the selected prompt snapshot back into the live prompt
+  asset surface:
+  - global prompt docs
+  - project prompt overrides
+  - project meta state
+- Comparison output now shows:
+  - aggregate score deltas
+  - token deltas
+  - round deltas
+  - per-case regressions / improvements
+
+### Testing
+- `py -3.10 -m compileall src _utils\\agent_diagnostic_lab\\src`
+- diagnostic service smoke:
+  - listed prompt versions
+  - listed benchmark runs
+  - compared benchmark runs
+- Tk smoke:
+  - instantiated `DiagnosticView` + `DiagnosticController`
+- restore smoke:
+  - restored the latest prompt version successfully
+
+---
+
+## 2026-03-21 — BENCH-001: Agent Understanding Baseline Snapshot
+
+### Summary
+Ran a live diagnostic benchmark against the current app using the diagnostic lab
+and `qwen3.5:4b` to establish a real pre-tuning baseline for agent
+understanding. This is the first explicit "how smart is it right now?" snapshot
+recorded in the dev log.
+
+### Configuration
+- Model: `qwen3.5:4b`
+- Suite: `default` / `Default Understanding Suite`
+- Base URL: `http://localhost:11434`
+- Sandbox root: repo root (`_AppBIN/_work_in_progress/_AgenticTOOLBOX`)
+- Docker mode: off
+- Temperature: `0.7`
+- Context tokens: `8192`
+- Benchmark run id: `3`
+
+### Measured Result
+- Average overall score: `0.737`
+- Average accuracy score: `0.917`
+- Average efficiency score: `0.318`
+- Total tokens: `18702`
+- Total rounds: `4`
+- Duration: `73608.8 ms`
+- Status counts:
+  - `ok = 3`
+
+### Case Breakdown
+- `intent_first_tools`
+  - overall `0.801`
+  - accuracy `1.000`
+  - efficiency `0.337`
+  - tokens `5561`
+  - rounds `0`
+  - probe run `9`
+- `reality_workspace_rules`
+  - overall `0.670`
+  - accuracy `0.800`
+  - efficiency `0.367`
+  - tokens `5613`
+  - rounds `0`
+  - probe run `10`
+- `context_architecture_summary`
+  - overall `0.740`
+  - accuracy `0.950`
+  - efficiency `0.250`
+  - tokens `7528`
+  - rounds `4`
+  - probe run `11`
+  - first summary line still begins with:
+    - `I'll start by exploring the project structure to understand the architecture.`
+
+### Assessment
+- Current agent understanding is solid in intent and context:
+  - it generally picks the right tool-first strategy
+  - it mostly respects workspace semantics and valid tool names
+  - it can complete a real architecture inspection without failing
+- Main weakness is not raw correctness, but efficient correctness:
+  - architecture inspection still burns too many tokens
+  - it remains slightly over-narrative before or during exploration
+  - the reality/workspace case is competent but not yet fully precise
+- Working benchmark verdict:
+  - smart enough to be genuinely useful
+  - not yet tuned enough to be reliably lean
+  - strongest next target is reducing exploratory waste without losing accuracy
+
+### Comparison To Previous Stored Run
+- Compared against benchmark run `2`:
+  - overall score improved from `0.734` -> `0.737`
+  - accuracy stayed flat at `0.917`
+  - efficiency improved from `0.308` -> `0.318`
+  - total tokens dropped from `19112` -> `18702`
+  - total rounds increased from `3` -> `4`
+- Interpretation:
+  - recent prompt changes made the agent slightly leaner overall
+  - but architecture exploration is still the place where extra round churn shows up
+
+### Testing
+- live benchmark run through `DiagnosticService.run_benchmark_suite(...)`
+- live comparison against stored benchmark run `2`
+
+---
+
+## 2026-03-21 — BENCH-002: Planner Slot Candidate Check
+
+### Summary
+Tested several local models specifically for planner-slot duty rather than
+general worker duty. The question was not "which model is biggest," but "which
+model produces a compact, reliable plan under the current app constraints."
+
+### Result
+- Current planner baseline: `qwen3.5:4b`
+- Current primary chat baseline: `qwen3.5:4b`
+- Recovery planner: intentionally disabled for now
+
+### Findings
+- `qwen3.5:4b`
+  - passed compact planner prompts consistently
+  - produced the requested `GOAL / FIRST_STEPS / RISKS / DONE_WHEN` structure
+  - remained the most reliable planner candidate in the current environment
+- `qwen2.5:7b`
+  - timed out or failed under planner-style requests
+  - not promoted to big planner
+- `qwen3.5:9b`
+  - failed repeated planner checks with timeout / disconnect / HTTP 500 behavior
+  - also destabilized Ollama enough to make it a poor slot candidate for now
+- DeepSeek R1 Distill 7B
+  - can answer short planner-shaped prompts
+  - but the current execution-planner request shape still triggers intermittent
+    HTTP 500 failures, so it remains experimental
+
+### Operational Decision
+- `app_config.json` is now pinned to:
+  - `primary_chat_model = qwen3.5:4b`
+  - `planner_model = qwen3.5:4b`
+  - `recovery_planning_enabled = false`
+- The app now logs active model roles at startup and after settings changes so
+  slot usage is visible in the runtime feed.
+
+### Testing
+- direct planner-prompt comparisons for:
+  - `qwen3.5:4b`
+  - `qwen2.5:7b`
+  - `qwen3.5:9b`
+- live main-pipeline planner-stage invocation with planner metadata and fallback
+  behavior verified
+
+---
+
+## 2026-03-21 — FEAT-012: Planner Prompt Tightening
+
+### Summary
+The first planner-stage pass worked, but the output was still too generic and
+too willing to suggest non-app-native commands like `tree` or IDE-driven
+exploration. This tuning pass tightened the planner prompt, reduced planner
+context/temperature, and normalized the output so the worker receives a shorter,
+tool-native plan.
+
+### Files Modified
+- `src/core/agent/execution_planner.py`
+
+### Behavior Changes
+- Planner prompt now explicitly biases toward built-in structured tools:
+  - `list_files`
+  - `read_file`
+  - `write_file`
+  - `run_python_file`
+- Planner now avoids suggesting:
+  - `tree`
+  - `ls`
+  - `dir`
+  - `cat`
+  - `type`
+  - `pip`
+  - generic IDE exploration
+  unless the user explicitly asks for them
+- Planner output is now sanitized:
+  - strips `<think>` blocks when present
+  - extracts and normalizes `GOAL / FIRST_STEPS / RISKS / DONE_WHEN`
+  - trims each section to a small bounded size
+- Added a model-family compatibility branch so DeepSeek-style planner models can
+  use a user-heavy prompt shape instead of the default system+user layout
+
+### Measured Result
+- `qwen3.5:4b` planner output improved from generic guidance to a compact,
+  app-native plan:
+  - `GOAL: Identify the Python app's top-level architecture...`
+  - `FIRST_STEPS: list_files ... read_file ...`
+- DeepSeek planner remained unstable / inconsistent in this pass and was not
+  promoted beyond experimental status
+
+### Testing
+- `py -3.10 -m compileall src/core/agent/execution_planner.py`
+- direct planner-stage smoke with:
+  - `qwen3.5:4b`
+  - DeepSeek R1 Distill 7B
+
+---
+
+## 2026-03-21 — FEAT-011: Model Role Slots And Planner Foundation
+
+### Summary
+Started the multi-model orchestration phase by replacing the implicit
+"one dropdown = one model" assumption with explicit model-role slots. This
+lays the groundwork for using a planner model up front, a deeper recovery
+planner when the worker gets stuck, and specialist model routing without
+smearing model ownership across the app.
+
+### Files Added
+- `src/core/agent/model_roles.py`
+
+### Files Modified
+- `src/core/config/app_config.py`
+- `src/core/agent/thought_chain.py`
+- `src/core/agent/response_loop.py`
+- `src/core/engine.py`
+- `src/ui/dialogs/settings_dialog.py`
+- `src/app.py`
+- `_docs/TODO.md`
+
+### Behavior Changes
+- Added explicit role slots to config:
+  - `primary_chat_model`
+  - `planner_model`
+  - `recovery_planner_model`
+  - `coding_model`
+  - `review_model`
+  - `fast_probe_model`
+  - `embedding_model` remains explicit and now participates in role resolution
+- Added model-role normalization so older `selected_model` usage stays compatible
+  while the app moves toward role-based routing
+- Added a `Models` tab in Settings so users can assign model slots directly
+- Added explicit planning toggles in Settings:
+  - `planning_enabled`
+  - `recovery_planning_enabled`
+- The existing thought-chain planner now uses the `planner_model` slot instead of
+  always reusing the primary chat model
+- The main execution path now resolves the primary chat role explicitly, which
+  gives future planner/recovery hooks a clean seam
+
+### Notes
+- This pass is the foundation, not the full planner loop:
+  - initial planner-before-execution is still TODO
+  - repeated-failure recovery replanning is still TODO
+- The design intent is now explicit:
+  - planner models decide approach
+  - worker models execute
+  - the app orchestrates and records which role was used
+
+### Testing
+- `py -3.10 -m compileall src`
+- config/model-role smoke:
+  - verified primary role resolution from legacy `selected_model`
+  - verified planner and recovery planner role overrides
+  - verified seven role slots resolve cleanly
 - `requirements.txt` — psutil dependency
 - `_docs/ARCHITECTURE.md` — this architecture doc
 - `_docs/DEV_LOG.md` — this log
@@ -533,6 +825,193 @@ This closes the first major usability loop: behavior is now editable, inspectabl
 - `Sources` now has a structured layer view, but source toggles/diffing are still deferred.
 - `Sources` also now supports direct prompt-doc editing for file-backed layers; runtime layers remain read-only by design.
 - Tab breakout behavior was intentionally not carried forward into the new notebook shell.
+
+---
+
+## 2026-03-21 — FEAT-009: Benchmark Runner And Token-Aware Scoring
+
+### Summary
+The diagnostic lab could run single probes, but it still lacked a repeatable,
+human-visible tuning workflow. This pass adds a benchmark layer that is exposed
+to people in the utility UI while remaining structured enough for agents to use
+programmatically.
+
+### Files Added
+- `_docs/benchmark_suite.json`
+- `src/core/agent/benchmark_loader.py`
+- `src/core/agent/benchmark_runner.py`
+- `src/core/agent/probe_scorer.py`
+
+### Files Modified
+- `src/core/agent/prompt_tuning_store.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/models.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/reporting.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/services.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/controller.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/view.py`
+- `_utils/agent_diagnostic_lab/README.md`
+
+### Behavior Changes
+- Benchmark suites now live in editable JSON under `_docs/benchmark_suite.json`
+- Added a core loader + runner so benchmark ownership sits outside the utility UI
+- Added token-aware scoring:
+  - `accuracy_score`
+  - `efficiency_score`
+  - `overall_score`
+  - numeric `tokens_in_num`, `tokens_out_num`, `total_tokens`
+- Added benchmark persistence:
+  - `benchmark_runs`
+  - `benchmark_run_items`
+- The diagnostic lab now exposes:
+  - benchmark suite selection
+  - `Run Suite`
+  - benchmark summaries in a dedicated results tab
+  - score readout in the top metrics strip
+
+### Notes
+- The lab still exports single probes and benchmark suites separately
+- The benchmark suite is intentionally small for now:
+  - intent
+  - workspace reality
+  - architecture understanding
+- Findings/scoring live in `probe_scorer.py`, not in the UI or the store
+
+### Testing
+- `py -3.10 -m compileall src _utils\\agent_diagnostic_lab\\src`
+- direct-model probe smoke:
+  - `overall_score=0.808`
+  - `total_tokens=5526`
+  - `probe_run_id=5`
+- benchmark suite smoke:
+  - `default`
+  - `average_overall_score=0.734`
+  - `case_count=3`
+  - `benchmark_run_id=2`
+
+---
+
+## 2026-03-21 — FEAT-008: Hybrid Prompt Tuning History
+
+### Summary
+Prompt tuning had become effectively destructive: editing a prompt doc overwrote
+the old state, and probe runs had no durable link back to the exact prompt
+version that produced them. This pass adds a hybrid history layer:
+
+- `.prompt-versioning/` as a local Git-backed prompt snapshot repo
+- `prompt_eval.db` as a SQLite store for probe runs, findings, and scores
+
+This gives agents and humans a real tuning memory instead of relying on the
+current working files and Git for everything.
+
+### Files Added
+- `src/core/agent/prompt_tuning_store.py`
+
+### Files Modified
+- `src/app.py`
+- `src/ui/gui_main.py`
+- `src/ui/panes/control_pane.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/services.py`
+
+### Behavior Changes
+- Saving a prompt doc from the in-app Sources editor now snapshots the current
+  effective prompt sources into `.prompt-versioning/` and commits them in a
+  local Git repo
+- Project brief edits and prompt override scaffold creation also snapshot prompt
+  state because they change the effective prompt seen by the agent
+- Diagnostic Lab probes now:
+  - snapshot prompt state before recording results
+  - write probe runs into SQLite
+  - attach simple heuristic findings
+  - compute a first-pass score
+  - link exports back to the stored probe run
+- Probe metadata now carries:
+  - `prompt_version_id`
+  - `prompt_version_commit`
+  - `probe_run_id`
+  - `score`
+
+### Stored Artifacts
+- `.prompt-versioning/`
+  - local Git working tree of:
+    - `global_agent_prompt/`
+    - `project_prompt_overrides/`
+    - `project_meta/`
+    - `manifest.json`
+- `.prompt-versioning/prompt_eval.db`
+  - `prompt_versions`
+  - `probe_runs`
+  - `probe_findings`
+
+### First-Pass Findings Heuristics
+- unknown tool names
+- invented `project/` path prefixes
+- `pip install tkinter` suggestions
+- high round counts
+- narrated tool-preface behavior
+
+### Testing
+- `git --version`
+- `py -3.10 -m compileall src _utils\\agent_diagnostic_lab\\src`
+- smoke script:
+  - created a prompt snapshot
+  - ran a Prompt Probe through the diagnostic lab
+  - recorded `probe_run_id=1`
+  - exported the report bundle
+  - confirmed latest prompt version lookup
+
+---
+
+## 2026-03-21 — FEAT-007: Agent Diagnostic Lab Utility
+
+### Summary
+The project needed a way to inspect and tune the agent more surgically than the
+main chat shell allows. This pass adds a standalone internal utility app under
+`_utils/agent_diagnostic_lab/` that can probe prompt assembly, direct model
+streaming, and the full engine turn loop while exporting reports for later
+comparison.
+
+### Files Added
+- `_utils/agent_diagnostic_lab/README.md`
+- `_utils/agent_diagnostic_lab/run.bat`
+- `_utils/agent_diagnostic_lab/src/app.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/models.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/services.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/reporting.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/controller.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/view.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/components/section_frame.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/components/metric_card.py`
+- `_utils/agent_diagnostic_lab/src/diaglab/components/log_panel.py`
+
+### Behavior Changes
+- Added an isolated diagnostics bench with a themed Tk UI matching the main app
+- Added three first-pass probes:
+  - `Prompt Probe` for effective system prompt inspection
+  - `Direct Model Probe` for raw `chat_stream(...)` timing and response capture
+  - `Engine Turn Probe` for full-engine activity tracing without the main app UI
+- Added export bundles under `_utils/agent_diagnostic_lab/outputs/`:
+  - `report.json`
+  - `report.md`
+  - `prompt.txt`
+  - `response.txt`
+  - `events.jsonl`
+- Resource polling and model scanning are surfaced directly in the utility
+- Probe runs can be stopped cooperatively through the lab UI
+
+### Notes
+- The utility imports real core modules from the main app by bootstrapping the
+  main project root onto `sys.path`
+- The lab defaults its sandbox path to the current project root so the app can
+  inspect itself immediately
+- GUI launch policy is forced to `deny` for engine probes in the lab to keep
+  diagnostics safe and predictable
+
+### Testing
+- `py -3.10 -m compileall _utils\\agent_diagnostic_lab\\src`
+- prompt-probe smoke script:
+  - imports `diaglab.services`
+  - builds a live prompt bundle against the current repo
+  - confirms prompt text and event capture are returned
 
 ---
 

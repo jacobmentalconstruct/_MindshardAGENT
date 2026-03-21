@@ -287,13 +287,13 @@ ALLOWED_COMMANDS: dict[str, dict[str, str]] = {
 
 # ── Patterns that indicate escape attempts ────────────────────
 ESCAPE_PATTERNS = [
-    re.compile(r"[;&|]"),          # command chaining
-    re.compile(r"`"),              # backtick execution
-    re.compile(r"\$\("),           # subshell
-    re.compile(r">\s*/dev/"),      # redirect to device files
-    re.compile(r"\.\.[/\\]"),      # directory traversal
-    re.compile(r"//[a-zA-Z]"),     # UNC paths
-    re.compile(r"[A-Z]:\\", re.I), # absolute Windows paths
+    (re.compile(r"[;&|]"), "command chaining operators (;, &, |)"),
+    (re.compile(r"`"), "backtick execution"),
+    (re.compile(r"\$\("), "subshell execution $()"),
+    (re.compile(r">\s*/dev/"), "redirection to device files"),
+    (re.compile(r"\.\.[/\\]"), "directory traversal (..\\ or ../)"),
+    (re.compile(r"//[a-zA-Z]"), "UNC-style network paths"),
+    (re.compile(r"[A-Z]:\\", re.I), "absolute Windows paths"),
 ]
 
 
@@ -370,9 +370,9 @@ class CommandPolicy:
             return False, f"Command '{base_cmd}' is blocked (security policy)"
 
         # Escape pattern check
-        for pattern in ESCAPE_PATTERNS:
+        for pattern, label in ESCAPE_PATTERNS:
             if pattern.search(stripped):
-                return False, f"Command contains blocked pattern: {pattern.pattern}"
+                return False, f"Command contains blocked pattern: {label}"
 
         # Allowlist check (strict mode)
         if self.mode == "allowlist" and base_cmd not in self._allowed:

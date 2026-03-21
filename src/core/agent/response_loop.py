@@ -13,6 +13,8 @@ Flow:
 import threading
 from typing import Any, Callable
 
+from src.core.agent.execution_planner import run_execution_planner
+from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.agent.prompt_builder import PromptBuildResult, build_messages, build_system_prompt_bundle
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.transcript_formatter import compact_tool_call_transcript, format_all_results
@@ -96,11 +98,40 @@ class ResponseLoop:
         on_tool_start, on_tool_result,
     ) -> None:
         prompt_build = self.preview_prompt(user_text=user_text)
+        planner_result = None
+        planner_text = ""
+        planner_messages: list[dict[str, str]] = []
+        try:
+            planner_result = run_execution_planner(
+                config=self._config,
+                activity=self._activity,
+                tool_catalog=self._catalog,
+                user_text=user_text,
+                sandbox_root=self._config.sandbox_root,
+                active_project=self._active_project,
+            )
+        except Exception as exc:
+            log.warning("Planner stage failed: %s", exc)
+            self._activity.warn("planner", f"Planner stage failed: {exc}")
+        if planner_result and planner_result.plan_text:
+            planner_text = planner_result.plan_text
+            planner_messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "Planner guidance for this turn. Use it as internal execution guidance, "
+                        "but still inspect reality before acting.\n\n"
+                        f"{planner_text}"
+                    ),
+                }
+            )
 
         # Add user message
         history = list(chat_history)
         history.append({"role": "user", "content": user_text})
         messages = build_messages(prompt_build.prompt, history)
+        if planner_messages:
+            messages[1:1] = planner_messages
 
         total_content = []
         rounds = 0
@@ -110,12 +141,13 @@ class ResponseLoop:
         while rounds < self._config.max_tool_rounds and not self._stop_requested:
             rounds += 1
             round_tokens: list[str] = []
+            model_name = resolve_model_for_role(self._config, PRIMARY_CHAT_ROLE)
 
             # Stream model response
-            self._activity.model("agent", f"Round {rounds}: requesting model response")
+            self._activity.model("agent", f"Round {rounds}: requesting model response from {model_name}")
             result = chat_stream(
                 base_url=self._config.ollama_base_url,
-                model=self._config.selected_model,
+                model=model_name,
                 messages=messages,
                 on_token=lambda t: (round_tokens.append(t), on_token(t) if on_token else None),
                 should_stop=lambda: self._stop_requested,
@@ -189,12 +221,18 @@ class ResponseLoop:
 
         # Final result
         meta = {
-            "model": result.get("model", self._config.selected_model),
+            "model": result.get("model", resolve_model_for_role(self._config, PRIMARY_CHAT_ROLE)),
             "tokens_in": f"~{result.get('prompt_eval_count', '?')}",
             "tokens_out": f"~{result.get('eval_count', '?')}",
             "time": f"{result.get('wall_ms', 0):.0f}ms",
             "rounds": rounds,
             "stopped": bool(result.get("stopped", False) or self._stop_requested),
+            "planning_used": bool(planner_result),
+            "planner_model": planner_result.model_name if planner_result else "",
+            "planner_tokens_in": planner_result.tokens_in if planner_result else 0,
+            "planner_tokens_out": planner_result.tokens_out if planner_result else 0,
+            "planner_wall_ms": round(planner_result.wall_ms, 1) if planner_result else 0.0,
+            "planner_excerpt": planner_text[:240] if planner_text else "",
         }
 
         if on_complete:
@@ -236,7 +274,7 @@ class ResponseLoop:
             tools=self._catalog,
             command_policy=self._command_policy,
             session_title="",
-            model_name=self._config.selected_model,
+            model_name=resolve_model_for_role(self._config, PRIMARY_CHAT_ROLE),
             rag_context=rag_context,
             docker_mode=self._docker_mode,
             journal_context=journal_context,

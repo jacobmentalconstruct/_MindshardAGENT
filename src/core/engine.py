@@ -9,6 +9,7 @@ import threading
 from typing import Any, Callable
 
 from src.core.config.app_config import AppConfig
+from src.core.agent.model_roles import EMBEDDING_ROLE, PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.event_bus import EventBus
 from src.core.runtime.runtime_logger import get_logger
@@ -245,7 +246,7 @@ class Engine:
         """Check if the embedding model is available. Call on startup."""
         info = check_embedding_model(
             base_url=self.config.ollama_base_url,
-            model=self.config.embedding_model,
+            model=resolve_model_for_role(self.config, EMBEDDING_ROLE),
         )
         self._embedding_available = info["available"]
         if info["available"]:
@@ -256,7 +257,7 @@ class Engine:
                 self.response_loop._embed_fn = self._embed
         else:
             self.activity.warn("rag",
-                f"Embedding model {self.config.embedding_model} not available — RAG disabled")
+                f"Embedding model {resolve_model_for_role(self.config, EMBEDDING_ROLE)} not available — RAG disabled")
         return self._embedding_available
 
     def _embed(self, text: str) -> list[float]:
@@ -264,7 +265,7 @@ class Engine:
         return embed_text(
             text,
             base_url=self.config.ollama_base_url,
-            model=self.config.embedding_model,
+            model=resolve_model_for_role(self.config, EMBEDDING_ROLE),
         )
 
     def run_cli(self, command: str, cwd: str | None = None) -> dict[str, Any]:
@@ -286,13 +287,14 @@ class Engine:
         """Submit a user prompt. Uses the full response loop with tool support
         when sandbox is configured, falls back to simple streaming otherwise."""
 
-        if not self.config.selected_model:
+        model = resolve_model_for_role(self.config, PRIMARY_CHAT_ROLE)
+        if not model:
             if on_error:
                 on_error("No model selected")
             return
 
         token_est = self.tokenizer.count(user_text)
-        self.activity.model("engine", f"Sending prompt to {self.config.selected_model} (~{token_est} tokens)")
+        self.activity.model("engine", f"Sending prompt to {model} (~{token_est} tokens)")
 
         if self.response_loop and self.sandbox:
             self.response_loop.run_turn(
@@ -325,9 +327,10 @@ class Engine:
         # Learn tokenizer ratio from actual response
         content = result.get("content", "")
         tokens_out_raw = str(meta.get("tokens_out", "")).replace("~", "")
-        if tokens_out_raw.isdigit() and int(tokens_out_raw) > 0 and content:
+        current_model = resolve_model_for_role(self.config, PRIMARY_CHAT_ROLE)
+        if tokens_out_raw.isdigit() and int(tokens_out_raw) > 0 and content and current_model:
             self.tokenizer.learn_from_response(
-                self.config.selected_model, len(content), int(tokens_out_raw))
+                current_model, len(content), int(tokens_out_raw))
         self.activity.model("engine",
                             f"Response complete: {meta.get('tokens_out', '?')} tokens, "
                             f"{meta.get('time', '?')}, {meta.get('rounds', 1)} round(s)")
@@ -341,13 +344,14 @@ class Engine:
             on_complete(result)
 
     def _simple_chat(self, user_text, on_token, on_complete, on_error):
+        model = resolve_model_for_role(self.config, PRIMARY_CHAT_ROLE)
         self._chat_history.append({"role": "user", "content": user_text})
 
         def _worker():
             try:
                 result = chat_stream(
                     base_url=self.config.ollama_base_url,
-                    model=self.config.selected_model,
+                    model=model,
                     messages=list(self._chat_history),
                     on_token=on_token,
                     temperature=self.config.temperature,
@@ -356,7 +360,7 @@ class Engine:
                 content = result.get("content", "")
                 self._chat_history.append({"role": "assistant", "content": content})
                 meta = {
-                    "model": result.get("model", self.config.selected_model),
+                    "model": result.get("model", model),
                     "tokens_in": f"~{result.get('prompt_eval_count', '?')}",
                     "tokens_out": f"~{result.get('eval_count', '?')}",
                     "time": f"{result.get('wall_ms', 0):.0f}ms",

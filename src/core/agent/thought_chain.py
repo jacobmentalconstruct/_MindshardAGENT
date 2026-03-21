@@ -19,6 +19,7 @@ import threading
 from typing import Any, Callable
 
 from src.core.ollama.ollama_client import chat_stream
+from src.core.agent.model_roles import PLANNER_ROLE, resolve_model_for_role
 from src.core.config.app_config import AppConfig
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
@@ -102,13 +103,13 @@ class ThoughtChain:
         threading.Thread(target=_worker, daemon=True, name="thought-chain").start()
 
     def _run_sync(self, goal, depth, on_round, on_complete, on_error):
-        model = self._config.selected_model
+        model = resolve_model_for_role(self._config, PLANNER_ROLE)
         if not model:
             if on_error:
-                on_error("No model selected")
+                on_error("No planner model selected")
             return
 
-        self._activity.info("ctc", f"Starting thought chain: {depth} rounds")
+        self._activity.info("ctc", f"Starting thought chain: {depth} rounds with planner {model}")
         rounds_output: list[str] = []
 
         for round_num in range(1, depth + 1):

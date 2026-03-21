@@ -74,6 +74,9 @@ secrets.json
 config.local.json
 app_config.json
 app_config.json.tmp
+.prompt-versioning/
+_utils/agent_diagnostic_lab/_logs/
+_utils/agent_diagnostic_lab/outputs/
 
 # --- Vector / RAG stores (often large + machine-local) ---
 knowledge_base/
