@@ -1,0 +1,14 @@
+{
+  "leaderboard": [
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "runs": 6,
+      "deterministic_pass_rate_avg": 0.507,
+      "judge_score_avg": null,
+      "keep_count": 0,
+      "revise_count": 0,
+      "reject_count": 6
+    }
+  ]
+}

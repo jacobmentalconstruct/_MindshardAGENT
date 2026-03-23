@@ -1212,3 +1212,73 @@ architecture and was still initializing the old root-level structure.
   - `.mindshard/` subdirs are created
   - empty legacy root folders are removed
   - audit log path resolves to `.mindshard/logs/audit.jsonl`
+
+---
+
+## 2026-03-23T12:00 — TIERED-MEM-001: STM Sliding Window + Evidence Bag Integration
+
+### Summary
+Implemented tiered memory architecture: chat history now has a sliding window (STM) with
+falloff turns ingested into a reversible evidence bag (manifold NodeStore). Prompt carries
+a compact bag summary every turn. Two-pass retrieval fires when the model signals uncertainty,
+pulling deeper evidence and re-generating. Added `bag_inspect` MCP tool for observability.
+
+**Critical design principle (empirically validated):** The evidence bag is NOT a replacement
+for STM or RAG. Without temporal flow from the sliding window, models produce factually-referenced
+but causally disconnected output — snippets, not scripts. The window is what the model *thinks with*;
+the bag is what it *looks up*.
+
+### Architecture
+```
+Turn N arrives
+  ├─ Sliding Window: last W turns kept verbatim (STM — causal flow)
+  ├─ Falloff: turns older than W → ingested into Evidence Bag (full text, never destroyed)
+  ├─ Bag Summary: ~128 token summary of bag contents, always in prompt
+  └─ Pass 2 (conditional): if model response has uncertainty markers,
+     retrieve deeper evidence (512 token budget) and re-generate once
+```
+
+### Files Created
+- `src/core/sessions/evidence_adapter.py` — thin adapter wrapping manifold SDK EvidencePackage
+- `.dev-tools/drop-bin/_manifold-mcp/tools/bag_inspect.py` — MCP tool: inspect bag contents + what agent sees
+
+### Files Modified
+- `src/core/config/app_config.py`
+  - added `stm_window_size` (default 10), `evidence_bag_enabled` (default True)
+  - added `evidence_bag_summary_budget` (128), `evidence_bag_retrieval_budget` (512)
+- `src/core/agent/response_loop.py`
+  - sliding window: `chat_history[-window_size:]` kept verbatim, older turns → falloff
+  - falloff ingested into evidence bag via `EvidenceBagAdapter.ingest_falloff()`
+  - bag summary injected as system message after planner/stage context
+  - two-pass detection: `_needs_evidence_dive()` checks 11 uncertainty markers
+  - pass-2: retrieves deeper evidence, appends to messages, re-generates once
+  - metadata: `stm_window_size`, `stm_falloff_count`, `evidence_bag_active`
+- `src/core/engine.py`
+  - creates `EvidenceBagAdapter` during `set_sandbox()` if enabled
+  - passes to ResponseLoop constructor
+  - added `set_evidence_bag()` method for late attachment
+- `.dev-tools/drop-bin/_manifold-mcp/mcp_server.py`
+  - registered `bag_inspect` tool in TOOL_REGISTRY
+
+### External Dependency
+- Manifold SDK at `.dev-tools/drop-bin/_manifold-mcp/sdk/evidence_package.py`
+  - Lexical token-overlap scoring (no embedding dependency)
+  - JSON-based corpus storage, fully reversible
+  - Built by external agent, vendored into project
+
+### Testing
+- Evidence adapter: ingest, summary, retrieval, dedup, lifecycle — all pass
+- Config fields: defaults correct, JSON serialization roundtrip clean
+- Two-pass heuristic: 11 uncertainty markers detected, zero false positives
+- bag_inspect MCP tool: returns corpus stats, agent summary slice, pass-2 retrieval view
+- All 4 modified files: `py_compile` passes
+
+### Cleanup (same session)
+- Removed all `__pycache__` directories outside `.venv/`
+- Removed stale project mapper artifacts from `_logs/`
+
+### Open TODOs (logged, not built)
+- NDJSON/Content-Length protocol adapter for MCP servers (manifold server uses Content-Length)
+- UI evidence bag explorer tab (browse bag contents, expand individual nodes)
+- App-wide highlight→ask context menu (right-click → ask in isolation or inject into chat)
+- CIS staleness: when bag contents change, embedded summary in RAG becomes stale (Step 8 in plan)

@@ -55,6 +55,7 @@ class ResponseLoop:
         docker_mode: bool = False,
         journal=None,
         file_writer: FileWriter | None = None,
+        evidence_bag=None,
     ):
         self._config = config
         self._command_policy = command_policy
@@ -67,6 +68,7 @@ class ResponseLoop:
         self._session_id_fn = session_id_fn  # Callable() -> str | None
         self._docker_mode = docker_mode
         self._journal = journal            # ActionJournal | None
+        self._evidence_bag = evidence_bag  # EvidenceBagAdapter | None
         self._vcs = None                   # MindshardVCS | None — set by engine
         self._active_project: str = ""     # relative path within sandbox; "" = root
         self._project_meta = None          # ProjectMeta | None — set by engine
@@ -202,12 +204,61 @@ class ResponseLoop:
                 ),
             })
 
+        # ── STM sliding window + evidence bag falloff ──
+        window_size = self._config.stm_window_size
+        bag_summary = ""
+        if (
+            self._evidence_bag
+            and self._config.evidence_bag_enabled
+            and len(chat_history) > window_size
+        ):
+            falloff = chat_history[:-window_size]
+            window = chat_history[-window_size:]
+            # Ingest fallen-off turns into evidence bag (full text preserved)
+            try:
+                n_ingested = self._evidence_bag.ingest_falloff(falloff)
+                if n_ingested:
+                    self._activity.info(
+                        "evidence", f"Ingested {n_ingested} turns into evidence bag"
+                    )
+            except Exception as exc:
+                log.warning("Evidence bag ingest failed: %s", exc)
+            # Build compact summary for prompt injection
+            try:
+                bag_summary = self._evidence_bag.build_summary(
+                    user_text,
+                    token_budget=self._config.evidence_bag_summary_budget,
+                )
+            except Exception as exc:
+                log.warning("Evidence bag summary failed: %s", exc)
+        else:
+            window = list(chat_history)
+
+        # Set goal from planner if available (not every turn)
+        if self._evidence_bag and planner_text:
+            try:
+                self._evidence_bag.set_goal(planner_text[:500])
+            except Exception as exc:
+                log.warning("Evidence bag set_goal failed: %s", exc)
+
         # Add user message
-        history = list(chat_history)
+        history = list(window)
         history.append({"role": "user", "content": user_text})
         messages = build_messages(prompt_build.prompt, history)
         # Inject planner + stage context after system prompt, before chat history
         injections = planner_messages + stage_messages
+        # Inject bag summary as a system message if present
+        if bag_summary:
+            injections.append({
+                "role": "system",
+                "content": (
+                    "## Prior Context (Evidence Bag)\n"
+                    "The following is a summary of earlier conversation that is no longer "
+                    "in your active window. The full evidence is preserved and retrievable. "
+                    "Do NOT treat this as complete — if you need specifics, say so.\n\n"
+                    f"{bag_summary}"
+                ),
+            })
         if injections:
             messages[1:1] = injections
 
@@ -275,6 +326,57 @@ class ResponseLoop:
         elif self._stop_requested or result.get("stopped"):
             total_content.append("[Stopped by user request.]")
 
+        # ── Two-pass evidence retrieval (Option C) ──
+        # If the model's response signals it needs more context from the bag,
+        # retrieve deeper evidence and re-generate once.
+        if (
+            self._evidence_bag
+            and self._config.evidence_bag_enabled
+            and bag_summary
+            and not self._stop_requested
+            and not result.get("stopped")
+            and self._needs_evidence_dive(user_text, assistant_text, bag_summary)
+        ):
+            self._activity.info("evidence", "Pass-2: retrieving deeper evidence from bag")
+            try:
+                deep_evidence = self._evidence_bag.retrieve(
+                    user_text,
+                    token_budget=self._config.evidence_bag_retrieval_budget,
+                )
+                if deep_evidence:
+                    # Re-run with deeper evidence injected
+                    pass2_messages = list(messages)
+                    pass2_messages.append({"role": "assistant", "content": assistant_text})
+                    pass2_messages.append({
+                        "role": "user",
+                        "content": (
+                            "[Evidence Retrieved]\n"
+                            "Here is more specific evidence from earlier in our conversation. "
+                            "Please revise your response using this context:\n\n"
+                            f"{deep_evidence}"
+                        ),
+                    })
+                    pass2_tokens: list[str] = []
+                    # Clear streaming output for pass-2
+                    if on_token:
+                        on_token("\n\n---\n*[Revising with deeper evidence...]*\n\n")
+                    pass2_result = chat_stream(
+                        base_url=self._config.ollama_base_url,
+                        model=resolve_model_for_role(self._config, PRIMARY_CHAT_ROLE),
+                        messages=pass2_messages,
+                        on_token=lambda t: (pass2_tokens.append(t), on_token(t) if on_token else None),
+                        should_stop=lambda: self._stop_requested,
+                        temperature=self._config.temperature,
+                        num_ctx=self._config.max_context_tokens,
+                    )
+                    pass2_text = pass2_result.get("content", "".join(pass2_tokens))
+                    total_content.append(compact_tool_call_transcript(pass2_text))
+                    assistant_text = pass2_text
+                    result = pass2_result
+                    self._activity.info("evidence", "Pass-2 complete")
+            except Exception as exc:
+                log.warning("Evidence pass-2 failed: %s", exc)
+
         # RAG: store user query and assistant response as knowledge
         final_text = "\n".join(total_content)
         if (self._config.rag_enabled and self._knowledge
@@ -316,6 +418,9 @@ class ResponseLoop:
             "context_gather_ms": round(gathered.gathering_ms, 1) if gathered else 0.0,
             "probes_run": len(probe_result.probes) if probe_result else 0,
             "probe_total_ms": round(probe_result.total_wall_ms, 1) if probe_result else 0.0,
+            "stm_window_size": window_size,
+            "stm_falloff_count": len(chat_history) - len(window) if len(chat_history) > len(window) else 0,
+            "evidence_bag_active": bool(bag_summary),
         }
 
         if on_complete:
@@ -332,6 +437,23 @@ class ResponseLoop:
     def request_stop(self) -> None:
         """Request that the current response loop stop after the next stream chunk."""
         self._stop_requested = True
+
+    def _needs_evidence_dive(self, user_text: str, assistant_text: str, bag_summary: str) -> bool:
+        """Heuristic: does the model's response suggest it needs more context?
+
+        Deliberately loose — start with string matching, tighten later with
+        probe-model classification if needed.
+        """
+        if not bag_summary:
+            return False
+        uncertainty_markers = [
+            "i don't have", "i'm not sure", "earlier in our conversation",
+            "previously", "as mentioned before", "i don't recall",
+            "let me check", "i would need to", "i can't recall",
+            "from what i remember", "if i recall",
+        ]
+        lower = assistant_text.lower()
+        return any(marker in lower for marker in uncertainty_markers)
 
     def preview_prompt(
         self,

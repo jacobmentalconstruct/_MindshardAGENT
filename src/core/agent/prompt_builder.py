@@ -54,6 +54,11 @@ def _compact_tool_block(tool_defs: list[dict[str, Any]]) -> str:
     lines.append("")
     lines.append("Use write_file to create files (not echo/cat). Use read_file to read (not type/cat).")
     lines.append("Use list_files to explore (not dir/ls). Use run_python_file to run scripts.")
+    lines.append("")
+    lines.append("## Error Handling")
+    lines.append("If a tool call fails (e.g. file not found), do NOT retry the same call.")
+    lines.append("Instead: use list_files to find the correct path, then retry with the corrected path.")
+    lines.append("Always explore with list_files FIRST when you are unsure about file paths.")
     return "\n".join(lines)
 
 
@@ -296,6 +301,8 @@ Use run_python_file to test Python code. Reserve cli_in_sandbox for shell-native
 By default, run_python_file uses a disposable copied workspace under `.mindshard/runs/` so experiments do not mutate the live project.
 Use `workspace: "sandbox"` only when the user clearly wants to run directly against the real working tree.
 Do not install packages unless the user explicitly asks. Never attempt `pip install tkinter`.
+
+If a tool call fails (file not found, path error), do NOT retry the same call. Use `list_files` to discover the correct path first, then retry with the corrected path.
 """
 
 

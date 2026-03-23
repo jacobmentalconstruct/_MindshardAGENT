@@ -1,0 +1,456 @@
+{
+  "runs": [
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "case_id": "plan-explore",
+      "repeat_index": 1,
+      "prompt_text": "You are the planning model for a local coding agent.\n\nYour job is to produce a short execution plan for the worker model before it starts acting.\n\nRules:\n- Keep the plan compact and practical.\n- Prefer structured tools over CLI whenever possible.\n- Use only tool names that appear in the Available tools list.\n- For workspace exploration, prefer `list_files` and `read_file`.\n- For file creation or edits, prefer `write_file`.\n- For Python execution/tests, prefer `run_python_file`.\n- Do not suggest IDE views, `tree`, `ls`, `dir`, `cat`, `type`, `pip`, `pytest`, `ruff`, or `mypy`\n  unless the user explicitly asked for them or they are present in Available tools.\n- If the request is mainly exploratory, focus on first reads and boundaries.\n- If the request is an implementation task, focus on files, tests, and validation.\n- Be terse: GOAL should be 1-2 lines, FIRST_STEPS at most 4 bullets, RISKS at most 3 bullets.\n- Output only these sections:\n  GOAL:\n  FIRST_STEPS:\n  RISKS:\n  DONE_WHEN:\n\nSandbox root: C:/Users/test/projects/my_webapp\nActive project: (sandbox root)\nAvailable tools: list_files, read_file, write_file, run_python_file, cli_in_sandbox, reload_tools\n\nUser request:\nHelp me understand how the authentication system works in this project",
+      "stdout": "",
+      "stderr": "HTTP Error 500: Internal Server Error",
+      "response_text": "",
+      "duration_seconds": 6.309,
+      "status": "error",
+      "deterministic_checks": {
+        "check_count": 10,
+        "passed_count": 7,
+        "failed_count": 3,
+        "pass_rate": 0.7,
+        "results": [
+          {
+            "check": "contains_all",
+            "passed": false,
+            "needle": "GOAL"
+          },
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "FIRST_STEPS",
+              "RISKS",
+              "DONE_WHEN"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "pip"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "pytest"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "tree"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "ls"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "dir"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "cat"
+          },
+          {
+            "check": "min_length",
+            "passed": false,
+            "expected": 100,
+            "actual": 0
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 1200,
+            "actual": 0
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.7,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "case_id": "plan-explore",
+      "repeat_index": 2,
+      "prompt_text": "You are the planning model for a local coding agent.\n\nYour job is to produce a short execution plan for the worker model before it starts acting.\n\nRules:\n- Keep the plan compact and practical.\n- Prefer structured tools over CLI whenever possible.\n- Use only tool names that appear in the Available tools list.\n- For workspace exploration, prefer `list_files` and `read_file`.\n- For file creation or edits, prefer `write_file`.\n- For Python execution/tests, prefer `run_python_file`.\n- Do not suggest IDE views, `tree`, `ls`, `dir`, `cat`, `type`, `pip`, `pytest`, `ruff`, or `mypy`\n  unless the user explicitly asked for them or they are present in Available tools.\n- If the request is mainly exploratory, focus on first reads and boundaries.\n- If the request is an implementation task, focus on files, tests, and validation.\n- Be terse: GOAL should be 1-2 lines, FIRST_STEPS at most 4 bullets, RISKS at most 3 bullets.\n- Output only these sections:\n  GOAL:\n  FIRST_STEPS:\n  RISKS:\n  DONE_WHEN:\n\nSandbox root: C:/Users/test/projects/my_webapp\nActive project: (sandbox root)\nAvailable tools: list_files, read_file, write_file, run_python_file, cli_in_sandbox, reload_tools\n\nUser request:\nHelp me understand how the authentication system works in this project",
+      "stdout": "",
+      "stderr": "HTTP Error 500: Internal Server Error",
+      "response_text": "",
+      "duration_seconds": 108.728,
+      "status": "error",
+      "deterministic_checks": {
+        "check_count": 10,
+        "passed_count": 7,
+        "failed_count": 3,
+        "pass_rate": 0.7,
+        "results": [
+          {
+            "check": "contains_all",
+            "passed": false,
+            "needle": "GOAL"
+          },
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "FIRST_STEPS",
+              "RISKS",
+              "DONE_WHEN"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "pip"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "pytest"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "tree"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "ls"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "dir"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "cat"
+          },
+          {
+            "check": "min_length",
+            "passed": false,
+            "expected": 100,
+            "actual": 0
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 1200,
+            "actual": 0
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.7,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "case_id": "plan-implement",
+      "repeat_index": 1,
+      "prompt_text": "You are the planning model for a local coding agent.\n\nYour job is to produce a short execution plan for the worker model before it starts acting.\n\nRules:\n- Keep the plan compact and practical.\n- Prefer structured tools over CLI whenever possible.\n- Use only tool names that appear in the Available tools list.\n- For workspace exploration, prefer `list_files` and `read_file`.\n- For file creation or edits, prefer `write_file`.\n- For Python execution/tests, prefer `run_python_file`.\n- Do not suggest IDE views, `tree`, `ls`, `dir`, `cat`, `type`, `pip`, `pytest`, `ruff`, or `mypy`\n  unless the user explicitly asked for them or they are present in Available tools.\n- If the request is mainly exploratory, focus on first reads and boundaries.\n- If the request is an implementation task, focus on files, tests, and validation.\n- Be terse: GOAL should be 1-2 lines, FIRST_STEPS at most 4 bullets, RISKS at most 3 bullets.\n- Output only these sections:\n  GOAL:\n  FIRST_STEPS:\n  RISKS:\n  DONE_WHEN:\n\nSandbox root: C:/Users/test/projects/my_webapp\nActive project: (sandbox root)\nAvailable tools: list_files, read_file, write_file, run_python_file, cli_in_sandbox, reload_tools\n\nUser request:\nAdd a rate limiting middleware that allows max 100 requests per minute per IP address",
+      "stdout": "",
+      "stderr": "HTTP Error 500: Internal Server Error",
+      "response_text": "",
+      "duration_seconds": 40.38,
+      "status": "error",
+      "deterministic_checks": {
+        "check_count": 7,
+        "passed_count": 4,
+        "failed_count": 3,
+        "pass_rate": 0.571,
+        "results": [
+          {
+            "check": "contains_all",
+            "passed": false,
+            "needle": "GOAL"
+          },
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "FIRST_STEPS",
+              "write_file",
+              "read_file",
+              "list_files"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "pip install"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "tree"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "ls"
+          },
+          {
+            "check": "min_length",
+            "passed": false,
+            "expected": 100,
+            "actual": 0
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 1200,
+            "actual": 0
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.571,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "case_id": "plan-implement",
+      "repeat_index": 2,
+      "prompt_text": "You are the planning model for a local coding agent.\n\nYour job is to produce a short execution plan for the worker model before it starts acting.\n\nRules:\n- Keep the plan compact and practical.\n- Prefer structured tools over CLI whenever possible.\n- Use only tool names that appear in the Available tools list.\n- For workspace exploration, prefer `list_files` and `read_file`.\n- For file creation or edits, prefer `write_file`.\n- For Python execution/tests, prefer `run_python_file`.\n- Do not suggest IDE views, `tree`, `ls`, `dir`, `cat`, `type`, `pip`, `pytest`, `ruff`, or `mypy`\n  unless the user explicitly asked for them or they are present in Available tools.\n- If the request is mainly exploratory, focus on first reads and boundaries.\n- If the request is an implementation task, focus on files, tests, and validation.\n- Be terse: GOAL should be 1-2 lines, FIRST_STEPS at most 4 bullets, RISKS at most 3 bullets.\n- Output only these sections:\n  GOAL:\n  FIRST_STEPS:\n  RISKS:\n  DONE_WHEN:\n\nSandbox root: C:/Users/test/projects/my_webapp\nActive project: (sandbox root)\nAvailable tools: list_files, read_file, write_file, run_python_file, cli_in_sandbox, reload_tools\n\nUser request:\nAdd a rate limiting middleware that allows max 100 requests per minute per IP address",
+      "stdout": "",
+      "stderr": "HTTP Error 500: Internal Server Error",
+      "response_text": "",
+      "duration_seconds": 42.124,
+      "status": "error",
+      "deterministic_checks": {
+        "check_count": 7,
+        "passed_count": 4,
+        "failed_count": 3,
+        "pass_rate": 0.571,
+        "results": [
+          {
+            "check": "contains_all",
+            "passed": false,
+            "needle": "GOAL"
+          },
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "FIRST_STEPS",
+              "write_file",
+              "read_file",
+              "list_files"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "pip install"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "tree"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "ls"
+          },
+          {
+            "check": "min_length",
+            "passed": false,
+            "expected": 100,
+            "actual": 0
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 1200,
+            "actual": 0
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.571,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "case_id": "plan-debug",
+      "repeat_index": 1,
+      "prompt_text": "You are the planning model for a local coding agent.\n\nYour job is to produce a short execution plan for the worker model before it starts acting.\n\nRules:\n- Keep the plan compact and practical.\n- Prefer structured tools over CLI whenever possible.\n- Use only tool names that appear in the Available tools list.\n- For workspace exploration, prefer `list_files` and `read_file`.\n- For file creation or edits, prefer `write_file`.\n- For Python execution/tests, prefer `run_python_file`.\n- Do not suggest IDE views, `tree`, `ls`, `dir`, `cat`, `type`, `pip`, `pytest`, `ruff`, or `mypy`\n  unless the user explicitly asked for them or they are present in Available tools.\n- If the request is mainly exploratory, focus on first reads and boundaries.\n- If the request is an implementation task, focus on files, tests, and validation.\n- Be terse: GOAL should be 1-2 lines, FIRST_STEPS at most 4 bullets, RISKS at most 3 bullets.\n- Output only these sections:\n  GOAL:\n  FIRST_STEPS:\n  RISKS:\n  DONE_WHEN:\n\nSandbox root: C:/Users/test/projects/my_webapp\nActive project: (sandbox root)\nAvailable tools: list_files, read_file, write_file, run_python_file, cli_in_sandbox, reload_tools\n\nUser request:\nThe app crashes on startup with an ImportError in routes/users.py line 15. Debug and fix it.",
+      "stdout": "",
+      "stderr": "HTTP Error 500: Internal Server Error",
+      "response_text": "",
+      "duration_seconds": 110.828,
+      "status": "error",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 1,
+        "failed_count": 3,
+        "pass_rate": 0.25,
+        "results": [
+          {
+            "check": "contains_all",
+            "passed": false,
+            "needle": "GOAL"
+          },
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "FIRST_STEPS",
+              "read_file",
+              "RISKS"
+            ],
+            "matched": []
+          },
+          {
+            "check": "min_length",
+            "passed": false,
+            "expected": 80,
+            "actual": 0
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 1200,
+            "actual": 0
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.25,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen3.5:35b",
+      "prompt_variant_id": "planner-v1",
+      "case_id": "plan-debug",
+      "repeat_index": 2,
+      "prompt_text": "You are the planning model for a local coding agent.\n\nYour job is to produce a short execution plan for the worker model before it starts acting.\n\nRules:\n- Keep the plan compact and practical.\n- Prefer structured tools over CLI whenever possible.\n- Use only tool names that appear in the Available tools list.\n- For workspace exploration, prefer `list_files` and `read_file`.\n- For file creation or edits, prefer `write_file`.\n- For Python execution/tests, prefer `run_python_file`.\n- Do not suggest IDE views, `tree`, `ls`, `dir`, `cat`, `type`, `pip`, `pytest`, `ruff`, or `mypy`\n  unless the user explicitly asked for them or they are present in Available tools.\n- If the request is mainly exploratory, focus on first reads and boundaries.\n- If the request is an implementation task, focus on files, tests, and validation.\n- Be terse: GOAL should be 1-2 lines, FIRST_STEPS at most 4 bullets, RISKS at most 3 bullets.\n- Output only these sections:\n  GOAL:\n  FIRST_STEPS:\n  RISKS:\n  DONE_WHEN:\n\nSandbox root: C:/Users/test/projects/my_webapp\nActive project: (sandbox root)\nAvailable tools: list_files, read_file, write_file, run_python_file, cli_in_sandbox, reload_tools\n\nUser request:\nThe app crashes on startup with an ImportError in routes/users.py line 15. Debug and fix it.",
+      "stdout": "",
+      "stderr": "HTTP Error 500: Internal Server Error",
+      "response_text": "",
+      "duration_seconds": 179.592,
+      "status": "error",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 1,
+        "failed_count": 3,
+        "pass_rate": 0.25,
+        "results": [
+          {
+            "check": "contains_all",
+            "passed": false,
+            "needle": "GOAL"
+          },
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "FIRST_STEPS",
+              "read_file",
+              "RISKS"
+            ],
+            "matched": []
+          },
+          {
+            "check": "min_length",
+            "passed": false,
+            "expected": 80,
+            "actual": 0
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 1200,
+            "actual": 0
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.25,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    }
+  ]
+}

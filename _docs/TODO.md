@@ -72,6 +72,21 @@
 - [ ] Dark theme refinement and DPI scaling
 - [ ] Keyboard shortcuts (Ctrl+Enter submit already works)
 
+## Tiered Memory / Evidence Bag
+
+- [x] STM sliding window (configurable window size, default 10 turns)
+- [x] Evidence bag falloff (turns that leave window → ingested into manifold NodeStore)
+- [x] Bag summary injection into prompt (~128 tokens, every turn)
+- [x] Two-pass evidence retrieval (uncertainty detection → deeper retrieval → re-generate)
+- [x] Evidence adapter (thin wrapper around manifold SDK)
+- [x] `bag_inspect` MCP tool (observe bag contents + what agent sees)
+- [x] Config fields: `stm_window_size`, `evidence_bag_enabled`, `evidence_bag_summary_budget`, `evidence_bag_retrieval_budget`
+- [ ] UI evidence bag explorer tab (browse/expand bag contents)
+- [ ] CIS staleness handling (invalidate embedded summary when bag contents change)
+- [ ] NDJSON/Content-Length protocol adapter for MCP servers
+- [ ] App-wide highlight→ask context menu (right-click → ask in isolation or inject into chat)
+- [ ] Dev tools → agent tools pipeline (share tooling between dev and runtime)
+
 ## Low Priority / Future
 
 - [ ] Teach agent project tidiness (folder structures, naming conventions, not dumping everything flat in sandbox root)

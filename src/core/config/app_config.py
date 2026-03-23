@@ -68,6 +68,12 @@ class AppConfig:
     probe_max_questions: int = 3
     probe_models: dict = field(default_factory=dict)  # per-probe model overrides e.g. {"intent": "qwen3.5:0.5b"}
 
+    # Tiered memory (STM window + evidence bag)
+    stm_window_size: int = 10              # recent turns kept verbatim
+    evidence_bag_enabled: bool = True      # falloff turns → evidence bag
+    evidence_bag_summary_budget: int = 128 # token budget for bag summary in prompt
+    evidence_bag_retrieval_budget: int = 512  # token budget for pass-2 deep retrieval
+
     # Logging
     log_dir: str = "_logs"
 

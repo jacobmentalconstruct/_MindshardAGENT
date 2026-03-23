@@ -1,0 +1,11 @@
+{
+  "display_name": "_MindshardAGENT",
+  "project_type": "python app, ai ecosystem, mcp/tkinter/cli tool",
+  "project_purpose": "We are going to look at your python application which is the ecosystem you operate within.",
+  "current_goal": "Learning about your systems.",
+  "constraints": "",
+  "sync_policy": "confirm",
+  "profile": "self_edit",
+  "source_path": "",
+  "attached_at": "2026-03-23T10:55:21.066084+00:00"
+}

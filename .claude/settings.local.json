@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wmic process:*)",
+      "Bash(tasklist)"
+    ]
+  }
+}

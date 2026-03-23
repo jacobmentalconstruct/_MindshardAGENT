@@ -81,6 +81,9 @@ class Engine:
         self._embedding_available = False
         self._session_id_fn = None  # set by app.py
 
+        # Evidence bag (tiered memory — STM falloff destination)
+        self.evidence_bag = None  # EvidenceBagAdapter | None
+
         # Action journal (initialized when sandbox is set)
         self.journal: ActionJournal | None = None
 
@@ -188,6 +191,18 @@ class Engine:
             on_tools_reloaded=self._on_tools_reloaded,
             python_runner=self.python_runner,
         )
+        # Initialize evidence bag adapter if enabled
+        if self.config.evidence_bag_enabled:
+            try:
+                from src.core.sessions.evidence_adapter import EvidenceBagAdapter
+                from pathlib import Path
+                evidence_dir = Path(sandbox_root) / ".mindshard" / "sessions"
+                self.evidence_bag = EvidenceBagAdapter(evidence_dir)
+                self.activity.info("engine", "Evidence bag adapter initialized")
+            except Exception as exc:
+                log.warning("Evidence bag init failed (non-fatal): %s", exc)
+                self.evidence_bag = None
+
         self.response_loop = ResponseLoop(
             self.config, self.tool_catalog, self.tool_router, self.activity,
             command_policy=self.command_policy if not self.docker_runner else None,
@@ -197,6 +212,7 @@ class Engine:
             docker_mode=bool(self.docker_runner),
             journal=self.journal,
             file_writer=self.file_writer,
+            evidence_bag=self.evidence_bag,
         )
         self.response_loop._vcs = self.vcs
         self.response_loop._active_project = self.active_project
@@ -251,6 +267,12 @@ class Engine:
             if self._embedding_available:
                 self.response_loop._embed_fn = self._embed
         self._register_loops()
+
+    def set_evidence_bag(self, evidence_bag) -> None:
+        """Attach an evidence bag adapter. Called if bag is initialized after engine setup."""
+        self.evidence_bag = evidence_bag
+        if self.response_loop:
+            self.response_loop._evidence_bag = evidence_bag
 
     def _register_loops(self) -> None:
         """Rebuild the loop registry from the current runtime state."""

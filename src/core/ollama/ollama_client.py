@@ -24,7 +24,7 @@ def chat_stream(
     should_stop: Callable[[], bool] | None = None,
     temperature: float = 0.7,
     num_ctx: int = 8192,
-    timeout: int = 120,
+    timeout: int = 300,
 ) -> dict[str, Any]:
     """Send a chat request to Ollama and stream the response.
 

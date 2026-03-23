@@ -1,0 +1,167 @@
+{
+  "corpus_id": "mcp-smoke",
+  "created_at": "20260323T104804260208Z",
+  "documents": [
+    {
+      "document_id": "doc_429a061fdc6d",
+      "title": "Smoke",
+      "source_type": "inline",
+      "source_path": "",
+      "metadata": {},
+      "char_count": 68
+    }
+  ],
+  "evidence_spans": [
+    {
+      "evidence_span_id": "ev_cafe01bb2302",
+      "document_id": "doc_429a061fdc6d",
+      "start": 0,
+      "end": 41,
+      "text": "Evidence bags preserve exact source text.",
+      "tokens": [
+        "evidence",
+        "bags",
+        "preserve",
+        "exact",
+        "source",
+        "text"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_1652c68d7d81",
+      "document_id": "doc_429a061fdc6d",
+      "start": 41,
+      "end": 68,
+      "text": " Hyperedges stay traceable.",
+      "tokens": [
+        "hyperedges",
+        "stay",
+        "traceable"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "node_claim_b4ad646bcf6c",
+      "kind": "claim",
+      "label": "Evidence bags preserve exact source text.",
+      "document_id": "doc_429a061fdc6d",
+      "evidence_span_ids": [
+        "ev_cafe01bb2302"
+      ],
+      "text": "Evidence bags preserve exact source text.",
+      "sentence_index": 1
+    },
+    {
+      "node_id": "node_claim_b6972120b908",
+      "kind": "claim",
+      "label": "Hyperedges stay traceable.",
+      "document_id": "doc_429a061fdc6d",
+      "evidence_span_ids": [
+        "ev_1652c68d7d81"
+      ],
+      "text": " Hyperedges stay traceable.",
+      "sentence_index": 2
+    },
+    {
+      "node_id": "node_doc_33acd064c102",
+      "kind": "document",
+      "label": "Smoke",
+      "document_id": "doc_429a061fdc6d",
+      "evidence_span_ids": [],
+      "text": ""
+    },
+    {
+      "node_id": "node_entity_26b8daec4756",
+      "kind": "entity",
+      "label": "Hyperedges",
+      "document_id": "doc_429a061fdc6d",
+      "evidence_span_ids": [
+        "ev_1652c68d7d81"
+      ],
+      "text": ""
+    },
+    {
+      "node_id": "node_entity_7ea014de7bfb",
+      "kind": "entity",
+      "label": "Evidence",
+      "document_id": "doc_429a061fdc6d",
+      "evidence_span_ids": [
+        "ev_cafe01bb2302"
+      ],
+      "text": ""
+    }
+  ],
+  "hyperedges": [
+    {
+      "hyperedge_id": "edge_claim_evidence_3c07fac8f8ac",
+      "kind": "claim_grounded_in_evidence",
+      "node_ids": [
+        "node_claim_b4ad646bcf6c"
+      ],
+      "evidence_span_ids": [
+        "ev_cafe01bb2302"
+      ],
+      "document_id": "doc_429a061fdc6d"
+    },
+    {
+      "hyperedge_id": "edge_claim_evidence_568d2eae49f1",
+      "kind": "claim_grounded_in_evidence",
+      "node_ids": [
+        "node_claim_b6972120b908"
+      ],
+      "evidence_span_ids": [
+        "ev_1652c68d7d81"
+      ],
+      "document_id": "doc_429a061fdc6d"
+    },
+    {
+      "hyperedge_id": "edge_claim_entity_aab0e8ab87ee",
+      "kind": "claim_mentions_entity",
+      "node_ids": [
+        "node_claim_b6972120b908",
+        "node_entity_26b8daec4756"
+      ],
+      "evidence_span_ids": [
+        "ev_1652c68d7d81"
+      ],
+      "document_id": "doc_429a061fdc6d"
+    },
+    {
+      "hyperedge_id": "edge_claim_entity_fdbee5d2cce8",
+      "kind": "claim_mentions_entity",
+      "node_ids": [
+        "node_claim_b4ad646bcf6c",
+        "node_entity_7ea014de7bfb"
+      ],
+      "evidence_span_ids": [
+        "ev_cafe01bb2302"
+      ],
+      "document_id": "doc_429a061fdc6d"
+    },
+    {
+      "hyperedge_id": "edge_doc_claim_91f95779347c",
+      "kind": "document_contains_claim",
+      "node_ids": [
+        "node_doc_33acd064c102",
+        "node_claim_b6972120b908"
+      ],
+      "evidence_span_ids": [
+        "ev_1652c68d7d81"
+      ],
+      "document_id": "doc_429a061fdc6d"
+    },
+    {
+      "hyperedge_id": "edge_doc_claim_996039c19752",
+      "kind": "document_contains_claim",
+      "node_ids": [
+        "node_doc_33acd064c102",
+        "node_claim_b4ad646bcf6c"
+      ],
+      "evidence_span_ids": [
+        "ev_cafe01bb2302"
+      ],
+      "document_id": "doc_429a061fdc6d"
+    }
+  ]
+}
