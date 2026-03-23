@@ -1282,3 +1282,65 @@ Turn N arrives
 - UI evidence bag explorer tab (browse bag contents, expand individual nodes)
 - App-wide highlight→ask context menu (right-click → ask in isolation or inject into chat)
 - CIS staleness: when bag contents change, embedded summary in RAG becomes stale (Step 8 in plan)
+
+---
+
+## 2026-03-23T13:00 — BUDGET-001: Token Budget Guard + Multi-Pass Infrastructure
+
+### Summary
+Added a token budget guard that prevents OOM by trimming prompt components in priority
+order before hitting the model. Also pre-installed config and interfaces for future
+multi-pass prompt splitting (disabled by default, fallback to budget guard).
+
+Token analysis showed typical turns use ~2,935/8,192 tokens (safe), but worst-case
+scenarios (9B model + RAG + journal + VCS + long window + tool rounds) exceed budget
+by ~1,015 tokens. The guard catches this automatically.
+
+### Architecture
+```
+Before model inference:
+  ContextBudgetGuard registers all prompt components with trim priorities:
+    priority 0: system prompt (never trim)
+    priority 2: planner guidance
+    priority 3: STM window (drops oldest messages)
+    priority 4: stage context
+    priority 5: bag summary
+    priority 6: RAG context (trimmed first)
+
+  If total > (max_context * 0.85):
+    Trim highest-priority-number components first
+    Log all trim actions for data gathering
+    Flag if multi-pass would have been better (>30% trimmed)
+```
+
+### Files Created
+- `src/core/agent/context_budget.py` — ContextBudgetGuard, BudgetSlot, BudgetReport
+
+### Files Modified
+- `src/core/agent/response_loop.py`
+  - message assembly now goes through budget guard
+  - budget report metrics added to response metadata
+  - activity stream logs budget status every turn
+- `src/core/config/app_config.py`
+  - added `budget_reserve_ratio` (0.15), `multipass_enabled` (False), `multipass_strategy` ("iterative")
+
+### Data Gathering
+Response metadata now includes:
+- `budget_total_before`: tokens before any trimming
+- `budget_total_after`: tokens after trimming
+- `budget_available`: max tokens minus output reserve
+- `budget_trimmed`: whether trimming occurred
+- `budget_multipass_recommended`: whether >30% was trimmed (multi-pass would help)
+
+### Testing
+- Under budget: passes through clean, no trimming
+- Over budget: trims in correct priority order (RAG first, then stage, then window)
+- Impossible budget (system prompt alone exceeds): trims everything possible, warns
+- Multi-pass flag: correctly triggers when >30% of content is trimmed
+- All files: `py_compile` passes
+
+### Multi-Pass Infrastructure (pre-installed, not active)
+Config fields ready: `multipass_enabled`, `multipass_strategy` ("iterative" vs "synthesize").
+Budget report's `would_benefit_from_multipass` flag will drive the decision when enabled.
+The iterative strategy builds response incrementally across sub-prompts; synthesize
+merges parallel sub-responses. Both record which strategy was used for comparison data.

@@ -1,0 +1,12 @@
+{
+  "project_root": "C:/path/to/project",
+  "action": "create",
+  "title": "First app journal note",
+  "body": "This replaces scattered markdown files with one SQLite-backed journal.",
+  "kind": "note",
+  "source": "agent",
+  "tags": [
+    "journal",
+    "notes"
+  ]
+}

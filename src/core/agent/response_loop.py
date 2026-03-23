@@ -22,6 +22,7 @@ from src.core.agent.execution_planner import run_execution_planner
 from src.core.agent.loop_types import TOOL_AGENT_LOOP
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.agent.probe_stage import run_probe_stage
+from src.core.agent.context_budget import ContextBudgetGuard
 from src.core.agent.prompt_builder import PromptBuildResult, build_messages, build_system_prompt_bundle
 from src.core.agent.stage_context import StageContext, format_stage_context
 from src.core.agent.tool_router import ToolRouter
@@ -241,24 +242,62 @@ class ResponseLoop:
             except Exception as exc:
                 log.warning("Evidence bag set_goal failed: %s", exc)
 
-        # Add user message
+        # ── Token budget guard ──
+        # Register all prompt components with trim priorities.
+        # Priority 0 = never trim, higher = trimmed first.
+        budget = ContextBudgetGuard(
+            max_tokens=self._config.max_context_tokens,
+            reserve_ratio=0.15,
+        )
+        budget.register("system_prompt", prompt_build.prompt, priority=0)
+        planner_text_block = planner_messages[0]["content"] if planner_messages else ""
+        budget.register("planner", planner_text_block, priority=2)
+        stage_text_block = stage_messages[0]["content"] if stage_messages else ""
+        budget.register("stage_context", stage_text_block, priority=4)
+        bag_summary_block = (
+            "## Prior Context (Evidence Bag)\n"
+            "The following is a summary of earlier conversation that is no longer "
+            "in your active window. The full evidence is preserved and retrievable. "
+            "Do NOT treat this as complete — if you need specifics, say so.\n\n"
+            f"{bag_summary}"
+        ) if bag_summary else ""
+        budget.register("bag_summary", bag_summary_block, priority=5)
+        budget.register("rag_context", "", priority=6)  # RAG is in system prompt already
         history = list(window)
         history.append({"role": "user", "content": user_text})
-        messages = build_messages(prompt_build.prompt, history)
-        # Inject planner + stage context after system prompt, before chat history
-        injections = planner_messages + stage_messages
-        # Inject bag summary as a system message if present
-        if bag_summary:
-            injections.append({
-                "role": "system",
-                "content": (
-                    "## Prior Context (Evidence Bag)\n"
-                    "The following is a summary of earlier conversation that is no longer "
-                    "in your active window. The full evidence is preserved and retrievable. "
-                    "Do NOT treat this as complete — if you need specifics, say so.\n\n"
-                    f"{bag_summary}"
-                ),
-            })
+        budget.register("stm_window", history, priority=3, is_message_list=True)
+
+        trimmed = budget.enforce()
+        budget_report = budget.budget_report()
+
+        # Log budget data for multi-pass planning
+        if budget_report.over_budget:
+            self._activity.warn(
+                "budget",
+                f"Token budget trimmed: {budget_report.total_before_trim} -> "
+                f"{budget_report.total_after_trim}/{budget_report.available_tokens} tokens"
+            )
+            if budget_report.would_benefit_from_multipass:
+                self._activity.warn(
+                    "budget",
+                    "Multi-pass would preserve more context (>30% trimmed)"
+                )
+        else:
+            self._activity.info(
+                "budget",
+                f"Token budget: {budget_report.total_before_trim}/"
+                f"{budget_report.available_tokens} tokens"
+            )
+
+        # Assemble messages from trimmed components
+        messages = build_messages(trimmed["system_prompt"], trimmed["stm_window"])
+        injections: list[dict[str, str]] = []
+        if trimmed["planner"]:
+            injections.append({"role": "system", "content": trimmed["planner"]})
+        if trimmed["stage_context"]:
+            injections.append({"role": "system", "content": trimmed["stage_context"]})
+        if trimmed["bag_summary"]:
+            injections.append({"role": "system", "content": trimmed["bag_summary"]})
         if injections:
             messages[1:1] = injections
 
@@ -421,6 +460,11 @@ class ResponseLoop:
             "stm_window_size": window_size,
             "stm_falloff_count": len(chat_history) - len(window) if len(chat_history) > len(window) else 0,
             "evidence_bag_active": bool(bag_summary),
+            "budget_total_before": budget_report.total_before_trim,
+            "budget_total_after": budget_report.total_after_trim,
+            "budget_available": budget_report.available_tokens,
+            "budget_trimmed": budget_report.over_budget,
+            "budget_multipass_recommended": budget_report.would_benefit_from_multipass,
         }
 
         if on_complete:

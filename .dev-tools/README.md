@@ -1,79 +1,45 @@
-# Final Tools
+# Dev Tools Toolbox
 
-This folder is a vendable, headless, agent-first local tooling project.
+This folder is the local agent toolbox.
 
-It is designed to be copied or zipped into future workspaces and extended over time without losing a predictable mechanical contract.
+It is organized so a zero-context agent can tell, at a glance, what is ready to use and what is not.
 
-## Folder Layout
+## Top-Level Meaning
 
-- `tools/`
-  - the actual user-facing tools
-- `jobs/`
-  - example JSON inputs for running tools mechanically
-- `artifacts/`
-  - intended home for generated indexes, summaries, and maps
-- `drop-bin/`
-  - staging area for random scripts or rough tools that still need to be converted
-- `lib/`
-  - internal shared analysis helpers used by the tool family
-- `common.py`
-  - shared runtime and CLI contract
-- `mcp_server.py`
-  - MCP stdio wrapper over the toolset
-- `smoke_test.py`
-  - portable self-test after copying or unzipping
-- `tool_manifest.json`
-  - machine-readable manifest for the project
-- `BUILDER_GUIDE.md`
-  - builder contract, roadmap, and extension notes
-- `VENDORING.md`
-  - instructions for zipping, storing, and reusing the folder
-- `STRANGLER_MAP.md`
-  - legacy-to-final mapping
+- `final-tools/`
+  - active vendorable headless tool suite for folder/code/data/UI work
+- `_app-journal/`
+  - active vendorable SQLite journal package with Tkinter UI and MCP access
+- `_manifold-mcp/`
+  - active vendorable evidence-bag and reversible manifold package
+- `_ollama-prompt-lab/`
+  - active vendorable prompt-eval package for local Ollama workflows
+- `legacy/`
+  - older loose scripts kept for reference or later conversion
+- `intake/`
+  - incomplete or empty scaffolds and rough future work
 
-## Core Rules
+## Agent Rule
 
-- No UI.
-- Every tool follows the same file structure.
-- Every tool exposes the same entrypoints.
-- Every tool returns the same JSON envelope.
-- MCP calls the same `run(arguments)` used by CLI execution.
+If you have no context:
 
-## Standard CLI Contract
+1. read `toolbox_manifest.json`
+2. choose one of the active package folders
+3. read that package's `tool_manifest.json` and `README.md`
+4. ignore `legacy/` and `intake/` unless the user explicitly asks about them
 
-All tool scripts support:
+## What Counts As Active
 
-```powershell
-python .final-tools\tools\<tool>.py metadata
-python .final-tools\tools\<tool>.py run --input-json "{...}"
-python .final-tools\tools\<tool>.py run --input-file path\to\job.json
-```
+An active package is a self-contained folder with:
 
-## MCP
+- its own `README.md`
+- its own `tool_manifest.json`
+- its own entrypoints
+- its own smoke test
 
-Run:
+## What Does Not Count As Active
 
-```powershell
-python .final-tools\mcp_server.py
-```
+- loose scripts in `legacy/root-scripts`
+- empty scaffolds in `intake/empty-scaffolds`
 
-## Included Tools
-
-- `workspace_audit`
-- `data_shape_inspector`
-- `structured_patch`
-- `python_risk_scan`
-- `tk_ui_map`
-- `tk_ui_thread_audit`
-- `tk_ui_event_map`
-- `tk_ui_layout_audit`
-- `tk_ui_test_scaffold`
-
-## Portability Goal
-
-This folder should stay safe to:
-
-- zip and archive
-- copy into new projects
-- extend with additional tools
-- expose through MCP without per-tool glue code
+Those are preserved so nothing useful is lost, but they are not the default tool surface for agents.

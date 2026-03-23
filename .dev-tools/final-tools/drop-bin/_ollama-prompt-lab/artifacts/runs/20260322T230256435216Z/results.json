@@ -1,0 +1,42 @@
+{
+  "runs": [
+    {
+      "model": "qwen3.5:2b",
+      "prompt_variant_id": "dry-run",
+      "case_id": "case-1",
+      "repeat_index": 1,
+      "prompt_text": "Reply with PASS.",
+      "response_text": "",
+      "stdout": "",
+      "stderr": "",
+      "duration_seconds": 0.0,
+      "deterministic_checks": {
+        "check_count": 1,
+        "passed_count": 0,
+        "failed_count": 1,
+        "pass_rate": 0.0,
+        "results": [
+          {
+            "check": "exact_match",
+            "passed": false,
+            "expected": "PASS"
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "dry_run=true"
+      },
+      "status": "dry-run",
+      "evaluation": {
+        "deterministic_pass_rate": 0.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "reject",
+        "reasons": [
+          "model_run_failed"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "manifest_version": "1.0",
+  "name": "dev-tools-toolbox",
+  "description": "Agent-first toolbox root that separates active vendorable packages from legacy scripts and intake scaffolds.",
+  "root": "C:/Users/jacob/Documents/_UsefulAgenticBuilderSANDBOX/Codex/_AppBIN/_work_in_progress/.dev-tools",
+  "zero_context_protocol": [
+    "Read toolbox_manifest.json first.",
+    "Choose from active_packages.",
+    "Open the chosen package's tool_manifest.json and README.md.",
+    "Ignore legacy and intake unless explicitly requested."
+  ],
+  "active_packages": [
+    {
+      "name": "final-tools",
+      "path": "final-tools",
+      "purpose": "General headless tools for workspace analysis, structured patching, and Tkinter audits.",
+      "entry_manifest": "final-tools/tool_manifest.json",
+      "entry_readme": "final-tools/README.md",
+      "preferred_for": [
+        "codebase analysis",
+        "data inspection",
+        "structured multi-file transforms",
+        "Tkinter debugging"
+      ]
+    },
+    {
+      "name": "_app-journal",
+      "path": "_app-journal",
+      "purpose": "SQLite-backed shared journal for notes, dev logs, decisions, and user or agent activity.",
+      "entry_manifest": "_app-journal/tool_manifest.json",
+      "entry_readme": "_app-journal/README.md",
+      "preferred_for": [
+        "project notes",
+        "decision logging",
+        "shared human-agent journal"
+      ]
+    },
+    {
+      "name": "_manifold-mcp",
+      "path": "_manifold-mcp",
+      "purpose": "Reversible text-evidence-hypergraph-text package built around evidence bags.",
+      "entry_manifest": "_manifold-mcp/tool_manifest.json",
+      "entry_readme": "_manifold-mcp/README.md",
+      "preferred_for": [
+        "evidence bags",
+        "reversible retrieval",
+        "text to graph workflows"
+      ]
+    },
+    {
+      "name": "_ollama-prompt-lab",
+      "path": "_ollama-prompt-lab",
+      "purpose": "Local prompt evaluation and Ollama model comparison package.",
+      "entry_manifest": "_ollama-prompt-lab/tool_manifest.json",
+      "entry_readme": "_ollama-prompt-lab/README.md",
+      "preferred_for": [
+        "prompt eval",
+        "rubric scoring",
+        "Ollama comparisons"
+      ]
+    }
+  ],
+  "inactive_areas": [
+    {
+      "name": "legacy",
+      "path": "legacy",
+      "rule": "Reference only. Not the default agent surface."
+    },
+    {
+      "name": "intake",
+      "path": "intake",
+      "rule": "Staging only. Not a complete tool surface."
+    }
+  ]
+}

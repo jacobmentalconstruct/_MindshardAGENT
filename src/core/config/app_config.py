@@ -74,6 +74,11 @@ class AppConfig:
     evidence_bag_summary_budget: int = 128 # token budget for bag summary in prompt
     evidence_bag_retrieval_budget: int = 512  # token budget for pass-2 deep retrieval
 
+    # Context budget management
+    budget_reserve_ratio: float = 0.15     # fraction of max_context reserved for output
+    multipass_enabled: bool = False        # future: split oversized prompts into sub-tasks
+    multipass_strategy: str = "iterative"  # "iterative" (build up) or "synthesize" (merge down)
+
     # Logging
     log_dir: str = "_logs"
 

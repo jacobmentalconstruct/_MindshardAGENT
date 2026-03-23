@@ -1,0 +1,9 @@
+{
+  "prompts": [
+    {
+      "prompt_variant_id": "strict-pass",
+      "case_id": "exact-pass",
+      "prompt_text": "Reply with exactly PASS and nothing else."
+    }
+  ]
+}

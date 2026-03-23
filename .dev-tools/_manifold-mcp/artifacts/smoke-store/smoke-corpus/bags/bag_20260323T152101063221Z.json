@@ -1,0 +1,158 @@
+{
+  "bag_id": "bag_20260323T152101063221Z",
+  "created_at": "20260323T152101063303Z",
+  "corpus_id": "smoke-corpus",
+  "query": "evidence bag exact source text",
+  "selected_nodes": [
+    {
+      "node_id": "node_claim_30fc702af957",
+      "kind": "claim",
+      "label": "Evidence bags preserve exact source text.",
+      "score": 6,
+      "overlap_tokens": [
+        "evidence",
+        "exact",
+        "source",
+        "text"
+      ]
+    },
+    {
+      "node_id": "node_claim_4d299471205b",
+      "kind": "claim",
+      "label": "The manifold can be queried through graph structure, but extraction must still recover verbatim supporting text.",
+      "score": 3,
+      "overlap_tokens": [
+        "text"
+      ]
+    },
+    {
+      "node_id": "node_claim_ab3dfa6882a7",
+      "kind": "claim",
+      "label": "Hyperedges stay traceable to source spans.",
+      "score": 3,
+      "overlap_tokens": [
+        "source"
+      ]
+    },
+    {
+      "node_id": "node_entity_7ea014de7bfb",
+      "kind": "entity",
+      "label": "Evidence",
+      "score": 2,
+      "overlap_tokens": [
+        "evidence"
+      ]
+    },
+    {
+      "node_id": "node_doc_f42f5f9fce66",
+      "kind": "document",
+      "label": "Evidence Notes",
+      "score": 1,
+      "overlap_tokens": [
+        "evidence"
+      ]
+    }
+  ],
+  "selected_node_ids": [
+    "node_claim_30fc702af957",
+    "node_claim_4d299471205b",
+    "node_claim_ab3dfa6882a7",
+    "node_doc_f42f5f9fce66",
+    "node_entity_7ea014de7bfb"
+  ],
+  "selected_hyperedge_ids": [
+    "edge_claim_entity_c06105fcb872",
+    "edge_claim_entity_c7168bdc0de2",
+    "edge_claim_entity_d0ac8889eaed",
+    "edge_claim_evidence_9634ec85c3b6",
+    "edge_claim_evidence_b78d7fabb14d",
+    "edge_claim_evidence_fddd7303ff5b",
+    "edge_doc_claim_46bd87418222",
+    "edge_doc_claim_831aedecac56",
+    "edge_doc_claim_95980cce9c7f",
+    "edge_doc_claim_d1f7c3e45309"
+  ],
+  "evidence_spans": [
+    {
+      "evidence_span_id": "ev_34382c967780",
+      "document_id": "doc_one",
+      "start": 0,
+      "end": 41,
+      "text": "Evidence bags preserve exact source text.",
+      "tokens": [
+        "evidence",
+        "bags",
+        "preserve",
+        "exact",
+        "source",
+        "text"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_7d50753b348f",
+      "document_id": "doc_one",
+      "start": 41,
+      "end": 84,
+      "text": " Hyperedges stay traceable to source spans.",
+      "tokens": [
+        "hyperedges",
+        "stay",
+        "traceable",
+        "to",
+        "source",
+        "spans"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_9a5f65dbc5e1",
+      "document_id": "doc_one",
+      "start": 84,
+      "end": 130,
+      "text": " Reversibility matters when context falls off.",
+      "tokens": [
+        "reversibility",
+        "matters",
+        "when",
+        "context",
+        "falls",
+        "off"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_d4da4f8745f5",
+      "document_id": "doc_two",
+      "start": 0,
+      "end": 112,
+      "text": "The manifold can be queried through graph structure, but extraction must still recover verbatim supporting text.",
+      "tokens": [
+        "the",
+        "manifold",
+        "can",
+        "be",
+        "queried",
+        "through",
+        "graph",
+        "structure",
+        "but",
+        "extraction",
+        "must",
+        "still",
+        "recover",
+        "verbatim",
+        "supporting",
+        "text"
+      ]
+    }
+  ],
+  "evidence_span_ids": [
+    "ev_34382c967780",
+    "ev_7d50753b348f",
+    "ev_9a5f65dbc5e1",
+    "ev_d4da4f8745f5"
+  ],
+  "summary": {
+    "node_count": 5,
+    "hyperedge_count": 10,
+    "evidence_span_count": 4
+  }
+}

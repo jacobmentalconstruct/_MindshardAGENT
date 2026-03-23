@@ -1,0 +1,3 @@
+{
+  "goal": "GOAL:\n- Identify what configuration/data was loaded into the agent system.\n\nFIRST_STEPS:\n- list_files to explore the sandbox root structure\n- read_file on any configuration or evidence-related files found\n\nRISKS:\n- No clear indication of what \"evidence\" refers to in this context\n- May need to check multiple directories for relevant files\n\nDONE_WHEN:\n- Found and read the relevant configuration/evidence files"
+}

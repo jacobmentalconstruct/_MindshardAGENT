@@ -1,0 +1,23 @@
+{
+  "mode": "grouped",
+  "bag": {
+    "bag_id": "inline-example",
+    "corpus_id": "example",
+    "evidence_spans": [
+      {
+        "evidence_span_id": "ev_one",
+        "document_id": "doc_one",
+        "start": 0,
+        "end": 39,
+        "text": "Evidence bags preserve exact source text."
+      },
+      {
+        "evidence_span_id": "ev_two",
+        "document_id": "doc_one",
+        "start": 40,
+        "end": 84,
+        "text": " Hyperedges stay traceable to source spans."
+      }
+    ]
+  }
+}

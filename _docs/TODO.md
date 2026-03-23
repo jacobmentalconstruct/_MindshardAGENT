@@ -87,6 +87,16 @@
 - [ ] App-wide highlight→ask context menu (right-click → ask in isolation or inject into chat)
 - [ ] Dev tools → agent tools pipeline (share tooling between dev and runtime)
 
+## Context Budget / Multi-Pass
+
+- [x] Token budget guard (priority-ordered trimming before model inference)
+- [x] Budget instrumentation (per-turn token breakdown in response metadata)
+- [x] Multi-pass config fields pre-installed (`multipass_enabled`, `multipass_strategy`)
+- [ ] Multi-pass prompt splitter (planner breaks oversized prompt into sub-tasks)
+- [ ] Iterative build strategy (sequential sub-prompts, build response incrementally)
+- [ ] Synthesize strategy (parallel sub-prompts, merge responses)
+- [ ] Multi-pass vs budget-guard comparison data collection
+
 ## Low Priority / Future
 
 - [ ] Teach agent project tidiness (folder structures, naming conventions, not dumping everything flat in sandbox root)

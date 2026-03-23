@@ -1,0 +1,338 @@
+{
+  "corpus_id": "smoke-corpus",
+  "created_at": "20260323T152100978107Z",
+  "documents": [
+    {
+      "document_id": "doc_one",
+      "title": "Evidence Notes",
+      "source_type": "inline",
+      "source_path": "",
+      "metadata": {},
+      "char_count": 130
+    },
+    {
+      "document_id": "doc_two",
+      "title": "Manifold Notes",
+      "source_type": "inline",
+      "source_path": "",
+      "metadata": {},
+      "char_count": 112
+    }
+  ],
+  "evidence_spans": [
+    {
+      "evidence_span_id": "ev_34382c967780",
+      "document_id": "doc_one",
+      "start": 0,
+      "end": 41,
+      "text": "Evidence bags preserve exact source text.",
+      "tokens": [
+        "evidence",
+        "bags",
+        "preserve",
+        "exact",
+        "source",
+        "text"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_7d50753b348f",
+      "document_id": "doc_one",
+      "start": 41,
+      "end": 84,
+      "text": " Hyperedges stay traceable to source spans.",
+      "tokens": [
+        "hyperedges",
+        "stay",
+        "traceable",
+        "to",
+        "source",
+        "spans"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_9a5f65dbc5e1",
+      "document_id": "doc_one",
+      "start": 84,
+      "end": 130,
+      "text": " Reversibility matters when context falls off.",
+      "tokens": [
+        "reversibility",
+        "matters",
+        "when",
+        "context",
+        "falls",
+        "off"
+      ]
+    },
+    {
+      "evidence_span_id": "ev_d4da4f8745f5",
+      "document_id": "doc_two",
+      "start": 0,
+      "end": 112,
+      "text": "The manifold can be queried through graph structure, but extraction must still recover verbatim supporting text.",
+      "tokens": [
+        "the",
+        "manifold",
+        "can",
+        "be",
+        "queried",
+        "through",
+        "graph",
+        "structure",
+        "but",
+        "extraction",
+        "must",
+        "still",
+        "recover",
+        "verbatim",
+        "supporting",
+        "text"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "node_claim_30fc702af957",
+      "kind": "claim",
+      "label": "Evidence bags preserve exact source text.",
+      "document_id": "doc_one",
+      "evidence_span_ids": [
+        "ev_34382c967780"
+      ],
+      "text": "Evidence bags preserve exact source text.",
+      "sentence_index": 1
+    },
+    {
+      "node_id": "node_claim_4d299471205b",
+      "kind": "claim",
+      "label": "The manifold can be queried through graph structure, but extraction must still recover verbatim supporting text.",
+      "document_id": "doc_two",
+      "evidence_span_ids": [
+        "ev_d4da4f8745f5"
+      ],
+      "text": "The manifold can be queried through graph structure, but extraction must still recover verbatim supporting text.",
+      "sentence_index": 1
+    },
+    {
+      "node_id": "node_claim_8db9750cc946",
+      "kind": "claim",
+      "label": "Reversibility matters when context falls off.",
+      "document_id": "doc_one",
+      "evidence_span_ids": [
+        "ev_9a5f65dbc5e1"
+      ],
+      "text": " Reversibility matters when context falls off.",
+      "sentence_index": 3
+    },
+    {
+      "node_id": "node_claim_ab3dfa6882a7",
+      "kind": "claim",
+      "label": "Hyperedges stay traceable to source spans.",
+      "document_id": "doc_one",
+      "evidence_span_ids": [
+        "ev_7d50753b348f"
+      ],
+      "text": " Hyperedges stay traceable to source spans.",
+      "sentence_index": 2
+    },
+    {
+      "node_id": "node_doc_040a6ec9f34e",
+      "kind": "document",
+      "label": "Manifold Notes",
+      "document_id": "doc_two",
+      "evidence_span_ids": [],
+      "text": ""
+    },
+    {
+      "node_id": "node_doc_f42f5f9fce66",
+      "kind": "document",
+      "label": "Evidence Notes",
+      "document_id": "doc_one",
+      "evidence_span_ids": [],
+      "text": ""
+    },
+    {
+      "node_id": "node_entity_26b8daec4756",
+      "kind": "entity",
+      "label": "Hyperedges",
+      "document_id": "doc_one",
+      "evidence_span_ids": [
+        "ev_7d50753b348f"
+      ],
+      "text": ""
+    },
+    {
+      "node_id": "node_entity_2740fcaaa124",
+      "kind": "entity",
+      "label": "Reversibility",
+      "document_id": "doc_one",
+      "evidence_span_ids": [
+        "ev_9a5f65dbc5e1"
+      ],
+      "text": ""
+    },
+    {
+      "node_id": "node_entity_7ea014de7bfb",
+      "kind": "entity",
+      "label": "Evidence",
+      "document_id": "doc_one",
+      "evidence_span_ids": [
+        "ev_34382c967780"
+      ],
+      "text": ""
+    },
+    {
+      "node_id": "node_entity_93ef0dd82710",
+      "kind": "entity",
+      "label": "The",
+      "document_id": "doc_two",
+      "evidence_span_ids": [
+        "ev_d4da4f8745f5"
+      ],
+      "text": ""
+    }
+  ],
+  "hyperedges": [
+    {
+      "hyperedge_id": "edge_claim_evidence_9634ec85c3b6",
+      "kind": "claim_grounded_in_evidence",
+      "node_ids": [
+        "node_claim_4d299471205b"
+      ],
+      "evidence_span_ids": [
+        "ev_d4da4f8745f5"
+      ],
+      "document_id": "doc_two"
+    },
+    {
+      "hyperedge_id": "edge_claim_evidence_b78d7fabb14d",
+      "kind": "claim_grounded_in_evidence",
+      "node_ids": [
+        "node_claim_30fc702af957"
+      ],
+      "evidence_span_ids": [
+        "ev_34382c967780"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_claim_evidence_ed7c713a24fe",
+      "kind": "claim_grounded_in_evidence",
+      "node_ids": [
+        "node_claim_8db9750cc946"
+      ],
+      "evidence_span_ids": [
+        "ev_9a5f65dbc5e1"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_claim_evidence_fddd7303ff5b",
+      "kind": "claim_grounded_in_evidence",
+      "node_ids": [
+        "node_claim_ab3dfa6882a7"
+      ],
+      "evidence_span_ids": [
+        "ev_7d50753b348f"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_claim_entity_49bfeb55bb3d",
+      "kind": "claim_mentions_entity",
+      "node_ids": [
+        "node_claim_8db9750cc946",
+        "node_entity_2740fcaaa124"
+      ],
+      "evidence_span_ids": [
+        "ev_9a5f65dbc5e1"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_claim_entity_c06105fcb872",
+      "kind": "claim_mentions_entity",
+      "node_ids": [
+        "node_claim_4d299471205b",
+        "node_entity_93ef0dd82710"
+      ],
+      "evidence_span_ids": [
+        "ev_d4da4f8745f5"
+      ],
+      "document_id": "doc_two"
+    },
+    {
+      "hyperedge_id": "edge_claim_entity_c7168bdc0de2",
+      "kind": "claim_mentions_entity",
+      "node_ids": [
+        "node_claim_30fc702af957",
+        "node_entity_7ea014de7bfb"
+      ],
+      "evidence_span_ids": [
+        "ev_34382c967780"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_claim_entity_d0ac8889eaed",
+      "kind": "claim_mentions_entity",
+      "node_ids": [
+        "node_claim_ab3dfa6882a7",
+        "node_entity_26b8daec4756"
+      ],
+      "evidence_span_ids": [
+        "ev_7d50753b348f"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_doc_claim_46bd87418222",
+      "kind": "document_contains_claim",
+      "node_ids": [
+        "node_doc_f42f5f9fce66",
+        "node_claim_ab3dfa6882a7"
+      ],
+      "evidence_span_ids": [
+        "ev_7d50753b348f"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_doc_claim_831aedecac56",
+      "kind": "document_contains_claim",
+      "node_ids": [
+        "node_doc_f42f5f9fce66",
+        "node_claim_8db9750cc946"
+      ],
+      "evidence_span_ids": [
+        "ev_9a5f65dbc5e1"
+      ],
+      "document_id": "doc_one"
+    },
+    {
+      "hyperedge_id": "edge_doc_claim_95980cce9c7f",
+      "kind": "document_contains_claim",
+      "node_ids": [
+        "node_doc_040a6ec9f34e",
+        "node_claim_4d299471205b"
+      ],
+      "evidence_span_ids": [
+        "ev_d4da4f8745f5"
+      ],
+      "document_id": "doc_two"
+    },
+    {
+      "hyperedge_id": "edge_doc_claim_d1f7c3e45309",
+      "kind": "document_contains_claim",
+      "node_ids": [
+        "node_doc_f42f5f9fce66",
+        "node_claim_30fc702af957"
+      ],
+      "evidence_span_ids": [
+        "ev_34382c967780"
+      ],
+      "document_id": "doc_one"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "leaderboard": [
+    {
+      "model": "qwen3.5:2b",
+      "prompt_variant_id": "strict-pass",
+      "runs": 1,
+      "deterministic_pass_rate_avg": 1.0,
+      "judge_score_avg": null,
+      "keep_count": 1,
+      "revise_count": 0,
+      "reject_count": 0
+    },
+    {
+      "model": "qwen3.5:4b",
+      "prompt_variant_id": "strict-pass",
+      "runs": 1,
+      "deterministic_pass_rate_avg": 1.0,
+      "judge_score_avg": null,
+      "keep_count": 1,
+      "revise_count": 0,
+      "reject_count": 0
+    }
+  ]
+}
