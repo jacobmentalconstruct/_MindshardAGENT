@@ -35,6 +35,12 @@
       "script": "tools/ollama_prompt_lab.py",
       "mcp_name": "ollama_prompt_lab",
       "category": "evaluation"
+    },
+    {
+      "tool_name": "validate_model_slot",
+      "script": "tools/validate_model_slot.py",
+      "mcp_name": "validate_model_slot",
+      "category": "evaluation"
     }
   ],
   "planned_tools": [

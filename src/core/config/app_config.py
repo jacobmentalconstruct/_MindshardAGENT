@@ -32,7 +32,7 @@ class AppConfig:
     recovery_planner_model: str = ""
     coding_model: str = ""
     review_model: str = ""
-    fast_probe_model: str = ""
+    fast_probe_model: str = "qwen2.5:1.5b"
     max_context_tokens: int = 8192       # constrain num_ctx to protect VRAM
     temperature: float = 0.7
 
@@ -66,6 +66,7 @@ class AppConfig:
     recovery_planning_enabled: bool = True
     probe_enabled: bool = True
     probe_max_questions: int = 3
+    probe_models: dict = field(default_factory=dict)  # per-probe model overrides e.g. {"intent": "qwen3.5:0.5b"}
 
     # Logging
     log_dir: str = "_logs"
@@ -80,7 +81,7 @@ class AppConfig:
         self.recovery_planner_model = (self.recovery_planner_model or self.planner_model or primary).strip()
         self.coding_model = (self.coding_model or primary).strip()
         self.review_model = (self.review_model or primary).strip()
-        self.fast_probe_model = (self.fast_probe_model or primary).strip()
+        self.fast_probe_model = (self.fast_probe_model or "qwen2.5:1.5b").strip()
         self.embedding_model = (self.embedding_model or "all-minilm:latest").strip() or "all-minilm:latest"
 
     def save(self, project_root: Path) -> None:

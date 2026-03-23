@@ -1,0 +1,1749 @@
+{
+  "runs": [
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "intent-create",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"Create a new REST API endpoint for user registration with email validation\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "Category: CREATE  \nReason: The request involves creating a new functionality, specifically adding a new feature to handle user registration with email validation through a RESTful API.",
+      "stderr": "",
+      "response_text": "Category: CREATE  \nReason: The request involves creating a new functionality, specifically adding a new feature to handle user registration with email validation through a RESTful API.",
+      "duration_seconds": 14.032,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 5,
+        "passed_count": 5,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "CREATE"
+            ],
+            "matched": [
+              "CREATE"
+            ]
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "DEBUG"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "UNDERSTAND"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 184
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "intent-debug",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"The login page crashes when I enter a long password, can you fix it?\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "CATEGORY: DEBUG\nREASON: The user is experiencing an error related to the login page crashing due to a long password input, which requires fixing or debugging the issue.",
+      "stderr": "",
+      "response_text": "CATEGORY: DEBUG\nREASON: The user is experiencing an error related to the login page crashing due to a long password input, which requires fixing or debugging the issue.",
+      "duration_seconds": 15.903,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 3,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "DEBUG"
+            ],
+            "matched": [
+              "DEBUG"
+            ]
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 168
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "intent-understand",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"How does the authentication middleware work in this project?\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "The category is \"UNDERSTAND\". The user wants to understand how an authentication middleware works within their project, which requires explaining/explored content related to middleware functionality.",
+      "stderr": "",
+      "response_text": "The category is \"UNDERSTAND\". The user wants to understand how an authentication middleware works within their project, which requires explaining/explored content related to middleware functionality.",
+      "duration_seconds": 14.735,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 4,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "UNDERSTAND"
+            ],
+            "matched": [
+              "UNDERSTAND"
+            ]
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 199
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "intent-modify",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"Add rate limiting to the existing API endpoints\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "This is a MODIFY request, as it involves changing an existing feature of the application.",
+      "stderr": "",
+      "response_text": "This is a MODIFY request, as it involves changing an existing feature of the application.",
+      "duration_seconds": 14.785,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "MODIFY",
+              "CREATE"
+            ],
+            "matched": [
+              "MODIFY"
+            ]
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 89
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "relevance-python-web",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"Fix the broken database connection in the user model\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "DEBUG (fix a problem)",
+      "stderr": "",
+      "response_text": "DEBUG (fix a problem)",
+      "duration_seconds": 14.887,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 3,
+        "failed_count": 1,
+        "pass_rate": 0.75,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "user.py",
+              "db.py"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "style.css"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "app.js"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "base.html"
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.75,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "language-python-flask",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"What language is this?\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "Understand - The request asks for clarification on the programming language being used, which involves understanding the context of the query.",
+      "stderr": "",
+      "response_text": "Understand - The request asks for clarification on the programming language being used, which involves understanding the context of the query.",
+      "duration_seconds": 15.162,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "Python",
+              "python"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 142
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "language-typescript-react",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"What language is this?\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "The question \"What language is this?\" falls under the category of UNDERSTAND. Reason: The user is asking for information about identifying the programming language being referred to, which involves understanding the context or content being discussed.",
+      "stderr": "",
+      "response_text": "The question \"What language is this?\" falls under the category of UNDERSTAND. Reason: The user is asking for information about identifying the programming language being referred to, which involves understanding the context or content being discussed.",
+      "duration_seconds": 15.244,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 0,
+        "failed_count": 2,
+        "pass_rate": 0.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "TypeScript",
+              "typescript",
+              "React",
+              "react"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": false,
+            "expected": 150,
+            "actual": 251
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "intent-classify",
+      "case_id": "summary-webapp",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nClassify this user request into exactly one category: CREATE (new files/project), MODIFY (change existing code), UNDERSTAND (explain/explore), or DEBUG (fix a problem). Request: \"What does this project do?\"\nAnswer with just the category and a one-sentence reason.",
+      "stdout": "Understand, because the user wants to understand the functionality of the project described in it.",
+      "stderr": "",
+      "response_text": "Understand, because the user wants to understand the functionality of the project described in it.",
+      "duration_seconds": 14.767,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 2,
+        "failed_count": 1,
+        "pass_rate": 0.667,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "e-commerce",
+              "ecommerce",
+              "shop",
+              "store",
+              "order",
+              "cart",
+              "checkout",
+              "web",
+              "application"
+            ],
+            "matched": []
+          },
+          {
+            "check": "min_length",
+            "passed": true,
+            "expected": 20,
+            "actual": 98
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 300,
+            "actual": 98
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.667,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "intent-create",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    auth.py\n    users.py\n  models/\n    user.py\n  tests/\n    test_auth.py\n\nWhich 3-5 files are most relevant to this request: \"Create a new REST API endpoint for user registration with email validation\"?\nList just the file paths, one per line.",
+      "stdout": "src/routes/  \nsrc/models/user.py  \nsrc/app.py",
+      "stderr": "",
+      "response_text": "src/routes/  \nsrc/models/user.py  \nsrc/app.py",
+      "duration_seconds": 14.915,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 5,
+        "passed_count": 4,
+        "failed_count": 1,
+        "pass_rate": 0.8,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "CREATE"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "DEBUG"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "UNDERSTAND"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 45
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.8,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "intent-debug",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    auth.py\n  tests/\n    test_auth.py\n\nWhich 3-5 files are most relevant to this request: \"The login page crashes when I enter a long password, can you fix it?\"?\nList just the file paths, one per line.",
+      "stdout": "test_auth.py, app.py, routes/auth.py",
+      "stderr": "",
+      "response_text": "test_auth.py, app.py, routes/auth.py",
+      "duration_seconds": 14.912,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 2,
+        "failed_count": 1,
+        "pass_rate": 0.667,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "DEBUG"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 36
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.667,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "intent-understand",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  middleware/\n    auth.py\n    cors.py\n  app.py\n\nWhich 3-5 files are most relevant to this request: \"How does the authentication middleware work in this project?\"?\nList just the file paths, one per line.",
+      "stdout": "middleware/auth.py\nmiddleware/cors.py\napp.py",
+      "stderr": "",
+      "response_text": "middleware/auth.py\nmiddleware/cors.py\napp.py",
+      "duration_seconds": 15.262,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 3,
+        "failed_count": 1,
+        "pass_rate": 0.75,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "UNDERSTAND"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 44
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.75,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "intent-modify",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    api.py\n  middleware/\n    auth.py\n\nWhich 3-5 files are most relevant to this request: \"Add rate limiting to the existing API endpoints\"?\nList just the file paths, one per line.",
+      "stdout": "To add rate limiting to the existing API endpoints, consider these files:\n\n1. routes/api.py\n2. middleware/auth.py\n3. app.py (for configuration and initialization)\n4. routes/\n5. middleware/",
+      "stderr": "",
+      "response_text": "To add rate limiting to the existing API endpoints, consider these files:\n\n1. routes/api.py\n2. middleware/auth.py\n3. app.py (for configuration and initialization)\n4. routes/\n5. middleware/",
+      "duration_seconds": 15.445,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "MODIFY",
+              "CREATE"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 188
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "relevance-python-web",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  config.py\n  routes/\n    auth.py\n    users.py\n    admin.py\n  models/\n    user.py\n    product.py\n    order.py\n  utils/\n    db.py\n    helpers.py\n  tests/\n    test_users.py\n    test_products.py\n  static/\n    style.css\n    app.js\n  templates/\n    base.html\n\nWhich 3-5 files are most relevant to this request: \"Fix the broken database connection in the user model\"?\nList just the file paths, one per line.",
+      "stdout": "app.py, config.py, routes/user.py, models/user.py, tests/test_users.py, static/app.js",
+      "stderr": "",
+      "response_text": "app.py, config.py, routes/user.py, models/user.py, tests/test_users.py, static/app.js",
+      "duration_seconds": 15.048,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 3,
+        "failed_count": 1,
+        "pass_rate": 0.75,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "user.py",
+              "db.py"
+            ],
+            "matched": [
+              "user.py"
+            ]
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "style.css"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": false,
+            "needle": "app.js"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "base.html"
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.75,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "language-python-flask",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\napp.py\nrequirements.txt\nsrc/\n  __init__.py\n  routes/\n    auth.py\n    users.py\n  models/\n    user.py\n  templates/\n    base.html\n    login.html\nstatic/\n  style.css\ntests/\n  test_app.py\n  conftest.py\n\nWhich 3-5 files are most relevant to this request: \"What language is this?\"?\nList just the file paths, one per line.",
+      "stdout": "app.py, src/__init__.py, tests/test_app.py, and requirements.txt.",
+      "stderr": "",
+      "response_text": "app.py, src/__init__.py, tests/test_app.py, and requirements.txt.",
+      "duration_seconds": 14.814,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "Python",
+              "python"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 65
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "language-typescript-react",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\npackage.json\ntsconfig.json\nsrc/\n  App.tsx\n  index.tsx\n  components/\n    Header.tsx\n    Footer.tsx\n  hooks/\n    useAuth.ts\n  styles/\n    global.css\npublic/\n  index.html\n\nWhich 3-5 files are most relevant to this request: \"What language is this?\"?\nList just the file paths, one per line.",
+      "stdout": "package.json\ntsconfig.json\nsrc/\tfiles/App.tsx, index.tsx, components/, hooks/, styles/",
+      "stderr": "",
+      "response_text": "package.json\ntsconfig.json\nsrc/\tfiles/App.tsx, index.tsx, components/, hooks/, styles/",
+      "duration_seconds": 15.099,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "TypeScript",
+              "typescript",
+              "React",
+              "react"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 86
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "relevance-pick",
+      "case_id": "summary-webapp",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    auth.py\n    users.py\n    orders.py\n    payments.py\n  models/\n    user.py\n    order.py\n    product.py\n    payment.py\n  templates/\n    checkout.html\n    cart.html\n    product_list.html\n  static/\n    cart.js\n    checkout.js\n\nWhich 3-5 files are most relevant to this request: \"What does this project do?\"?\nList just the file paths, one per line.",
+      "stdout": "app.py\nroutes/auth.py\nmodels/user.py\nmodels/order.py\ntemplates/product_list.html",
+      "stderr": "",
+      "response_text": "app.py\nroutes/auth.py\nmodels/user.py\nmodels/order.py\ntemplates/product_list.html",
+      "duration_seconds": 15.071,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 3,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "e-commerce",
+              "ecommerce",
+              "shop",
+              "store",
+              "order",
+              "cart",
+              "checkout",
+              "web",
+              "application"
+            ],
+            "matched": [
+              "order"
+            ]
+          },
+          {
+            "check": "min_length",
+            "passed": true,
+            "expected": 20,
+            "actual": 80
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 300,
+            "actual": 80
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "intent-create",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    auth.py\n    users.py\n  models/\n    user.py\n  tests/\n    test_auth.py\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "Python, with Flask as the web framework.",
+      "stderr": "",
+      "response_text": "Python, with Flask as the web framework.",
+      "duration_seconds": 15.225,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 5,
+        "passed_count": 4,
+        "failed_count": 1,
+        "pass_rate": 0.8,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "CREATE"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "DEBUG"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "UNDERSTAND"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 40
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.8,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "intent-debug",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    auth.py\n  tests/\n    test_auth.py\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "The primary programming language appears to be Python, as indicated by the extension \".py\" on multiple files. The framework is not specified from the given information.",
+      "stderr": "",
+      "response_text": "The primary programming language appears to be Python, as indicated by the extension \".py\" on multiple files. The framework is not specified from the given information.",
+      "duration_seconds": 15.417,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 2,
+        "failed_count": 1,
+        "pass_rate": 0.667,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "DEBUG"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 168
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.667,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "intent-understand",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  middleware/\n    auth.py\n    cors.py\n  app.py\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "The primary programming language appears to be Python, with a mix of web frameworks indicated by 'app.py'.",
+      "stderr": "",
+      "response_text": "The primary programming language appears to be Python, with a mix of web frameworks indicated by 'app.py'.",
+      "duration_seconds": 14.814,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 3,
+        "failed_count": 1,
+        "pass_rate": 0.75,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "UNDERSTAND"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 106
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.75,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "intent-modify",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    api.py\n  middleware/\n    auth.py\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "Python with Flask framework.",
+      "stderr": "",
+      "response_text": "Python with Flask framework.",
+      "duration_seconds": 14.963,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "MODIFY",
+              "CREATE"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 28
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "relevance-python-web",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  config.py\n  routes/\n    auth.py\n    users.py\n    admin.py\n  models/\n    user.py\n    product.py\n    order.py\n  utils/\n    db.py\n    helpers.py\n  tests/\n    test_users.py\n    test_products.py\n  static/\n    style.css\n    app.js\n  templates/\n    base.html\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "The primary programming language appears to be Python, as indicated by files like `app.py`, `config.py`, `routes/`, and `tests/`. The structure suggests a Flask-based web application framework.",
+      "stderr": "",
+      "response_text": "The primary programming language appears to be Python, as indicated by files like `app.py`, `config.py`, `routes/`, and `tests/`. The structure suggests a Flask-based web application framework.",
+      "duration_seconds": 15.535,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 3,
+        "failed_count": 1,
+        "pass_rate": 0.75,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "user.py",
+              "db.py"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "style.css"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "app.js"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "base.html"
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.75,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "language-python-flask",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\napp.py\nrequirements.txt\nsrc/\n  __init__.py\n  routes/\n    auth.py\n    users.py\n  models/\n    user.py\n  templates/\n    base.html\n    login.html\nstatic/\n  style.css\ntests/\n  test_app.py\n  conftest.py\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "Python with Flask as the web framework.",
+      "stderr": "",
+      "response_text": "Python with Flask as the web framework.",
+      "duration_seconds": 14.652,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "Python",
+              "python"
+            ],
+            "matched": [
+              "Python"
+            ]
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 39
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "language-typescript-react",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\npackage.json\ntsconfig.json\nsrc/\n  App.tsx\n  index.tsx\n  components/\n    Header.tsx\n    Footer.tsx\n  hooks/\n    useAuth.ts\n  styles/\n    global.css\npublic/\n  index.html\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "JavaScript, TypeScript, with React and Styled-Components.",
+      "stderr": "",
+      "response_text": "JavaScript, TypeScript, with React and Styled-Components.",
+      "duration_seconds": 14.784,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "TypeScript",
+              "typescript",
+              "React",
+              "react"
+            ],
+            "matched": [
+              "TypeScript",
+              "React"
+            ]
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 57
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "language-detect",
+      "case_id": "summary-webapp",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing:\nsrc/\n  app.py\n  routes/\n    auth.py\n    users.py\n    orders.py\n    payments.py\n  models/\n    user.py\n    order.py\n    product.py\n    payment.py\n  templates/\n    checkout.html\n    cart.html\n    product_list.html\n  static/\n    cart.js\n    checkout.js\n\nWhat is the primary programming language and framework (if any) for this project? Answer in one line.",
+      "stdout": "Python with Flask micro web framework, utilizing various Python packages like Django or FastAPI for potential higher-level frameworks.",
+      "stderr": "",
+      "response_text": "Python with Flask micro web framework, utilizing various Python packages like Django or FastAPI for potential higher-level frameworks.",
+      "duration_seconds": 15.11,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 3,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "e-commerce",
+              "ecommerce",
+              "shop",
+              "store",
+              "order",
+              "cart",
+              "checkout",
+              "web",
+              "application"
+            ],
+            "matched": [
+              "web"
+            ]
+          },
+          {
+            "check": "min_length",
+            "passed": true,
+            "expected": 20,
+            "actual": 134
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 300,
+            "actual": 134
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "intent-create",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\nsrc/\n  app.py\n  routes/\n    auth.py\n    users.py\n  models/\n    user.py\n  tests/\n    test_auth.py\n\nIn one sentence, what does this project do?",
+      "stdout": "This project is a Python-based application with server-side logic in `app.py`, authentication-related files for `auth.py` and `users.py`, database models in `user.py`, and testing utilities in `test_auth.py`.",
+      "stderr": "",
+      "response_text": "This project is a Python-based application with server-side logic in `app.py`, authentication-related files for `auth.py` and `users.py`, database models in `user.py`, and testing utilities in `test_auth.py`.",
+      "duration_seconds": 15.213,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 5,
+        "passed_count": 3,
+        "failed_count": 2,
+        "pass_rate": 0.6,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "CREATE"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "DEBUG"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "UNDERSTAND"
+          },
+          {
+            "check": "max_length",
+            "passed": false,
+            "expected": 200,
+            "actual": 208
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.6,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "intent-debug",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\nsrc/\n  app.py\n  routes/\n    auth.py\n  tests/\n    test_auth.py\n\nIn one sentence, what does this project do?",
+      "stdout": "The project contains a Python application (`app.py`) with routes for authentication (`auth.py`). It also has tests to ensure correctness (`test_auth.py` exists).",
+      "stderr": "",
+      "response_text": "The project contains a Python application (`app.py`) with routes for authentication (`auth.py`). It also has tests to ensure correctness (`test_auth.py` exists).",
+      "duration_seconds": 15.079,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 2,
+        "failed_count": 1,
+        "pass_rate": 0.667,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "DEBUG"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 161
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.667,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "intent-understand",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\nsrc/\n  middleware/\n    auth.py\n    cors.py\n  app.py\n\nIn one sentence, what does this project do?",
+      "stdout": "This project appears to be a basic Python application management framework with modules for authentication (auth.py) and cross-origin resource sharing (cors.py), designed around the main entry point `app.py`.",
+      "stderr": "",
+      "response_text": "This project appears to be a basic Python application management framework with modules for authentication (auth.py) and cross-origin resource sharing (cors.py), designed around the main entry point `app.py`.",
+      "duration_seconds": 15.047,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 2,
+        "failed_count": 2,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "UNDERSTAND"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "CREATE"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "MODIFY"
+          },
+          {
+            "check": "max_length",
+            "passed": false,
+            "expected": 200,
+            "actual": 208
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "intent-modify",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\nsrc/\n  app.py\n  routes/\n    api.py\n  middleware/\n    auth.py\n\nIn one sentence, what does this project do?",
+      "stdout": "This project manages API endpoints using Python and includes authentication middleware for security.",
+      "stderr": "",
+      "response_text": "This project manages API endpoints using Python and includes authentication middleware for security.",
+      "duration_seconds": 14.786,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "MODIFY",
+              "CREATE"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 200,
+            "actual": 100
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "relevance-python-web",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\nsrc/\n  app.py\n  config.py\n  routes/\n    auth.py\n    users.py\n    admin.py\n  models/\n    user.py\n    product.py\n    order.py\n  utils/\n    db.py\n    helpers.py\n  tests/\n    test_users.py\n    test_products.py\n  static/\n    style.css\n    app.js\n  templates/\n    base.html\n\nIn one sentence, what does this project do?",
+      "stdout": "This project is a web application framework consisting of various modules for authentication (auth), user management (users), product and order tracking (admin, users, products, orders), database interactions (db), utility functions (db, helpers), tests (unit tests for each module), static assets (CSS and JavaScript files), and templates.",
+      "stderr": "",
+      "response_text": "This project is a web application framework consisting of various modules for authentication (auth), user management (users), product and order tracking (admin, users, products, orders), database interactions (db), utility functions (db, helpers), tests (unit tests for each module), static assets (CSS and JavaScript files), and templates.",
+      "duration_seconds": 16.266,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 4,
+        "passed_count": 3,
+        "failed_count": 1,
+        "pass_rate": 0.75,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "user.py",
+              "db.py"
+            ],
+            "matched": []
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "style.css"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "app.js"
+          },
+          {
+            "check": "not_contains_any",
+            "passed": true,
+            "needle": "base.html"
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.75,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "language-python-flask",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\napp.py\nrequirements.txt\nsrc/\n  __init__.py\n  routes/\n    auth.py\n    users.py\n  models/\n    user.py\n  templates/\n    base.html\n    login.html\nstatic/\n  style.css\ntests/\n  test_app.py\n  conftest.py\n\nIn one sentence, what does this project do?",
+      "stdout": "The project is a Flask application with routes for authentication and users, models for the user table, and HTML templates.",
+      "stderr": "",
+      "response_text": "The project is a Flask application with routes for authentication and users, models for the user table, and HTML templates.",
+      "duration_seconds": 14.758,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 1,
+        "failed_count": 1,
+        "pass_rate": 0.5,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": false,
+            "needles": [
+              "Python",
+              "python"
+            ],
+            "matched": []
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 123
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 0.5,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "revise",
+        "reasons": [
+          "deterministic_checks_failed"
+        ]
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "language-typescript-react",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\npackage.json\ntsconfig.json\nsrc/\n  App.tsx\n  index.tsx\n  components/\n    Header.tsx\n    Footer.tsx\n  hooks/\n    useAuth.ts\n  styles/\n    global.css\npublic/\n  index.html\n\nIn one sentence, what does this project do?",
+      "stdout": "This project appears to be a web application with TypeScript support, likely for building a frontend component library or dashboard.",
+      "stderr": "",
+      "response_text": "This project appears to be a web application with TypeScript support, likely for building a frontend component library or dashboard.",
+      "duration_seconds": 15.007,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "TypeScript",
+              "typescript",
+              "React",
+              "react"
+            ],
+            "matched": [
+              "TypeScript"
+            ]
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 150,
+            "actual": 132
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "case_id": "summary-webapp",
+      "repeat_index": 1,
+      "prompt_text": "You are a fast analysis assistant. Answer concisely in 1-3 sentences. No code blocks, no tool calls, no markdown headers. Just answer the question directly.\n\nGiven this file listing and any available context:\nsrc/\n  app.py\n  routes/\n    auth.py\n    users.py\n    orders.py\n    payments.py\n  models/\n    user.py\n    order.py\n    product.py\n    payment.py\n  templates/\n    checkout.html\n    cart.html\n    product_list.html\n  static/\n    cart.js\n    checkout.js\n\nIn one sentence, what does this project do?",
+      "stdout": "This project is a web application focused on user authentication and management of products, orders, and payments.",
+      "stderr": "",
+      "response_text": "This project is a web application focused on user authentication and management of products, orders, and payments.",
+      "duration_seconds": 15.042,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 3,
+        "passed_count": 3,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "contains_any",
+            "passed": true,
+            "needles": [
+              "e-commerce",
+              "ecommerce",
+              "shop",
+              "store",
+              "order",
+              "cart",
+              "checkout",
+              "web",
+              "application"
+            ],
+            "matched": [
+              "order",
+              "web",
+              "application"
+            ]
+          },
+          {
+            "check": "min_length",
+            "passed": true,
+            "expected": 20,
+            "actual": 114
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 300,
+            "actual": 114
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    }
+  ]
+}

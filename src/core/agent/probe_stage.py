@@ -63,11 +63,14 @@ def run_probe_stage(
     if not probe_specs:
         return None
 
-    model_name = resolve_model_for_role(config, FAST_PROBE_ROLE)
-    if not model_name:
+    default_model = resolve_model_for_role(config, FAST_PROBE_ROLE)
+    if not default_model:
         return None
 
-    activity.info("probe", f"Probe stage: {len(probe_specs)} probes with {model_name}")
+    # Resolve per-probe model overrides (e.g. {"intent": "qwen3.5:0.5b"})
+    probe_model_map = getattr(config, "probe_models", {}) or {}
+
+    activity.info("probe", f"Probe stage: {len(probe_specs)} probes (default={default_model})")
     t0 = time.perf_counter()
 
     results: list[ProbeResult] = []
@@ -75,7 +78,12 @@ def run_probe_stage(
     # Run probes in parallel (Ollama handles concurrent requests)
     with ThreadPoolExecutor(max_workers=min(len(probe_specs), 3), thread_name_prefix="probe") as pool:
         futures = {
-            pool.submit(_run_single_probe, config, model_name, spec): spec
+            pool.submit(
+                _run_single_probe,
+                config,
+                probe_model_map.get(spec.get("type", ""), default_model) or default_model,
+                spec,
+            ): spec
             for spec in probe_specs
         }
         for future in as_completed(futures):

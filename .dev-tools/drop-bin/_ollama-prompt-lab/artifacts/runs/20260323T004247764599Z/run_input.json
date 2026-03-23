@@ -1,0 +1,24 @@
+{
+  "models": [
+    "qwen3.5:4b"
+  ],
+  "prompt_variants": [
+    {
+      "id": "intent-classify",
+      "template": "Classify: {user_text}"
+    }
+  ],
+  "cases": [
+    {
+      "id": "test",
+      "user_text": "fix the bug",
+      "checks": {
+        "contains_any": [
+          "DEBUG",
+          "MODIFY"
+        ]
+      }
+    }
+  ],
+  "dry_run": true
+}

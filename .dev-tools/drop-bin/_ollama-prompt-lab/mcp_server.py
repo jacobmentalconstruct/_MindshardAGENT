@@ -7,6 +7,7 @@ HOW TO USE:
   - Connect as a stdio MCP server from an MCP-capable client.
 TOOLS:
   - ollama_prompt_lab
+  - validate_model_slot
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from tools.ollama_prompt_lab import FILE_METADATA as OLLAMA_PROMPT_LAB_METADATA, run as run_ollama_prompt_lab
+from tools.validate_model_slot import FILE_METADATA as VALIDATE_SLOT_METADATA, run as run_validate_model_slot
 
 
 SERVER_INFO = {
@@ -31,6 +33,7 @@ SERVER_INFO = {
 
 TOOL_REGISTRY = {
     OLLAMA_PROMPT_LAB_METADATA["mcp_name"]: (OLLAMA_PROMPT_LAB_METADATA, run_ollama_prompt_lab),
+    VALIDATE_SLOT_METADATA["mcp_name"]: (VALIDATE_SLOT_METADATA, run_validate_model_slot),
 }
 
 

@@ -1,0 +1,57 @@
+{
+  "models": [],
+  "pull_missing": false,
+  "hidethinking": true,
+  "timeout_seconds": 90,
+  "repeats": 2,
+  "prompt_variants": [
+    {
+      "id": "compact-prompt-v1",
+      "template": "You are MindshardAGENT, a helpful assistant running inside the Mindshard sandbox workspace.\n\nWork with the user as a practical build partner:\n- Stay direct, grounded, and transparent.\n- Say when something failed or when you are uncertain.\n- Do not invent files, tool results, or project state.\n\n## Workspace\nSandbox root: C:/Users/test/projects/my_webapp\nYou can read, write, and run commands only inside this directory.\nSidecar: .mindshard/ (tools/, sessions/, outputs/, runs/)\n\n## Project Focus\n- Active project root: sandbox root\n\n## Project Brief\n{project_brief}\n\n## Tools\n\n- **list_files**: List files and directories. Params: path, depth\n- **read_file**: Read file contents. Params: path (required)\n- **write_file**: Create or overwrite a file. Params: path (required), content (required), mode\n- **run_python_file**: Run a Python file. Params: path (required), args, timeout, workspace\n- **cli_in_sandbox**: Execute a CLI command. Params: command (required), cwd\n- **reload_tools**: Re-scan .mindshard/tools/ for new tools.\n\n## How to Call Tools\nWrap JSON in triple-backtick `tool_call` fences. One call per block.\n```tool_call\n{\"tool\": \"list_files\", \"path\": \"\", \"depth\": 2}\n```\n\nUse write_file to create files. Use read_file to read. Use list_files to explore.\n\nUser: {user_message}"
+    }
+  ],
+  "cases": [
+    {
+      "id": "tool-call-list",
+      "user_message": "What files are in this project?",
+      "project_brief": "A Python web application for task management.",
+      "checks": {
+        "contains_any": ["list_files", "tool_call"],
+        "not_contains_any": ["ls", "dir", "I don't have access", "I cannot"],
+        "min_length": 20
+      }
+    },
+    {
+      "id": "tool-call-read",
+      "user_message": "Show me the contents of src/app.py",
+      "project_brief": "A Python web application for task management.",
+      "checks": {
+        "contains_any": ["read_file", "tool_call"],
+        "contains_all": ["app.py"],
+        "not_contains_any": ["cat", "type", "I don't have access"],
+        "min_length": 20
+      }
+    },
+    {
+      "id": "tool-call-write",
+      "user_message": "Create a new file called hello.py that prints hello world",
+      "project_brief": "A Python web application for task management.",
+      "checks": {
+        "contains_any": ["write_file", "tool_call"],
+        "contains_all": ["hello"],
+        "not_contains_any": ["echo", "I can't create", "I cannot"],
+        "min_length": 20
+      }
+    },
+    {
+      "id": "no-hallucinate",
+      "user_message": "What does the main function in app.py do?",
+      "project_brief": "A Python web application for task management.",
+      "checks": {
+        "contains_any": ["read_file", "tool_call", "let me read", "need to read", "check", "look at"],
+        "not_contains_any": ["The main function does", "It initializes", "The main function creates"],
+        "min_length": 15
+      }
+    }
+  ]
+}

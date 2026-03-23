@@ -29,6 +29,8 @@ import re
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.error
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -93,8 +95,78 @@ def _clean_stderr(text: str) -> str:
     return cleaned
 
 
+OLLAMA_BASE_URL = "http://localhost:11434"
+
+
 def _lab_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _ollama_generate(
+    model: str,
+    prompt: str,
+    *,
+    timeout_seconds: int,
+    keepalive: str | None = None,
+    hidethinking: bool = True,
+) -> dict[str, Any]:
+    """Call Ollama HTTP API /api/generate (non-streaming). Much faster than `ollama run`."""
+    payload: dict[str, Any] = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+    }
+    if keepalive:
+        payload["keep_alive"] = keepalive
+    if hidethinking:
+        payload.setdefault("options", {})
+
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{OLLAMA_BASE_URL}/api/generate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    started = time.perf_counter()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as exc:
+        duration = round(time.perf_counter() - started, 3)
+        return {
+            "response": "",
+            "duration_seconds": duration,
+            "error": str(exc),
+            "status": "error",
+        }
+    except TimeoutError:
+        duration = round(time.perf_counter() - started, 3)
+        return {
+            "response": "",
+            "duration_seconds": duration,
+            "error": f"Timed out after {timeout_seconds}s",
+            "status": "error",
+        }
+
+    duration = round(time.perf_counter() - started, 3)
+    response_text = data.get("response", "")
+
+    # Strip thinking tags if hidethinking
+    if hidethinking:
+        response_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL | re.IGNORECASE).strip()
+        if "</think>" in response_text:
+            response_text = response_text.split("</think>")[-1].strip()
+
+    return {
+        "response": response_text,
+        "duration_seconds": duration,
+        "total_duration_ns": data.get("total_duration", 0),
+        "eval_count": data.get("eval_count", 0),
+        "prompt_eval_count": data.get("prompt_eval_count", 0),
+        "status": "ok",
+    }
 
 
 def _run_subprocess(args: list[str], *, timeout_seconds: int) -> dict[str, Any]:
@@ -283,22 +355,21 @@ def _judge_output(
     if not judge_model:
         return {"status": "skipped", "reason": "No judge_model provided in rubric."}
 
-    args = ["ollama", "run", judge_model, _judge_prompt(case, response_text, rubric)]
-    if hidethinking:
-        args.append("--hidethinking")
-    if keepalive:
-        args.extend(["--keepalive", keepalive])
-
-    command_result = _run_subprocess(args, timeout_seconds=timeout_seconds)
-    stdout = command_result["stdout"].strip()
+    gen_result = _ollama_generate(
+        judge_model,
+        _judge_prompt(case, response_text, rubric),
+        timeout_seconds=timeout_seconds,
+        keepalive=keepalive,
+        hidethinking=hidethinking,
+    )
+    stdout = gen_result["response"].strip()
     parsed = _extract_json_object(stdout)
-    if command_result["returncode"] != 0:
+    if gen_result.get("status") != "ok":
         return {
             "status": "error",
             "model": judge_model,
-            "message": command_result["stderr"] or stdout,
-            "command": command_result["command"],
-            "duration_seconds": command_result["duration_seconds"],
+            "message": gen_result.get("error", stdout),
+            "duration_seconds": gen_result["duration_seconds"],
         }
     if parsed is None:
         return {
@@ -548,19 +619,18 @@ def run(arguments: dict) -> dict:
                         run_rows.append(row)
                         continue
 
-                    args = ["ollama", "run", model, prompt_text]
-                    if hidethinking:
-                        args.append("--hidethinking")
-                    if keepalive:
-                        args.extend(["--keepalive", keepalive])
-
-                    command_result = _run_subprocess(args, timeout_seconds=timeout_seconds)
-                    response_text = command_result["stdout"].strip()
-                    row["stdout"] = command_result["stdout"]
-                    row["stderr"] = command_result["stderr"]
+                    gen_result = _ollama_generate(
+                        model, prompt_text,
+                        timeout_seconds=timeout_seconds,
+                        keepalive=keepalive,
+                        hidethinking=hidethinking,
+                    )
+                    response_text = gen_result["response"].strip()
+                    row["stdout"] = gen_result["response"]
+                    row["stderr"] = gen_result.get("error", "")
                     row["response_text"] = response_text
-                    row["duration_seconds"] = command_result["duration_seconds"]
-                    row["status"] = "ok" if command_result["returncode"] == 0 else "error"
+                    row["duration_seconds"] = gen_result["duration_seconds"]
+                    row["status"] = gen_result.get("status", "ok")
                     row["deterministic_checks"] = _evaluate_checks(case, response_text)
                     row["judge"] = (
                         _judge_output(

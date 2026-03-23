@@ -1,0 +1,44 @@
+{
+  "leaderboard": [
+    {
+      "model": "qwen2.5:0.5b",
+      "prompt_variant_id": "language-detect",
+      "runs": 8,
+      "deterministic_pass_rate_avg": 0.694,
+      "judge_score_avg": null,
+      "keep_count": 2,
+      "revise_count": 6,
+      "reject_count": 0
+    },
+    {
+      "model": "qwen2.5:0.5b",
+      "prompt_variant_id": "relevance-pick",
+      "runs": 8,
+      "deterministic_pass_rate_avg": 0.683,
+      "judge_score_avg": null,
+      "keep_count": 1,
+      "revise_count": 7,
+      "reject_count": 0
+    },
+    {
+      "model": "qwen2.5:0.5b",
+      "prompt_variant_id": "intent-classify",
+      "runs": 8,
+      "deterministic_pass_rate_avg": 0.656,
+      "judge_score_avg": null,
+      "keep_count": 2,
+      "revise_count": 6,
+      "reject_count": 0
+    },
+    {
+      "model": "qwen2.5:0.5b",
+      "prompt_variant_id": "summary-oneliner",
+      "runs": 8,
+      "deterministic_pass_rate_avg": 0.544,
+      "judge_score_avg": null,
+      "keep_count": 0,
+      "revise_count": 8,
+      "reject_count": 0
+    }
+  ]
+}

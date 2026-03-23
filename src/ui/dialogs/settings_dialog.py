@@ -15,7 +15,21 @@ from src.core.agent.model_roles import (
     REVIEW_ROLE,
     ROLE_LABELS,
 )
+from src.core.agent.probe_decision import (
+    INTENT_PROBE,
+    RELEVANCE_PROBE,
+    LANGUAGE_PROBE,
+    SUMMARY_PROBE,
+)
 from src.ui import theme as T
+
+PROBE_TYPE_LABELS = {
+    INTENT_PROBE: "Intent Classify",
+    RELEVANCE_PROBE: "Relevance Pick",
+    LANGUAGE_PROBE: "Language Detect",
+    SUMMARY_PROBE: "Summary",
+}
+_PROBE_FALLBACK = "(use Fast Probe model)"
 
 
 class SettingsDialog(tk.Toplevel):
@@ -31,6 +45,7 @@ class SettingsDialog(tk.Toplevel):
         initial_gui_launch_policy: str,
         initial_planning_enabled: bool,
         initial_recovery_planning_enabled: bool,
+        initial_probe_models: dict[str, str] | None = None,
     ):
         super().__init__(parent)
         self.title("Settings")
@@ -55,6 +70,13 @@ class SettingsDialog(tk.Toplevel):
             REVIEW_ROLE: tk.StringVar(value=initial_model_roles.get(REVIEW_ROLE, "")),
             FAST_PROBE_ROLE: tk.StringVar(value=initial_model_roles.get(FAST_PROBE_ROLE, "")),
             EMBEDDING_ROLE: tk.StringVar(value=initial_model_roles.get(EMBEDDING_ROLE, "")),
+        }
+        pm = initial_probe_models or {}
+        self._probe_model_vars = {
+            INTENT_PROBE: tk.StringVar(value=pm.get(INTENT_PROBE, _PROBE_FALLBACK)),
+            RELEVANCE_PROBE: tk.StringVar(value=pm.get(RELEVANCE_PROBE, _PROBE_FALLBACK)),
+            LANGUAGE_PROBE: tk.StringVar(value=pm.get(LANGUAGE_PROBE, _PROBE_FALLBACK)),
+            SUMMARY_PROBE: tk.StringVar(value=pm.get(SUMMARY_PROBE, _PROBE_FALLBACK)),
         }
 
         shell = tk.Frame(self, bg=T.BG_DARK)
@@ -272,6 +294,46 @@ class SettingsDialog(tk.Toplevel):
             wraplength=420,
         ).pack(fill="x", padx=10, pady=(0, 10))
 
+        # ── Per-Probe Model Overrides ──
+        probe_card = self._card(parent, "PROBE MODEL OVERRIDES")
+        tk.Label(
+            probe_card,
+            text=(
+                "Assign tiny models to individual probe tasks. Each defaults to the\n"
+                "Fast Probe slot above. Use 0.5B-2B models for speed on simple tasks."
+            ),
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_MID,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        ).pack(fill="x", padx=10, pady=(0, 8))
+
+        probe_wrap = tk.Frame(probe_card, bg=T.BG_MID)
+        probe_wrap.pack(fill="x", padx=10, pady=(0, 10))
+        probe_wrap.columnconfigure(1, weight=1)
+        probe_models_with_fallback = [_PROBE_FALLBACK] + self._available_models
+        prow = 0
+        for probe_type in (INTENT_PROBE, RELEVANCE_PROBE, LANGUAGE_PROBE, SUMMARY_PROBE):
+            tk.Label(
+                probe_wrap,
+                text=PROBE_TYPE_LABELS[probe_type],
+                font=T.FONT_SMALL,
+                fg=T.TEXT_PRIMARY,
+                bg=T.BG_MID,
+                anchor="w",
+            ).grid(row=prow, column=0, sticky="w", pady=(0, 6))
+            combo = ttk.Combobox(
+                probe_wrap,
+                textvariable=self._probe_model_vars[probe_type],
+                values=probe_models_with_fallback,
+                state="readonly",
+                width=32,
+            )
+            combo.grid(row=prow, column=1, sticky="ew", padx=(10, 0), pady=(0, 6))
+            prow += 1
+
     def _build_tools_tab(self, parent) -> None:
         card = self._card(parent, "AGENT TOOL LOOP")
         tk.Label(
@@ -397,12 +459,19 @@ class SettingsDialog(tk.Toplevel):
             rounds = max(1, int(self._tool_round_limit.get()))
         except (tk.TclError, ValueError):
             rounds = 12
+        # Build probe_models dict — strip fallback sentinel
+        probe_models = {}
+        for pt, var in self._probe_model_vars.items():
+            val = var.get().strip()
+            if val and val != _PROBE_FALLBACK:
+                probe_models[pt] = val
         self.result = {
             "model_roles": {role: var.get().strip() for role, var in self._role_vars.items()},
             "max_tool_rounds": rounds,
             "gui_launch_policy": self._gui_launch_policy.get() or "ask",
             "planning_enabled": bool(self._planning_enabled.get()),
             "recovery_planning_enabled": bool(self._recovery_planning_enabled.get()),
+            "probe_models": probe_models,
         }
         self.destroy()
 

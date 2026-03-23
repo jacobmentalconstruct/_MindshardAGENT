@@ -181,6 +181,7 @@ def on_open_settings(s: AppState) -> None:
         initial_gui_launch_policy=s.config.gui_launch_policy,
         initial_planning_enabled=s.config.planning_enabled,
         initial_recovery_planning_enabled=s.config.recovery_planning_enabled,
+        initial_probe_models=getattr(s.config, "probe_models", None) or {},
     )
     if not dialog.result:
         return
@@ -202,6 +203,7 @@ def on_open_settings(s: AppState) -> None:
     s.config.recovery_planning_enabled = bool(
         dialog.result.get("recovery_planning_enabled", s.config.recovery_planning_enabled)
     )
+    s.config.probe_models = dialog.result.get("probe_models", s.config.probe_models)
     s.config.normalize_model_roles()
     s.config.save(_PROJECT_ROOT)
     s.ui_state.selected_model = s.config.primary_chat_model
