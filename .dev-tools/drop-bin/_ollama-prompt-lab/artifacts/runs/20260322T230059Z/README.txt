@@ -1,0 +1,1 @@
+Prompt-lab artifact folder containing input, prompts, summary, and results.

@@ -71,7 +71,16 @@ def extract_probe_findings(
                 "Probe hit blocked commands or policy rejections.",
             )
         )
-    if "path:project/" in response_text or "project/src" in response_text:
+    lowered = response_text.lower()
+    invented_prefix_match = re.search(r"(path:project/|project/src)", lowered)
+    negation_window = ""
+    if invented_prefix_match:
+        start = max(0, invented_prefix_match.start() - 60)
+        negation_window = lowered[start:invented_prefix_match.end()]
+    if invented_prefix_match and not re.search(
+        r"(do not|don't|not |avoid|instead of|invalid|never use)",
+        negation_window,
+    ):
         findings.append(
             ProbeFinding(
                 "invented_project_prefix",

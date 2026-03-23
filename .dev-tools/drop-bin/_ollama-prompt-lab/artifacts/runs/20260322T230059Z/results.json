@@ -1,0 +1,172 @@
+{
+  "runs": [
+    {
+      "model": "qwen3.5:2b",
+      "prompt_variant_id": "strict-pass",
+      "case_id": "exact-pass",
+      "repeat_index": 1,
+      "prompt_text": "You are being evaluated for instruction following. Reply with exactly PASS and nothing else.",
+      "stdout": "PASS\n\n",
+      "stderr": "",
+      "response_text": "PASS",
+      "duration_seconds": 22.013,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "exact_match",
+            "passed": true,
+            "expected": "PASS"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 8,
+            "actual": 4
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen3.5:2b",
+      "prompt_variant_id": "strict-pass",
+      "case_id": "exact-pass",
+      "repeat_index": 2,
+      "prompt_text": "You are being evaluated for instruction following. Reply with exactly PASS and nothing else.",
+      "stdout": "PASS\n\n",
+      "stderr": "",
+      "response_text": "PASS",
+      "duration_seconds": 23.266,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "exact_match",
+            "passed": true,
+            "expected": "PASS"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 8,
+            "actual": 4
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen3.5:4b",
+      "prompt_variant_id": "strict-pass",
+      "case_id": "exact-pass",
+      "repeat_index": 1,
+      "prompt_text": "You are being evaluated for instruction following. Reply with exactly PASS and nothing else.",
+      "stdout": "PASS\n\n",
+      "stderr": "",
+      "response_text": "PASS",
+      "duration_seconds": 17.069,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "exact_match",
+            "passed": true,
+            "expected": "PASS"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 8,
+            "actual": 4
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    },
+    {
+      "model": "qwen3.5:4b",
+      "prompt_variant_id": "strict-pass",
+      "case_id": "exact-pass",
+      "repeat_index": 2,
+      "prompt_text": "You are being evaluated for instruction following. Reply with exactly PASS and nothing else.",
+      "stdout": "PASS\n\n",
+      "stderr": "",
+      "response_text": "PASS",
+      "duration_seconds": 8.228,
+      "status": "ok",
+      "deterministic_checks": {
+        "check_count": 2,
+        "passed_count": 2,
+        "failed_count": 0,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "check": "exact_match",
+            "passed": true,
+            "expected": "PASS"
+          },
+          {
+            "check": "max_length",
+            "passed": true,
+            "expected": 8,
+            "actual": 4
+          }
+        ]
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "No rubric provided."
+      },
+      "evaluation": {
+        "deterministic_pass_rate": 1.0,
+        "judge_score": null,
+        "judge_recommendation": null,
+        "recommendation": "keep",
+        "reasons": []
+      }
+    }
+  ]
+}

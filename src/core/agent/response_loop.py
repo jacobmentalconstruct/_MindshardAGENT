@@ -2,23 +2,32 @@
 
 Flow:
   1. User submits prompt
-  2. Prompt builder constructs system + session + tool instructions
-  3. Model responds (streaming)
-  4. If tool call detected, tool router validates and executes
-  5. Tool output appended to conversation
-  6. Model continues if needed (up to max_rounds)
-  7. Final assistant response stored
+  2. Planner stage (optional) produces execution guidance
+  3. Context gatherer scans workspace (no model, direct calls)
+  4. Probe stage (optional) runs micro-questions via FAST_PROBE model
+  5. Prompt builder constructs system + session + tool instructions
+  6. Stage context injected into messages (gathered workspace + probe results)
+  7. Model responds (streaming)
+  8. If tool call detected, tool router validates and executes
+  9. Tool output appended to conversation
+  10. Model continues if needed (up to max_rounds)
+  11. Final assistant response stored
 """
 
 import threading
 from typing import Any, Callable
 
+from src.core.agent.context_gatherer import gather_workspace_context
 from src.core.agent.execution_planner import run_execution_planner
+from src.core.agent.loop_types import TOOL_AGENT_LOOP
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
+from src.core.agent.probe_stage import run_probe_stage
 from src.core.agent.prompt_builder import PromptBuildResult, build_messages, build_system_prompt_bundle
+from src.core.agent.stage_context import StageContext, format_stage_context
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.transcript_formatter import compact_tool_call_transcript, format_all_results
 from src.core.ollama.ollama_client import chat_stream
+from src.core.sandbox.file_writer import FileWriter
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.command_policy import CommandPolicy
 from src.core.config.app_config import AppConfig
@@ -30,6 +39,8 @@ log = get_logger("response_loop")
 
 class ResponseLoop:
     """Manages a single user turn including tool round-trips."""
+
+    loop_id = TOOL_AGENT_LOOP
 
     def __init__(
         self,
@@ -43,6 +54,7 @@ class ResponseLoop:
         session_id_fn=None,
         docker_mode: bool = False,
         journal=None,
+        file_writer: FileWriter | None = None,
     ):
         self._config = config
         self._command_policy = command_policy
@@ -50,6 +62,7 @@ class ResponseLoop:
         self._router = tool_router
         self._activity = activity
         self._knowledge = knowledge_store
+        self._file_writer = file_writer
         self._embed_fn = embed_fn          # Callable(str) -> list[float]
         self._session_id_fn = session_id_fn  # Callable() -> str | None
         self._docker_mode = docker_mode
@@ -90,6 +103,18 @@ class ResponseLoop:
         thread = threading.Thread(target=_worker, daemon=True, name="response-loop")
         thread.start()
 
+    def run(self, request) -> None:
+        """Adapter entrypoint so the response loop can be managed as a loop module."""
+        self.run_turn(
+            user_text=request.user_text,
+            chat_history=request.chat_history,
+            on_token=request.on_token,
+            on_complete=request.on_complete,
+            on_error=request.on_error,
+            on_tool_start=request.on_tool_start,
+            on_tool_result=request.on_tool_result,
+        )
+
     def _run_turn_sync(
         self,
         user_text: str,
@@ -126,12 +151,65 @@ class ResponseLoop:
                 }
             )
 
+        # ── Stage 2: Context gathering (no model, direct calls) ──
+        gathered = None
+        if self._file_writer:
+            try:
+                gathered = gather_workspace_context(
+                    file_writer=self._file_writer,
+                    active_project=self._active_project,
+                    project_meta=self._project_meta,
+                    journal=self._journal,
+                )
+                if gathered:
+                    self._activity.info(
+                        "context",
+                        f"Context gathered: {gathered.file_count} files, "
+                        f"{len(gathered.key_file_snippets)} key files, "
+                        f"{gathered.gathering_ms:.0f}ms"
+                    )
+            except Exception as exc:
+                log.warning("Context gather stage failed: %s", exc)
+
+        # ── Stage 3: Probe stage (FAST_PROBE model, text-in/text-out) ──
+        probe_result = None
+        try:
+            probe_result = run_probe_stage(
+                config=self._config,
+                activity=self._activity,
+                user_text=user_text,
+                gathered=gathered,
+            )
+        except Exception as exc:
+            log.warning("Probe stage failed: %s", exc)
+
+        # ── Assemble stage context injection ──
+        stage_ctx = StageContext(
+            gathered=gathered,
+            probes=probe_result,
+            planner=planner_result,
+        )
+        stage_injection = format_stage_context(stage_ctx)
+        stage_messages: list[dict[str, str]] = []
+        if stage_injection:
+            stage_messages.append({
+                "role": "system",
+                "content": (
+                    "Pre-gathered workspace context for this turn. "
+                    "Use this to orient yourself — do not re-discover "
+                    "information that is already provided here.\n\n"
+                    f"{stage_injection}"
+                ),
+            })
+
         # Add user message
         history = list(chat_history)
         history.append({"role": "user", "content": user_text})
         messages = build_messages(prompt_build.prompt, history)
-        if planner_messages:
-            messages[1:1] = planner_messages
+        # Inject planner + stage context after system prompt, before chat history
+        injections = planner_messages + stage_messages
+        if injections:
+            messages[1:1] = injections
 
         total_content = []
         rounds = 0
@@ -233,6 +311,11 @@ class ResponseLoop:
             "planner_tokens_out": planner_result.tokens_out if planner_result else 0,
             "planner_wall_ms": round(planner_result.wall_ms, 1) if planner_result else 0.0,
             "planner_excerpt": planner_text[:240] if planner_text else "",
+            "loop_mode": self.loop_id,
+            "context_gathered": gathered is not None and bool(gathered.file_tree),
+            "context_gather_ms": round(gathered.gathering_ms, 1) if gathered else 0.0,
+            "probes_run": len(probe_result.probes) if probe_result else 0,
+            "probe_total_ms": round(probe_result.total_wall_ms, 1) if probe_result else 0.0,
         }
 
         if on_complete:

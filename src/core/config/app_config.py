@@ -64,6 +64,8 @@ class AppConfig:
     gui_launch_policy: str = "ask"  # deny | ask | allow
     planning_enabled: bool = True
     recovery_planning_enabled: bool = True
+    probe_enabled: bool = True
+    probe_max_questions: int = 3
 
     # Logging
     log_dir: str = "_logs"

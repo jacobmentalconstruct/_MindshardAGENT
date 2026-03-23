@@ -1,0 +1,8 @@
+{
+  "mode": "validate",
+  "patch_path": "relative/path/to/patch.json",
+  "targets": [
+    "relative/path/to/file.py"
+  ],
+  "force_indent": false
+}

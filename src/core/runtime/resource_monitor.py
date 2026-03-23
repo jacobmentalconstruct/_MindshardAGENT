@@ -2,10 +2,12 @@
 
 Uses psutil for CPU/RAM. GPU/VRAM detection is best-effort via
 nvidia-smi subprocess call. Falls back gracefully if unavailable.
+GPU polling runs in a background thread to avoid blocking the UI.
 """
 
 import subprocess
 import re
+import threading
 from typing import NamedTuple
 
 from src.core.runtime.runtime_logger import get_logger
@@ -55,8 +57,13 @@ def _get_ram() -> tuple[float, float]:
         return 0.0, 0.0
 
 
-def _get_gpu() -> tuple[bool, float, float]:
-    """Best-effort GPU/VRAM via nvidia-smi."""
+_gpu_cache: tuple[bool, float, float] = (False, 0.0, 0.0)
+_gpu_lock = threading.Lock()
+_gpu_probe_running = False
+
+
+def _probe_gpu_async() -> None:
+    global _gpu_cache, _gpu_probe_running
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.used,memory.total",
@@ -66,7 +73,20 @@ def _get_gpu() -> tuple[bool, float, float]:
         if result.returncode == 0:
             line = result.stdout.strip().split("\n")[0]
             used_mb, total_mb = [float(x.strip()) for x in line.split(",")]
-            return True, used_mb / 1024, total_mb / 1024
+            with _gpu_lock:
+                _gpu_cache = (True, used_mb / 1024, total_mb / 1024)
     except Exception:
         pass
-    return False, 0.0, 0.0
+    finally:
+        global _gpu_probe_running
+        _gpu_probe_running = False
+
+
+def _get_gpu() -> tuple[bool, float, float]:
+    """Best-effort GPU/VRAM — launches a background probe and returns cached result."""
+    global _gpu_probe_running
+    if not _gpu_probe_running:
+        _gpu_probe_running = True
+        threading.Thread(target=_probe_gpu_async, daemon=True, name="gpu-probe").start()
+    with _gpu_lock:
+        return _gpu_cache

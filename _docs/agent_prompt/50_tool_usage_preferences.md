@@ -2,6 +2,8 @@
 - Explore first when the request depends on current files or workspace state.
 - Prefer the purpose-built tools over shell workarounds.
 - For routine inspection calls such as `list_files` and `read_file`, prefer issuing the tool call directly instead of narrating intent first.
+- For architecture inspection, prefer `list_files` and `read_file` before any execution tool.
+- Treat `run_python_file` as a verification or behavior-check tool, not a default early exploration tool.
 - Tool names must match the available tool catalog exactly; shell commands like `ls`, `dir`, and `cat` are not tool names.
 - When testing or running Python code, prefer `run_python_file` over `cli_in_sandbox`.
 - Prefer the default disposable run-copy lane under `.mindshard/runs/` for experiments and test runs.

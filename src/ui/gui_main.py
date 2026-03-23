@@ -1,5 +1,6 @@
 """Main GUI window for the refactored workstation shell."""
 
+import threading
 import tkinter as tk
 from tkinter import ttk
 
@@ -55,6 +56,7 @@ class MainWindow:
         on_set_tool_round_limit=None,
         on_open_settings=None,
         initial_tool_round_limit: int = 12,
+        dpi_scale: float = 1.0,
     ):
         self.root = root
         self.ui_state = ui_state
@@ -62,10 +64,12 @@ class MainWindow:
         self._on_close = on_close
         self._on_open_settings = on_open_settings
         self._vertical_layout_initialized = False
+        self._layout_apply_pending = False
+        self._closed = False
 
         root.title("MindshardAGENT — Sandboxed Agent Shell")
         root.configure(bg=T.BG_DARK)
-        root.minsize(1180, 720)
+        root.minsize(int(1180 * dpi_scale), int(720 * dpi_scale))
         root.protocol("WM_DELETE_WINDOW", self._handle_close)
 
         self._configure_ttk()
@@ -209,7 +213,7 @@ class MainWindow:
 
         activity.subscribe(self._on_activity)
         self._main_vertical_split.bind("<Configure>", self._on_layout_configure)
-        root.after_idle(self._apply_default_layout)
+        self._schedule_default_layout()
         root.after(120, self._apply_default_layout)
         root.after(320, self._apply_default_layout)
         log.info("GUI initialized")
@@ -248,7 +252,7 @@ class MainWindow:
             pass
 
     def _apply_default_layout(self) -> None:
-        self.root.update_idletasks()
+        self._layout_apply_pending = False
         total_height = self._main_vertical_split.winfo_height()
         if total_height >= 520:
             self._main_vertical_split.sash_place(0, 0, int(total_height * 0.84))
@@ -256,18 +260,47 @@ class MainWindow:
 
     def _on_layout_configure(self, _event=None) -> None:
         if not self._vertical_layout_initialized:
+            self._schedule_default_layout()
+
+    def _schedule_default_layout(self) -> None:
+        if self._closed or self._layout_apply_pending:
+            return
+        self._layout_apply_pending = True
+        try:
             self.root.after_idle(self._apply_default_layout)
+        except tk.TclError:
+            self._layout_apply_pending = False
 
     def _on_activity(self, entry: ActivityEntry) -> None:
+        if self._closed:
+            return
+
+        def _append() -> None:
+            if self._closed:
+                return
+            try:
+                self.activity_pane.append_entry(entry)
+            except tk.TclError:
+                pass
+
         try:
-            self.activity_pane.append_entry(entry)
+            if threading.current_thread() is threading.main_thread():
+                _append()
+            else:
+                self.root.after(0, _append)
         except tk.TclError:
             pass
 
     def _handle_close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         if self._on_close:
             self._on_close()
-        self.root.destroy()
+        try:
+            self.root.destroy()
+        except tk.TclError:
+            pass
 
     def _handle_faux_click(self, label: str) -> None:
         self.activity.info("ui", f"Button '{label}' clicked (reserved)")

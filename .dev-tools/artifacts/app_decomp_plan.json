@@ -1,0 +1,2431 @@
+{
+  "status": "ok",
+  "tool": "module_decomp_planner",
+  "input": {
+    "path": "src/app.py",
+    "scan_inner": true
+  },
+  "result": {
+    "file": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT\\src\\app.py",
+    "scan_mode": "inner:main",
+    "total_lines": 1496,
+    "total_definitions": 78,
+    "section_count": 38,
+    "dependency_edges": 187,
+    "sections_safe_to_extract": 23,
+    "analysis_note": "GUESS: Static analysis only. Closure variables and dynamic attribute access are not fully tracked. Verify dependency edges before splitting.",
+    "sections": [
+      {
+        "label": "__preamble__",
+        "start_line": 41,
+        "end_line": 41,
+        "line_count": 1,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "DPI awareness",
+        "start_line": 97,
+        "end_line": 101,
+        "line_count": 5,
+        "def_count": 1,
+        "definitions": [
+          "dpi_scale"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Default sandbox",
+        "start_line": 176,
+        "end_line": 181,
+        "line_count": 6,
+        "def_count": 1,
+        "definitions": [
+          "default_sandbox"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Knowledge store (RAG)",
+        "start_line": 186,
+        "end_line": 192,
+        "line_count": 7,
+        "def_count": 1,
+        "definitions": [
+          "knowledge_store"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Chunked streaming",
+        "start_line": 473,
+        "end_line": 564,
+        "line_count": 92,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Wire VCS panel to engine",
+        "start_line": 1307,
+        "end_line": 1309,
+        "line_count": 3,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Seed initial project name + tool count",
+        "start_line": 1310,
+        "end_line": 1318,
+        "line_count": 9,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Apply window geometry",
+        "start_line": 1319,
+        "end_line": 1321,
+        "line_count": 3,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Off main thread: DB reads + file I/O",
+        "start_line": 1336,
+        "end_line": 1349,
+        "line_count": 14,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Back on main thread: UI updates only",
+        "start_line": 1350,
+        "end_line": 1373,
+        "line_count": 24,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Auto refresh models on startup",
+        "start_line": 1374,
+        "end_line": 1377,
+        "line_count": 4,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Main loop",
+        "start_line": 1489,
+        "end_line": 1492,
+        "line_count": 4,
+        "def_count": 0,
+        "definitions": [],
+        "inbound_refs": 0,
+        "outbound_refs": 0,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [],
+        "extractability_score": 0,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Add Ref callback (bookshelf button in Sandbox tab)",
+        "start_line": 679,
+        "end_line": 683,
+        "line_count": 5,
+        "def_count": 1,
+        "definitions": [
+          "on_import"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 1,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_handle_faux_click"
+        ],
+        "extractability_score": 1,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Check embedding model availability",
+        "start_line": 1378,
+        "end_line": 1385,
+        "line_count": 8,
+        "def_count": 1,
+        "definitions": [
+          "_check_embeddings"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 1,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "engine"
+        ],
+        "extractability_score": 1,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "CLI panel callback",
+        "start_line": 605,
+        "end_line": 614,
+        "line_count": 10,
+        "def_count": 1,
+        "definitions": [
+          "on_cli_command"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 4,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_safe_ui",
+          "activity",
+          "engine",
+          "window"
+        ],
+        "extractability_score": 4,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Resource monitor polling",
+        "start_line": 1386,
+        "end_line": 1407,
+        "line_count": 22,
+        "def_count": 1,
+        "definitions": [
+          "_poll_resources"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 5,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_app_closing",
+          "_safe_after",
+          "config",
+          "root",
+          "window"
+        ],
+        "extractability_score": 5,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Destructive command confirmation",
+        "start_line": 102,
+        "end_line": 165,
+        "line_count": 64,
+        "def_count": 4,
+        "definitions": [
+          "_confirm_result",
+          "_confirm_destructive",
+          "_gui_confirm_result",
+          "_confirm_gui_launch"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 6,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_safe_ui",
+          "activity",
+          "config",
+          "root",
+          "window"
+        ],
+        "extractability_score": 6,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Start engine",
+        "start_line": 1322,
+        "end_line": 1335,
+        "line_count": 14,
+        "def_count": 2,
+        "definitions": [
+          "<assign@1328>",
+          "_startup_bootstrap"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 8,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_load_session",
+          "_set_prompt_inspector",
+          "activity",
+          "engine",
+          "on_session_new",
+          "root",
+          "session_store",
+          "window"
+        ],
+        "extractability_score": 8,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Init logging",
+        "start_line": 45,
+        "end_line": 52,
+        "line_count": 8,
+        "def_count": 3,
+        "definitions": [
+          "log_dir",
+          "log",
+          "prompt_tuning"
+        ],
+        "inbound_refs": 3,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "log",
+          "prompt_tuning"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 9,
+        "recommendation": "extract with care \u2014 others depend on it",
+        "is_guess": true
+      },
+      {
+        "label": "Sandbox picker callback",
+        "start_line": 615,
+        "end_line": 678,
+        "line_count": 64,
+        "def_count": 1,
+        "definitions": [
+          "on_sandbox_pick"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 9,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "active_session",
+          "activity",
+          "config",
+          "engine",
+          "on_session_new",
+          "refresh_prompt_inspector",
+          "root",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 9,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Close callback",
+        "start_line": 1247,
+        "end_line": 1272,
+        "line_count": 26,
+        "def_count": 1,
+        "definitions": [
+          "on_close"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 11,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_app_closing",
+          "_autosave_timer",
+          "_cancel_after",
+          "_save_current_session",
+          "_scheduled_after",
+          "_stream_flush_id",
+          "config",
+          "engine",
+          "log",
+          "root",
+          "session_store"
+        ],
+        "extractability_score": 11,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Global keyboard shortcuts",
+        "start_line": 1445,
+        "end_line": 1488,
+        "line_count": 44,
+        "def_count": 5,
+        "definitions": [
+          "_on_escape",
+          "_on_ctrl_n",
+          "_on_ctrl_l",
+          "_on_ctrl_tab",
+          "_on_ctrl_comma"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 12,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_stream_flush_id",
+          "activity",
+          "engine",
+          "on_open_settings",
+          "on_session_new",
+          "root",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 12,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Model callbacks",
+        "start_line": 565,
+        "end_line": 604,
+        "line_count": 40,
+        "def_count": 2,
+        "definitions": [
+          "on_model_select",
+          "on_model_refresh"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 13,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_app_closing",
+          "_log_model_roles",
+          "_safe_ui",
+          "activity",
+          "config",
+          "engine",
+          "refresh_prompt_inspector",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 13,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Action button handlers",
+        "start_line": 817,
+        "end_line": 1151,
+        "line_count": 335,
+        "def_count": 1,
+        "definitions": [
+          "_handle_faux_click"
+        ],
+        "inbound_refs": 1,
+        "outbound_refs": 11,
+        "names_others_depend_on": [
+          "_handle_faux_click"
+        ],
+        "names_this_depends_on": [
+          "_safe_ui",
+          "active_session",
+          "activity",
+          "config",
+          "engine",
+          "log",
+          "on_session_new",
+          "refresh_prompt_inspector",
+          "root",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 14,
+        "recommendation": "extract with care \u2014 others depend on it",
+        "is_guess": true
+      },
+      {
+        "label": "Streaming state",
+        "start_line": 197,
+        "end_line": 201,
+        "line_count": 5,
+        "def_count": 3,
+        "definitions": [
+          "_streaming_content",
+          "_stream_flush_id",
+          "_stream_dirty"
+        ],
+        "inbound_refs": 5,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "_stream_dirty",
+          "_stream_flush_id",
+          "_streaming_content"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 15,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Chat submit callback",
+        "start_line": 446,
+        "end_line": 472,
+        "line_count": 27,
+        "def_count": 1,
+        "definitions": [
+          "on_submit"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 16,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_safe_ui",
+          "_schedule_autosave",
+          "_set_prompt_inspector",
+          "_stream_dirty",
+          "_stream_flush_id",
+          "_streaming_content",
+          "active_session",
+          "activity",
+          "config",
+          "engine",
+          "refresh_prompt_inspector",
+          "registry",
+          "root",
+          "session_store",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 16,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Docker status check + polling",
+        "start_line": 1408,
+        "end_line": 1444,
+        "line_count": 37,
+        "def_count": 2,
+        "definitions": [
+          "_do_docker_probe",
+          "_poll_docker"
+        ],
+        "inbound_refs": 5,
+        "outbound_refs": 8,
+        "names_others_depend_on": [
+          "_do_docker_probe"
+        ],
+        "names_this_depends_on": [
+          "_app_closing",
+          "_safe_after",
+          "config",
+          "engine",
+          "root",
+          "window"
+        ],
+        "extractability_score": 23,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Docker callbacks",
+        "start_line": 1152,
+        "end_line": 1246,
+        "line_count": 95,
+        "def_count": 6,
+        "definitions": [
+          "_refresh_docker_status",
+          "on_docker_toggle",
+          "on_docker_build",
+          "on_docker_start",
+          "on_docker_stop",
+          "on_docker_destroy"
+        ],
+        "inbound_refs": 0,
+        "outbound_refs": 31,
+        "names_others_depend_on": [],
+        "names_this_depends_on": [
+          "_do_docker_probe",
+          "_safe_ui",
+          "activity",
+          "config",
+          "engine",
+          "refresh_prompt_inspector",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 31,
+        "recommendation": "safe to extract",
+        "is_guess": true
+      },
+      {
+        "label": "Reload tools callback (manual refresh from Watch tab)",
+        "start_line": 684,
+        "end_line": 816,
+        "line_count": 133,
+        "def_count": 6,
+        "definitions": [
+          "on_reload_tools",
+          "on_reload_prompt_docs",
+          "on_set_tool_round_limit",
+          "on_open_settings",
+          "on_edit_project_brief",
+          "on_edit_prompt_overrides"
+        ],
+        "inbound_refs": 1,
+        "outbound_refs": 30,
+        "names_others_depend_on": [
+          "on_open_settings"
+        ],
+        "names_this_depends_on": [
+          "_log_model_roles",
+          "_snapshot_prompt_state",
+          "activity",
+          "config",
+          "engine",
+          "refresh_prompt_inspector",
+          "root",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 33,
+        "recommendation": "extract with care \u2014 others depend on it",
+        "is_guess": true
+      },
+      {
+        "label": "Session store",
+        "start_line": 182,
+        "end_line": 185,
+        "line_count": 4,
+        "def_count": 2,
+        "definitions": [
+          "sessions_db",
+          "session_store"
+        ],
+        "inbound_refs": 12,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "session_store"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 36,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Active session tracking",
+        "start_line": 193,
+        "end_line": 196,
+        "line_count": 4,
+        "def_count": 2,
+        "definitions": [
+          "active_session",
+          "_autosave_timer"
+        ],
+        "inbound_refs": 12,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "_autosave_timer",
+          "active_session"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 36,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Session helpers",
+        "start_line": 202,
+        "end_line": 274,
+        "line_count": 73,
+        "def_count": 5,
+        "definitions": [
+          "_log_model_roles",
+          "_refresh_session_list",
+          "_load_session",
+          "_save_current_session",
+          "_schedule_autosave"
+        ],
+        "inbound_refs": 12,
+        "outbound_refs": 19,
+        "names_others_depend_on": [
+          "_load_session",
+          "_log_model_roles",
+          "_refresh_session_list",
+          "_save_current_session",
+          "_schedule_autosave"
+        ],
+        "names_this_depends_on": [
+          "_autosave_timer",
+          "active_session",
+          "activity",
+          "config",
+          "engine",
+          "registry",
+          "root",
+          "session_store",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 55,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Load config",
+        "start_line": 42,
+        "end_line": 44,
+        "line_count": 3,
+        "def_count": 1,
+        "definitions": [
+          "config"
+        ],
+        "inbound_refs": 23,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "config"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 69,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Build window",
+        "start_line": 1273,
+        "end_line": 1306,
+        "line_count": 34,
+        "def_count": 1,
+        "definitions": [
+          "window"
+        ],
+        "inbound_refs": 26,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "window"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 78,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Engine",
+        "start_line": 166,
+        "end_line": 175,
+        "line_count": 10,
+        "def_count": 2,
+        "definitions": [
+          "_on_tools_reloaded",
+          "engine"
+        ],
+        "inbound_refs": 26,
+        "outbound_refs": 2,
+        "names_others_depend_on": [
+          "engine"
+        ],
+        "names_this_depends_on": [
+          "_safe_ui",
+          "window"
+        ],
+        "extractability_score": 80,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Session callbacks",
+        "start_line": 275,
+        "end_line": 445,
+        "line_count": 171,
+        "def_count": 11,
+        "definitions": [
+          "on_session_new",
+          "on_session_select",
+          "on_session_rename",
+          "on_session_delete",
+          "on_session_branch",
+          "on_session_policy",
+          "_prompt_sources_text",
+          "_set_prompt_inspector",
+          "refresh_prompt_inspector",
+          "_snapshot_prompt_state",
+          "on_prompt_source_saved"
+        ],
+        "inbound_refs": 18,
+        "outbound_refs": 37,
+        "names_others_depend_on": [
+          "_set_prompt_inspector",
+          "_snapshot_prompt_state",
+          "on_session_new",
+          "refresh_prompt_inspector"
+        ],
+        "names_this_depends_on": [
+          "_load_session",
+          "_refresh_session_list",
+          "_save_current_session",
+          "active_session",
+          "activity",
+          "config",
+          "engine",
+          "prompt_tuning",
+          "root",
+          "session_store",
+          "ui_state",
+          "window"
+        ],
+        "extractability_score": 91,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Tkinter root (early needed for confirm dialog)",
+        "start_line": 59,
+        "end_line": 96,
+        "line_count": 38,
+        "def_count": 6,
+        "definitions": [
+          "root",
+          "_app_closing",
+          "_scheduled_after",
+          "_safe_after",
+          "_cancel_after",
+          "_safe_ui"
+        ],
+        "inbound_refs": 32,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "_app_closing",
+          "_cancel_after",
+          "_safe_after",
+          "_safe_ui",
+          "_scheduled_after",
+          "root"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 96,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      },
+      {
+        "label": "Runtime infrastructure",
+        "start_line": 53,
+        "end_line": 58,
+        "line_count": 6,
+        "def_count": 4,
+        "definitions": [
+          "activity",
+          "bus",
+          "ui_state",
+          "registry"
+        ],
+        "inbound_refs": 48,
+        "outbound_refs": 0,
+        "names_others_depend_on": [
+          "activity",
+          "registry",
+          "ui_state"
+        ],
+        "names_this_depends_on": [],
+        "extractability_score": 144,
+        "recommendation": "hub \u2014 extract last or keep in place",
+        "is_guess": true
+      }
+    ],
+    "edges": [
+      {
+        "from": "Close callback",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_app_closing",
+          "_cancel_after",
+          "_scheduled_after",
+          "root"
+        ],
+        "count": 4
+      },
+      {
+        "from": "Session helpers",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "registry",
+          "ui_state"
+        ],
+        "count": 3
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "registry",
+          "ui_state"
+        ],
+        "count": 3
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Streaming state",
+        "shared_names": [
+          "_stream_dirty",
+          "_stream_flush_id",
+          "_streaming_content"
+        ],
+        "count": 3
+      },
+      {
+        "from": "Resource monitor polling",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_app_closing",
+          "_safe_after",
+          "root"
+        ],
+        "count": 3
+      },
+      {
+        "from": "Destructive command confirmation",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui",
+          "root"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session helpers",
+        "shared_names": [
+          "_load_session",
+          "_save_current_session"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session helpers",
+        "shared_names": [
+          "_load_session",
+          "_refresh_session_list"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Session callbacks",
+        "shared_names": [
+          "_set_prompt_inspector",
+          "refresh_prompt_inspector"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui",
+          "root"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_app_closing",
+          "_safe_ui"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Session callbacks",
+        "shared_names": [
+          "on_session_new",
+          "refresh_prompt_inspector"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Session callbacks",
+        "shared_names": [
+          "_snapshot_prompt_state",
+          "refresh_prompt_inspector"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Session callbacks",
+        "shared_names": [
+          "_snapshot_prompt_state",
+          "refresh_prompt_inspector"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui",
+          "root"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Session callbacks",
+        "shared_names": [
+          "on_session_new",
+          "refresh_prompt_inspector"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Start engine",
+        "to": "Session callbacks",
+        "shared_names": [
+          "_set_prompt_inspector",
+          "on_session_new"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Docker status check + polling",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_app_closing",
+          "root"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Docker status check + polling",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_app_closing",
+          "_safe_after"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity",
+          "ui_state"
+        ],
+        "count": 2
+      },
+      {
+        "from": "Destructive command confirmation",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Destructive command confirmation",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Destructive command confirmation",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Destructive command confirmation",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Engine",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Engine",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Active session tracking",
+        "shared_names": [
+          "_autosave_timer"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session helpers",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session helpers",
+        "shared_names": [
+          "_load_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session helpers",
+        "shared_names": [
+          "_refresh_session_list"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session helpers",
+        "shared_names": [
+          "_load_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Init logging",
+        "shared_names": [
+          "prompt_tuning"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Session callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "ui_state"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Session helpers",
+        "shared_names": [
+          "_schedule_autosave"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Chat submit callback",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Session helpers",
+        "shared_names": [
+          "_log_model_roles"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Session callbacks",
+        "shared_names": [
+          "refresh_prompt_inspector"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Model callbacks",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "CLI panel callback",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "CLI panel callback",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "CLI panel callback",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "CLI panel callback",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Sandbox picker callback",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Add Ref callback (bookshelf button in Sandbox tab)",
+        "to": "Action button handlers",
+        "shared_names": [
+          "_handle_faux_click"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "ui_state"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Session callbacks",
+        "shared_names": [
+          "refresh_prompt_inspector"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Session helpers",
+        "shared_names": [
+          "_log_model_roles"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Reload tools callback (manual refresh from Watch tab)",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Init logging",
+        "shared_names": [
+          "log"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Active session tracking",
+        "shared_names": [
+          "active_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Action button handlers",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Docker status check + polling",
+        "shared_names": [
+          "_do_docker_probe"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Session callbacks",
+        "shared_names": [
+          "refresh_prompt_inspector"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Docker status check + polling",
+        "shared_names": [
+          "_do_docker_probe"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Docker status check + polling",
+        "shared_names": [
+          "_do_docker_probe"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "_safe_ui"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Docker status check + polling",
+        "shared_names": [
+          "_do_docker_probe"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Session callbacks",
+        "shared_names": [
+          "refresh_prompt_inspector"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Docker status check + polling",
+        "shared_names": [
+          "_do_docker_probe"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker callbacks",
+        "to": "Session callbacks",
+        "shared_names": [
+          "refresh_prompt_inspector"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Streaming state",
+        "shared_names": [
+          "_stream_flush_id"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Active session tracking",
+        "shared_names": [
+          "_autosave_timer"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Init logging",
+        "shared_names": [
+          "log"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Close callback",
+        "to": "Session helpers",
+        "shared_names": [
+          "_save_current_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Start engine",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Start engine",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Start engine",
+        "to": "Session helpers",
+        "shared_names": [
+          "_load_session"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Start engine",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Start engine",
+        "to": "Session store",
+        "shared_names": [
+          "session_store"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Start engine",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Check embedding model availability",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Resource monitor polling",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Resource monitor polling",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker status check + polling",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker status check + polling",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker status check + polling",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Docker status check + polling",
+        "to": "Load config",
+        "shared_names": [
+          "config"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Streaming state",
+        "shared_names": [
+          "_stream_flush_id"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Tkinter root (early needed for confirm dialog)",
+        "shared_names": [
+          "root"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Session callbacks",
+        "shared_names": [
+          "on_session_new"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Runtime infrastructure",
+        "shared_names": [
+          "activity"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Engine",
+        "shared_names": [
+          "engine"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Build window",
+        "shared_names": [
+          "window"
+        ],
+        "count": 1
+      },
+      {
+        "from": "Global keyboard shortcuts",
+        "to": "Reload tools callback (manual refresh from Watch tab)",
+        "shared_names": [
+          "on_open_settings"
+        ],
+        "count": 1
+      }
+    ]
+  }
+}

@@ -13,6 +13,10 @@ from tkinter import filedialog, messagebox, ttk
 
 from src.core.agent.prompt_sources import default_global_prompt_dir
 from src.ui import theme as T
+
+def _noop(): ...  # Sentinel used in place of anonymous `lambda: None` for optional callbacks
+
+
 from src.ui.panes.chat_pane import ChatPane
 from src.ui.panes.cli_pane import CLIPane
 from src.ui.panes.input_pane import InputPane
@@ -133,6 +137,7 @@ class TextPreview(tk.Frame):
         kw.setdefault("bg", T.BG_MID)
         super().__init__(parent, **kw)
         self._max_chars = max_chars
+        self._rendered_text = ""
 
         header = tk.Label(self, text=label, font=T.FONT_SMALL, fg=T.TEXT_DIM, bg=T.BG_MID)
         header.pack(anchor="w", padx=8, pady=(6, 2))
@@ -166,9 +171,13 @@ class TextPreview(tk.Frame):
         self._text.pack(side="left", fill="both", expand=True)
 
     def set_text(self, text: str) -> None:
+        rendered = text if self._max_chars is None else text[: self._max_chars]
+        if rendered == self._rendered_text:
+            return
+        self._rendered_text = rendered
         self._text.config(state="normal")
         self._text.delete("1.0", "end")
-        self._text.insert("1.0", text if self._max_chars is None else text[: self._max_chars])
+        self._text.insert("1.0", rendered)
         self._text.config(state="disabled")
         self._text.see("1.0")
 
@@ -204,7 +213,8 @@ class SummaryCard(tk.Frame):
 
     def _sync_wraplength(self, _event=None) -> None:
         width = max(180, self.winfo_width() - 24)
-        self._body.config(wraplength=width)
+        if int(self._body.cget("wraplength")) != width:
+            self._body.config(wraplength=width)
 
 
 class SourceLayerList(tk.Frame):
@@ -235,14 +245,14 @@ class SourceLayerList(tk.Frame):
         self._inner = tk.Frame(self._canvas, bg=T.BG_DARK)
         self._window_id = self._canvas.create_window((0, 0), window=self._inner, anchor="nw")
         self._canvas.configure(yscrollcommand=self._scrollbar.set)
-        self._inner.bind(
-            "<Configure>",
-            lambda _e: self._canvas.configure(scrollregion=self._canvas.bbox("all")),
-        )
+        self._inner.bind("<Configure>", self._on_inner_configure)
         self._canvas.bind("<Configure>", self._on_canvas_resize)
 
         self._scrollbar.pack(side="right", fill="y")
         self._canvas.pack(side="left", fill="both", expand=True)
+
+    def _on_inner_configure(self, _event) -> None:
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
     def _on_canvas_resize(self, event) -> None:
         self._canvas.itemconfigure(self._window_id, width=event.width)
@@ -354,10 +364,9 @@ class SourceLayerList(tk.Frame):
                     break
 
     def _bind_row_click(self, widget: tk.Widget, layer_info: dict, row_key: str) -> None:
-        widget.bind(
-            "<Button-1>",
-            lambda _e, info=layer_info, key=row_key: self.select_layer(info, key=key),
-        )
+        def _on_row_click(_e, info=layer_info, key=row_key):
+            self.select_layer(info, key=key)
+        widget.bind("<Button-1>", _on_row_click)
         for child in widget.winfo_children():
             self._bind_row_click(child, layer_info, row_key)
 
@@ -473,6 +482,8 @@ class ControlPane(tk.Frame):
         self._on_prompt_source_saved = on_prompt_source_saved
         self._prompt_text = ""
         self._sources_text = ""
+        self._last_prompt_text = ""
+        self._last_response_text = ""
         self._current_model_name = "(none)"
         self._current_session_title = "New Session"
         self._current_project_name = ""
@@ -485,6 +496,7 @@ class ControlPane(tk.Frame):
         self._tool_round_limit_var = tk.IntVar(value=max(1, int(initial_tool_round_limit)))
         self._layout_initialized = False
         self._center_layout_initialized = False
+        self._layout_apply_pending = False
 
         self._main_work_area = tk.PanedWindow(
             self,
@@ -537,7 +549,7 @@ class ControlPane(tk.Frame):
         )
 
         self.bind("<Configure>", self._on_shell_configure)
-        self.after_idle(self._apply_default_layout)
+        self._schedule_default_layout()
         self.after(120, self._apply_default_layout)
         self.after(320, self._apply_default_layout)
 
@@ -674,7 +686,7 @@ class ControlPane(tk.Frame):
             padx=10,
             pady=4,
             cursor="hand2",
-            command=on_sandbox_pick if on_sandbox_pick else lambda: None,
+            command=on_sandbox_pick if on_sandbox_pick else _noop,
         )
         open_btn.pack(side="left", fill="x", expand=True, padx=(0, 2))
         open_btn.bind("<Enter>", lambda e: open_btn.config(bg=T.BG_SURFACE))
@@ -693,7 +705,7 @@ class ControlPane(tk.Frame):
             padx=10,
             pady=4,
             cursor="hand2",
-            command=on_import if on_import else lambda: None,
+            command=on_import if on_import else _noop,
         )
         import_btn.pack(side="left", fill="x", expand=True, padx=(2, 0))
         import_btn.bind("<Enter>", lambda e: import_btn.config(bg=T.BG_SURFACE))
@@ -715,7 +727,7 @@ class ControlPane(tk.Frame):
             padx=10,
             pady=4,
             cursor="hand2",
-            command=on_edit_project_brief if on_edit_project_brief else lambda: None,
+            command=on_edit_project_brief if on_edit_project_brief else _noop,
         )
         edit_brief_btn.pack(side="left", fill="x", expand=True, padx=(0, 2))
         edit_brief_btn.bind("<Enter>", lambda e: edit_brief_btn.config(bg=T.BG_SURFACE))
@@ -734,7 +746,7 @@ class ControlPane(tk.Frame):
             padx=10,
             pady=4,
             cursor="hand2",
-            command=on_edit_prompt_overrides if on_edit_prompt_overrides else lambda: None,
+            command=on_edit_prompt_overrides if on_edit_prompt_overrides else _noop,
         )
         edit_prompts_btn.pack(side="left", fill="x", expand=True, padx=(2, 0))
         edit_prompts_btn.bind("<Enter>", lambda e: edit_prompts_btn.config(bg=T.BG_SURFACE))
@@ -849,7 +861,7 @@ class ControlPane(tk.Frame):
             padx=10,
             pady=4,
             cursor="hand2",
-            command=on_reload_prompt_docs if on_reload_prompt_docs else lambda: None,
+            command=on_reload_prompt_docs if on_reload_prompt_docs else _noop,
         )
         reload_prompt_btn.pack(side="left")
         reload_prompt_btn.bind("<Enter>", lambda e: reload_prompt_btn.config(bg=T.BG_SURFACE))
@@ -884,7 +896,7 @@ class ControlPane(tk.Frame):
             relief="flat",
             bd=0,
             cursor="hand2",
-            command=on_reload_prompt_docs if on_reload_prompt_docs else lambda: None,
+            command=on_reload_prompt_docs if on_reload_prompt_docs else _noop,
         ).pack(side="right")
 
         self._sources_meta_summary = SummaryCard(sources_tab, title="SOURCE SUMMARY", accent=T.CYAN)
@@ -1038,7 +1050,7 @@ class ControlPane(tk.Frame):
             relief="flat",
             bd=0,
             cursor="hand2",
-            command=on_reload_tools if on_reload_tools else lambda: None,
+            command=on_reload_tools if on_reload_tools else _noop,
         )
         reload_btn.pack(side="right")
         reload_btn.bind("<Enter>", lambda e: reload_btn.config(bg=T.BG_MID))
@@ -1342,7 +1354,7 @@ class ControlPane(tk.Frame):
         os.startfile(str(folder))  # type: ignore[attr-defined]
 
     def _apply_default_layout(self) -> None:
-        self.update_idletasks()
+        self._layout_apply_pending = False
         total_width = self._main_work_area.winfo_width()
         if total_width >= 1080:
             left_width = max(260, int(total_width * 0.20))
@@ -1361,7 +1373,13 @@ class ControlPane(tk.Frame):
 
     def _on_shell_configure(self, _event=None) -> None:
         if not self._layout_initialized or not self._center_layout_initialized:
-            self.after_idle(self._apply_default_layout)
+            self._schedule_default_layout()
+
+    def _schedule_default_layout(self) -> None:
+        if self._layout_apply_pending:
+            return
+        self._layout_apply_pending = True
+        self.after_idle(self._apply_default_layout)
 
     def _count_source_layers(self) -> int:
         return len([line for line in self._sources_text.splitlines() if line.strip()])
@@ -1380,8 +1398,8 @@ class ControlPane(tk.Frame):
         prompt_lines = len(self._prompt_text.splitlines()) if self._prompt_text else 0
         prompt_chars = len(self._prompt_text)
         source_layers = len(parsed_sources["layers"])
-        last_prompt_chars = len(self.prompt_preview._text.get("1.0", "end-1c").strip())
-        last_response_chars = len(self.response_preview._text.get("1.0", "end-1c").strip())
+        last_prompt_chars = len(self._last_prompt_text.strip())
+        last_response_chars = len(self._last_response_text.strip())
 
         if self._prompt_text:
             compiled_text = (
@@ -1493,11 +1511,13 @@ class ControlPane(tk.Frame):
         self._update_prompt_summaries()
 
     def set_last_prompt(self, text: str) -> None:
+        self._last_prompt_text = text or ""
         self.prompt_preview.set_text(text)
         self.inspect_prompt_preview.set_text(text)
         self._update_prompt_summaries()
 
     def set_last_response(self, text: str) -> None:
+        self._last_response_text = text or ""
         self.response_preview.set_text(text)
         self.inspect_response_preview.set_text(text)
         self._update_prompt_summaries()

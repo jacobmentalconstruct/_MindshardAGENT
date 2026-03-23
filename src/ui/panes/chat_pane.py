@@ -45,16 +45,27 @@ class ChatPane(tk.Frame):
         # Resize inner frame width to match canvas
         self._canvas.bind("<Configure>", self._on_canvas_resize)
 
-        # Mouse wheel scrolling
-        self._canvas.bind_all("<MouseWheel>",
-                              lambda e: self._canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+        # Mouse wheel scrolling — bind to canvas and inner frame only,
+        # not bind_all which would steal scroll events from every other widget.
+        self._canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self._inner.bind("<MouseWheel>", self._on_mousewheel)
 
     def _on_canvas_resize(self, event) -> None:
         self._canvas.itemconfig(self._window_id, width=event.width)
 
-    def add_message(self, role: str, content: str, metadata: dict | None = None) -> None:
+    def _on_mousewheel(self, event) -> None:
+        self._canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+    def add_message(self, role: str, content: str, metadata: dict | None = None) -> ChatMessageCard:
         card = ChatMessageCard(self._inner, role=role, content=content, metadata=metadata)
         card.pack(fill="x", padx=6, pady=3)
+        # Propagate scroll to canvas for all child widgets in the card
+        for widget in [card] + card.winfo_children():
+            widget.bind("<MouseWheel>", self._on_mousewheel)
+        return card
+
+    def scroll_to_bottom(self) -> None:
+        """Flush layout and scroll to the latest message. Call once after bulk add_message."""
         self._canvas.update_idletasks()
         self._canvas.yview_moveto(1.0)
 

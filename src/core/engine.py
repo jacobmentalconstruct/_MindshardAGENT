@@ -9,7 +9,11 @@ import threading
 from typing import Any, Callable
 
 from src.core.config.app_config import AppConfig
+from src.core.agent.direct_chat_loop import DirectChatLoop
+from src.core.agent.loop_manager import LoopManager
+from src.core.agent.loop_types import LoopRequest
 from src.core.agent.model_roles import EMBEDDING_ROLE, PRIMARY_CHAT_ROLE, resolve_model_for_role
+from src.core.agent.planner_only_loop import PlannerOnlyLoop
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.event_bus import EventBus
 from src.core.runtime.runtime_logger import get_logger
@@ -24,6 +28,7 @@ from src.core.sandbox.docker_runner import DockerRunner
 from src.core.sandbox.python_runner import PythonRunner
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.response_loop import ResponseLoop
+from src.core.agent.thought_chain_loop import ThoughtChainLoop
 from src.core.agent.thought_chain import ThoughtChain
 from src.core.sandbox.command_policy import CommandPolicy
 from src.core.sandbox.tool_discovery import register_discovered_tools
@@ -69,6 +74,7 @@ class Engine:
         self.tool_router: ToolRouter | None = None
         self.response_loop: ResponseLoop | None = None
         self.python_runner: PythonRunner | None = None
+        self.loop_manager = LoopManager(activity)
 
         # RAG
         self.knowledge: KnowledgeStore | None = None
@@ -190,10 +196,12 @@ class Engine:
             session_id_fn=self._session_id_fn,
             docker_mode=bool(self.docker_runner),
             journal=self.journal,
+            file_writer=self.file_writer,
         )
         self.response_loop._vcs = self.vcs
         self.response_loop._active_project = self.active_project
         self.response_loop._project_meta = self.project_meta
+        self._register_loops()
         self.config.sandbox_root = sandbox_root
         # Discover sandbox-local tools
         n_tools = register_discovered_tools(self.tool_catalog, sandbox_root)
@@ -227,6 +235,7 @@ class Engine:
         self.active_project = project_path
         if self.response_loop:
             self.response_loop._active_project = project_path
+        self._register_loops()
         log.info("Active project: %s", project_path or "(sandbox root)")
 
     def set_knowledge_store(self, knowledge: KnowledgeStore,
@@ -241,6 +250,24 @@ class Engine:
             self.response_loop._session_id_fn = self._session_id_fn
             if self._embedding_available:
                 self.response_loop._embed_fn = self._embed
+        self._register_loops()
+
+    def _register_loops(self) -> None:
+        """Rebuild the loop registry from the current runtime state."""
+        self.loop_manager = LoopManager(self.activity)
+        self.loop_manager.register(DirectChatLoop(self.config, self.activity))
+        self.loop_manager.register(
+            PlannerOnlyLoop(
+                self.config,
+                self.activity,
+                self.tool_catalog,
+                sandbox_root_getter=lambda: self.config.sandbox_root,
+                active_project_getter=lambda: self.active_project,
+            )
+        )
+        self.loop_manager.register(ThoughtChainLoop(self.config, self.activity))
+        if self.response_loop is not None:
+            self.loop_manager.register(self.response_loop)
 
     def check_embeddings(self) -> bool:
         """Check if the embedding model is available. Call on startup."""
@@ -284,8 +311,7 @@ class Engine:
         on_complete: Callable[[dict[str, Any]], None] | None = None,
         on_error: Callable[[str], None] | None = None,
     ) -> None:
-        """Submit a user prompt. Uses the full response loop with tool support
-        when sandbox is configured, falls back to simple streaming otherwise."""
+        """Submit a user prompt through the loop manager."""
 
         model = resolve_model_for_role(self.config, PRIMARY_CHAT_ROLE)
         if not model:
@@ -296,16 +322,20 @@ class Engine:
         token_est = self.tokenizer.count(user_text)
         self.activity.model("engine", f"Sending prompt to {model} (~{token_est} tokens)")
 
-        if self.response_loop and self.sandbox:
-            self.response_loop.run_turn(
-                user_text=user_text,
-                chat_history=list(self._chat_history),
-                on_token=on_token,
-                on_complete=lambda result: self._handle_loop_complete(result, on_complete),
-                on_error=on_error,
-            )
-        else:
-            self._simple_chat(user_text, on_token, on_complete, on_error)
+        request = LoopRequest(
+            user_text=user_text,
+            chat_history=list(self._chat_history),
+            on_token=on_token,
+            on_complete=lambda result: self._handle_loop_complete(result, on_complete),
+            on_error=on_error,
+        )
+        try:
+            selected_loop = self.loop_manager.run(request)
+            self.activity.info("engine", f"Loop dispatched: {selected_loop}")
+        except Exception as exc:
+            self.activity.error("engine", f"Loop dispatch failed: {exc}")
+            if on_error:
+                on_error(str(exc))
 
     def run_thought_chain(
         self,
@@ -332,7 +362,7 @@ class Engine:
             self.tokenizer.learn_from_response(
                 current_model, len(content), int(tokens_out_raw))
         self.activity.model("engine",
-                            f"Response complete: {meta.get('tokens_out', '?')} tokens, "
+                            f"Response complete [{meta.get('loop_mode', 'unknown')}]: {meta.get('tokens_out', '?')} tokens, "
                             f"{meta.get('time', '?')}, {meta.get('rounds', 1)} round(s)")
         if self.journal:
             self.journal.record(aj.AGENT_TURN,
@@ -382,9 +412,8 @@ class Engine:
         self.activity.info("engine", "Chat history cleared")
 
     def request_stop(self) -> None:
-        """Request that the active response loop stop as soon as possible."""
-        if self.response_loop:
-            self.response_loop.request_stop()
+        """Request that the active loop stop as soon as possible."""
+        self.loop_manager.request_stop()
         self.activity.info("engine", "Stop requested")
 
     def get_history(self) -> list[dict[str, str]]:

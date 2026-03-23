@@ -13,6 +13,7 @@ Lifecycle:
 """
 
 from __future__ import annotations
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -85,16 +86,18 @@ class MindshardVCS:
         self._cli = MindshardGitCLI(root)
 
         if is_new:
-            try:
-                git_dir.mkdir(parents=True, exist_ok=True)
-                self._cli.init()
-                self._write_excludes(git_dir)
-                self.snapshot("Initial snapshot — MindshardAGENT attached")
-                log.info("VCS initialized at %s/.mindshard/vcs/", root)
-            except Exception as e:
-                log.error("VCS init failed: %s", e)
-                self._cli = None
-                return False
+            # Run git init + initial snapshot in bg thread — can be slow on first attach
+            def _init_bg():
+                try:
+                    git_dir.mkdir(parents=True, exist_ok=True)
+                    self._cli.init()
+                    self._write_excludes(git_dir)
+                    self.snapshot("Initial snapshot — MindshardAGENT attached")
+                    log.info("VCS initialized at %s/.mindshard/vcs/", root)
+                except Exception as e:
+                    log.error("VCS init failed: %s", e)
+                    self._cli = None
+            threading.Thread(target=_init_bg, daemon=True, name="vcs-init").start()
         else:
             log.info("VCS attached to existing repo at %s/.mindshard/vcs/", root)
 

@@ -16,10 +16,14 @@
 - [ ] Expand benchmark suites beyond the initial intent / reality / architecture core
 - [x] Add cross-run comparison views to the diagnostic lab
 - [x] Add explicit model-role slots and settings UI for planner / recovery / coding / review / probe routing
-- [ ] Route initial execution planning through the planner model before non-trivial agent loops
+- [x] Route initial execution planning through the planner model before non-trivial agent loops
+- [x] Extract loop manager / selector seam so response modes are modular instead of hardcoded
+- [ ] Expose active loop mode and per-loop benchmark results in the diagnostic lab
 - [ ] Trigger recovery replanning after repeated failure patterns
 - [ ] Expose model-role usage and per-role benchmark results in the diagnostic lab
 - [ ] Add prompt-version diff views and richer restore previews in the diagnostic lab
+- [ ] Add user-visible loop mode controls / overrides for testing specific response modes
+- [ ] Design graph-based thought-chain loop for branching plan exploration and merge-back
 
 ## Medium Priority
 
@@ -79,6 +83,11 @@
   - "Plan" button triggers dialog → rounds shown in chat → final task list
 - [ ] Official toolbox root configuration and external tool loading
 - [ ] Per-session command policy customization
+- [ ] Loop family expansion:
+  - recovery-agent loop
+  - benchmark loop
+  - review/judge loop
+  - model-chain loop routing by intent
 
 ## Deferred by Blueprint
 

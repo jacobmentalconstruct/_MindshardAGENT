@@ -1,0 +1,32 @@
+{
+  "models": [
+    "qwen3.5:2b"
+  ],
+  "hidethinking": true,
+  "timeout_seconds": 120,
+  "prompt_variants": [
+    {
+      "id": "strict-pass",
+      "template": "Reply with exactly PASS and nothing else."
+    }
+  ],
+  "cases": [
+    {
+      "id": "exact-pass",
+      "checks": {
+        "exact_match": "PASS"
+      }
+    }
+  ],
+  "rubric": {
+    "judge_model": "qwen3.5:2b",
+    "criteria": [
+      {
+        "id": "follow",
+        "label": "Instruction following",
+        "weight": 1,
+        "guidance": "Did the model follow the exact requested output?"
+      }
+    ]
+  }
+}

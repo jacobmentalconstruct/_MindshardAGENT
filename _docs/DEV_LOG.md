@@ -81,6 +81,145 @@ Built the complete V1 sandboxed chatbot agent shell from blueprint in a single s
 
 ---
 
+## 2026-03-21 — TUNE-001: Architecture Inspection Guidance Tightened
+
+### Summary
+While the UI was being tested, I used the diagnostic lab for a quick agent
+tuning pass against `qwen3.5:4b`.
+
+Two concrete improvements landed:
+
+1. architecture-understanding guidance now pushes the model toward
+   `list_files -> read docs -> read entry points` instead of reaching for
+   `run_python_file` too early
+2. the probe scorer no longer falsely penalizes answers that correctly warn
+   against fake prefixes like `project/src/app.py`
+
+### Files Modified
+- `_docs/agent_prompt/20_intent_interpretation.md`
+  - architecture requests now explicitly prefer structure/doc/entry-point reads
+  - narrow questions now tell the model to stay within the requested scope
+- `_docs/agent_prompt/40_response_style.md`
+  - reinforces tight scope matching for small factual/tooling answers
+- `_docs/agent_prompt/50_tool_usage_preferences.md`
+  - clarifies that `run_python_file` is for verification, not early architecture exploration
+- `src/core/agent/probe_scorer.py`
+  - made invented-prefix detection context-aware so negative examples are not treated as failures
+
+### Measured Effect
+- architecture-inspection direct-model probe improved from:
+  - `overall_score 0.793 -> 0.813`
+  - still `accuracy_score 1.0`
+  - slightly better efficiency via lower token footprint
+- workspace-rules probe now scores correctly after the false-positive fix:
+  - `accuracy_score 1.0`
+  - `overall_score 0.811` on the latest rerun
+
+### Notes
+- This was a conservative tuning pass: no planner logic changed, only prompt-doc guidance and benchmark scoring accuracy
+- The remaining efficiency work is mostly about reducing unnecessary explanation volume while preserving correctness
+
+### Testing
+- direct diagnostic-lab reruns of the two core direct-model understanding probes using `qwen3.5:4b`
+- `py -3.10 -m compileall src/core/agent/probe_scorer.py`
+
+---
+
+## 2026-03-21 — FEAT-013: Modular Loop Manager And Response Modes
+
+### Summary
+The app's execution lifecycle had become strong but too centralized:
+`Engine.submit_prompt()` effectively routed into one main loop with planner
+behavior layered inside it, while other behaviors like thought chains lived
+beside the main path instead of inside a loop system.
+
+This pass extracts a first-class loop-management seam so the app can evolve
+multiple response modes without letting `Engine` or `ResponseLoop` greedily own
+all orchestration behavior.
+
+### Files Added
+- `src/core/agent/loop_types.py`
+- `src/core/agent/loop_selector.py`
+- `src/core/agent/loop_manager.py`
+- `src/core/agent/direct_chat_loop.py`
+- `src/core/agent/planner_only_loop.py`
+- `src/core/agent/thought_chain_loop.py`
+
+### Files Modified
+- `src/core/agent/response_loop.py`
+  - now exposes `loop_id = tool_agent`
+  - adds a generic `run(request)` adapter so it can be managed like any other loop
+  - returns `loop_mode` in result metadata
+- `src/core/engine.py`
+  - now owns a `LoopManager`
+  - rebuilds loop registry from current runtime state
+  - dispatches user turns through the loop manager instead of hardcoding one path
+  - records selected loop ids in runtime activity
+- `_docs/TODO.md`
+  - marks the loop-manager extraction complete
+  - adds follow-up items for loop diagnostics, loop controls, and graph-based thought chains
+
+### Default Loop Modes
+- `direct_chat`
+  - lightweight conversational turns
+- `tool_agent`
+  - current main agent loop with planner + tools
+- `planner_only`
+  - short structured planning responses
+- `thought_chain`
+  - task-decomposition planning loop
+
+### Architectural Notes
+- Loop selection now has its own seam in `loop_selector.py`
+- Loop dispatch now has its own registry in `loop_manager.py`
+- `Engine` is reduced to orchestration and runtime wiring
+- The existing tool-agent loop remains intact as the strongest default mode,
+  but it no longer owns the whole lifecycle concept
+- Graph-based thought chains are intentionally deferred as the next evolution
+  of planning loops, not mixed into this extraction pass
+
+### Testing
+- `py -3.10 -m compileall src`
+
+---
+
+## 2026-03-21 — FIX-003: Startup / Shutdown UI Thread Safety Pass
+
+### Summary
+Live testing exposed two stability issues:
+
+1. the app could appear hung during startup just after session restore
+2. closing the window could crash if late timers or background callbacks touched Tk after teardown
+
+Root cause was a thread-safety mismatch: background work was still able to
+drive UI callbacks directly in a few places, and some repeating timers were
+not cancelled on shutdown.
+
+### Files Modified
+- `src/ui/gui_main.py`
+  - marshals activity-stream UI updates onto the Tk main thread
+  - ignores late activity events after close
+  - guards against double-close races
+- `src/app.py`
+  - routes more worker-thread completions through `_safe_ui(...)`
+  - adds finer startup trace logging for deferred bootstrap stages
+  - cancels autosave and stream-flush timers during shutdown
+  - hardens close flow against repeated teardown calls
+
+### Behavior Changes
+- Startup should no longer freeze because a background event hit Tk directly
+- Close should be more reliable even with active timers / worker callbacks
+- Startup logs now make it clearer whether the app is:
+  - refreshing prompt inspector
+  - loading session list
+  - restoring a prior session
+  - creating a fresh session
+
+### Testing
+- `py -3.10 -m compileall src/app.py src/ui/gui_main.py`
+
+---
+
 ## 2026-03-21 — FEAT-010: Diagnostic Lab Version History Loop Closed
 
 ### Summary

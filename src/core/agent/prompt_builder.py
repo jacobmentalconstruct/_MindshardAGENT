@@ -23,6 +23,53 @@ class PromptBuildResult:
     warnings: tuple[str, ...] = ()
 
 
+def _is_small_model(model_name: str) -> bool:
+    """Heuristic: detect models <=7B that need a compact prompt."""
+    name = (model_name or "").lower()
+    for tag in ("0.5b", "1b", "1.5b", "2b", "3b", "3.5b", "4b", "5b", "6b", "7b",
+                ":0.5", ":1b", ":1.5", ":2b", ":3b", ":3.5", ":4b", ":5b", ":6b", ":7b"):
+        if tag in name:
+            return True
+    return False
+
+
+def _compact_tool_block(tool_defs: list[dict[str, Any]]) -> str:
+    """Minimal tool + call instructions for small models (~400 tokens total)."""
+    lines = ["## Tools\n"]
+    for td in tool_defs:
+        params = ""
+        if td.get("parameters"):
+            parts = []
+            for pn, pi in td["parameters"].items():
+                req = " (required)" if pi.get("required") else ""
+                parts.append(f"{pn}{req}")
+            params = f"  Params: {', '.join(parts)}"
+        lines.append(f"- **{td['name']}**: {td['description']}{params}")
+    lines.append("")
+    lines.append("## How to Call Tools")
+    lines.append("Wrap JSON in triple-backtick `tool_call` fences. One call per block.")
+    lines.append('```tool_call\n{"tool": "list_files", "path": "", "depth": 2}\n```')
+    lines.append('```tool_call\n{"tool": "read_file", "path": "src/main.py"}\n```')
+    lines.append('```tool_call\n{"tool": "write_file", "path": "hello.py", "content": "print(\'hello\')\\n"}\n```')
+    lines.append("")
+    lines.append("Use write_file to create files (not echo/cat). Use read_file to read (not type/cat).")
+    lines.append("Use list_files to explore (not dir/ls). Use run_python_file to run scripts.")
+    return "\n".join(lines)
+
+
+def _compact_sandbox_block(sandbox_root: str, docker_mode: bool) -> str:
+    """Minimal sandbox awareness for small models (~150 tokens)."""
+    if docker_mode:
+        return f"## Workspace\nYou work inside /sandbox (Linux container). All tools operate within this directory."
+    return (
+        f"## Workspace\n"
+        f"Sandbox root: {sandbox_root}\n"
+        f"You can read, write, and run commands only inside this directory.\n"
+        f"Sidecar: .mindshard/ (tools/, sessions/, outputs/, runs/)\n"
+        f"Use .mindshard/runs/ for safe experimentation."
+    )
+
+
 def build_system_prompt_bundle(
     sandbox_root: str,
     tools: ToolCatalog,
@@ -37,7 +84,13 @@ def build_system_prompt_bundle(
     project_brief: str = "",
     project_meta_path: str = "",
 ) -> PromptBuildResult:
-    """Build the full system prompt plus diagnostics."""
+    """Build the full system prompt plus diagnostics.
+
+    For small models (<=7B), automatically uses a compact prompt that
+    drops OS teaching, tool creation tutorials, and verbose examples.
+    This reduces the prompt from ~5,500 tokens to ~1,500 tokens.
+    """
+    compact = _is_small_model(model_name)
 
     source_result = load_prompt_sources(sandbox_root=sandbox_root)
     sections: list[PromptSection] = list(source_result.sections)
@@ -51,42 +104,49 @@ def build_system_prompt_bundle(
         sections.append(PromptSection(name="fallback_identity", layer="runtime", content=fallback))
 
     tool_defs = tools.to_schema_list()
-    tool_section = _format_tool_section(tool_defs)
 
-    if docker_mode:
-        os_section = get_command_teaching("", docker_mode=True)
-    elif command_policy:
-        os_section = get_command_teaching(command_policy.get_command_reference(), docker_mode=False)
+    if compact:
+        # ── Compact path: ~1,500 tokens ──────────────────
+        _append_section(sections, "workspace", "runtime",
+                        _compact_sandbox_block(sandbox_root, docker_mode))
+        _append_section(sections, "project_focus", "runtime",
+                        _format_project_focus_section(active_project))
+        _append_section(sections, "project_brief", "project_meta",
+                        _format_brief_section(project_brief), project_meta_path)
+        _append_section(sections, "tools_and_calling", "runtime",
+                        _compact_tool_block(tool_defs))
+        _append_section(sections, "rag", "runtime",
+                        _format_rag_section(rag_context))
     else:
-        os_section = ""
+        # ── Full path: ~5,500 tokens ─────────────────────
+        tool_section = _format_tool_section(tool_defs)
 
-    env_block = _format_environment_block(
-        sandbox_root=sandbox_root,
-        session_title=session_title,
-        model_name=model_name,
-        docker_mode=docker_mode,
-    )
-    project_focus = _format_project_focus_section(active_project)
-    brief_section = _format_brief_section(project_brief)
-    tools_block = f"## Available Tools\n{tool_section}"
-    tool_rules_block = _tool_rules_block()
-    tool_creation_block = _tool_creation_block()
-    tool_call_block = _tool_call_block()
-    journal_block = _format_journal_section(journal_context)
-    vcs_block = _format_vcs_section(vcs_context)
-    rag_block = _format_rag_section(rag_context)
+        if docker_mode:
+            os_section = get_command_teaching("", docker_mode=True)
+        elif command_policy:
+            os_section = get_command_teaching(command_policy.get_command_reference(), docker_mode=False)
+        else:
+            os_section = ""
 
-    _append_section(sections, "environment", "runtime", env_block)
-    _append_section(sections, "project_focus", "runtime", project_focus)
-    _append_section(sections, "project_brief", "project_meta", brief_section, project_meta_path)
-    _append_section(sections, "os_knowledge", "runtime", os_section)
-    _append_section(sections, "available_tools", "runtime", tools_block)
-    _append_section(sections, "tool_rules", "runtime", tool_rules_block)
-    _append_section(sections, "tool_creation", "runtime", tool_creation_block)
-    _append_section(sections, "tool_call_examples", "runtime", tool_call_block)
-    _append_section(sections, "journal", "runtime", journal_block)
-    _append_section(sections, "vcs", "runtime", vcs_block)
-    _append_section(sections, "rag", "runtime", rag_block)
+        env_block = _format_environment_block(
+            sandbox_root=sandbox_root,
+            session_title=session_title,
+            model_name=model_name,
+            docker_mode=docker_mode,
+        )
+        _append_section(sections, "environment", "runtime", env_block)
+        _append_section(sections, "project_focus", "runtime",
+                        _format_project_focus_section(active_project))
+        _append_section(sections, "project_brief", "project_meta",
+                        _format_brief_section(project_brief), project_meta_path)
+        _append_section(sections, "os_knowledge", "runtime", os_section)
+        _append_section(sections, "available_tools", "runtime", f"## Available Tools\n{tool_section}")
+        _append_section(sections, "tool_rules", "runtime", _tool_rules_block())
+        _append_section(sections, "tool_creation", "runtime", _tool_creation_block())
+        _append_section(sections, "tool_call_examples", "runtime", _tool_call_block())
+        _append_section(sections, "journal", "runtime", _format_journal_section(journal_context))
+        _append_section(sections, "vcs", "runtime", _format_vcs_section(vcs_context))
+        _append_section(sections, "rag", "runtime", _format_rag_section(rag_context))
 
     prompt = "\n\n".join(section.content.strip() for section in sections if section.content.strip()) + "\n"
     prompt_fingerprint = hashlib.sha256(prompt.encode("utf-8")).hexdigest()

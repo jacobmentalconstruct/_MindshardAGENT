@@ -1,0 +1,20 @@
+{
+  "models": [
+    "qwen3.5:2b"
+  ],
+  "prompt_variants": [
+    {
+      "id": "dry-run",
+      "template": "Reply with PASS."
+    }
+  ],
+  "cases": [
+    {
+      "id": "case-1",
+      "checks": {
+        "exact_match": "PASS"
+      }
+    }
+  ],
+  "dry_run": true
+}

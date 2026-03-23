@@ -1,0 +1,28 @@
+{
+  "models": [
+    "qwen3.5:2b",
+    "qwen3.5:4b"
+  ],
+  "pull_missing": false,
+  "hidethinking": true,
+  "timeout_seconds": 90,
+  "prompt_variants": [
+    {
+      "id": "strict-pass",
+      "template": "You are being evaluated for instruction following. Reply with exactly PASS and nothing else."
+    }
+  ],
+  "cases": [
+    {
+      "id": "exact-pass",
+      "checks": {
+        "exact_match": "PASS",
+        "max_length": 8,
+        "not_contains_any": [
+          "Explanation",
+          ":"
+        ]
+      }
+    }
+  ]
+}
