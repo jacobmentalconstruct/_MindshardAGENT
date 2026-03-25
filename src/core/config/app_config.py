@@ -28,7 +28,7 @@ class AppConfig:
     ollama_base_url: str = "http://localhost:11434"
     selected_model: str = ""
     primary_chat_model: str = ""
-    planner_model: str = ""
+    planner_model: str = "qwen3.5:9b"
     recovery_planner_model: str = ""
     coding_model: str = ""
     review_model: str = ""
@@ -43,6 +43,9 @@ class AppConfig:
     # UI
     window_width: int = 1400
     window_height: int = 900
+    ui_bridge_enabled: bool = True
+    ui_bridge_host: str = "127.0.0.1"
+    ui_bridge_port: int = 8765
 
     # Resource polling
     resource_poll_interval_ms: int = 5000
@@ -67,6 +70,9 @@ class AppConfig:
     probe_enabled: bool = True
     probe_max_questions: int = 3
     probe_models: dict = field(default_factory=dict)  # per-probe model overrides e.g. {"intent": "qwen3.5:0.5b"}
+
+    # Agent self-awareness
+    self_awareness_enabled: bool = False   # loads 55_self_architecture.md into prompt
 
     # Tiered memory (STM window + evidence bag)
     stm_window_size: int = 10              # recent turns kept verbatim

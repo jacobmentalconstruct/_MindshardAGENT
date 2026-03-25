@@ -59,6 +59,7 @@ class MindshardVCS:
     def __init__(self):
         self._cli: Optional[MindshardGitCLI] = None
         self.project_root: Optional[Path] = None
+        self._init_thread: Optional[threading.Thread] = None
 
     @property
     def is_attached(self) -> bool:
@@ -86,25 +87,41 @@ class MindshardVCS:
         self._cli = MindshardGitCLI(root)
 
         if is_new:
-            # Run git init + initial snapshot in bg thread — can be slow on first attach
+            # Run git init + initial snapshot in bg thread — can be slow on first attach.
+            # The thread is tracked so that snapshot() can wait for init to finish
+            # before attempting any git operations (prevents race on fast detach).
             def _init_bg():
                 try:
                     git_dir.mkdir(parents=True, exist_ok=True)
                     self._cli.init()
                     self._write_excludes(git_dir)
-                    self.snapshot("Initial snapshot — MindshardAGENT attached")
+                    # Call _cli directly to avoid the wait-for-init guard in snapshot()
+                    self._cli.stage(["."])
+                    self._cli.commit(
+                        "Initial snapshot — MindshardAGENT attached",
+                        AUTHOR_NAME, AUTHOR_EMAIL,
+                    )
                     log.info("VCS initialized at %s/.mindshard/vcs/", root)
                 except Exception as e:
                     log.error("VCS init failed: %s", e)
                     self._cli = None
-            threading.Thread(target=_init_bg, daemon=True, name="vcs-init").start()
+            thread = threading.Thread(target=_init_bg, daemon=True, name="vcs-init")
+            self._init_thread = thread
+            thread.start()
         else:
             log.info("VCS attached to existing repo at %s/.mindshard/vcs/", root)
 
         return is_new
 
+    def _wait_for_init(self, timeout: float = 30.0) -> None:
+        """Block until any background git-init thread has finished."""
+        if self._init_thread is not None and self._init_thread.is_alive():
+            log.debug("Waiting for VCS init thread to finish (%.1fs timeout)...", timeout)
+            self._init_thread.join(timeout=timeout)
+
     def snapshot(self, message: str = "") -> Optional[str]:
         """Stage all changes and commit. Returns commit hash or None if nothing to commit."""
+        self._wait_for_init()
         if not self._cli:
             return None
         if not message:

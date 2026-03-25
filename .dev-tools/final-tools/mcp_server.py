@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from tools.data_shape_inspector import FILE_METADATA as DATA_METADATA, run as run_data_shape_inspector
+from tools.domain_boundary_audit import FILE_METADATA as DOMAIN_AUDIT_METADATA, run as run_domain_boundary_audit
 from tools.module_decomp_planner import FILE_METADATA as MODULE_DECOMP_METADATA, run as run_module_decomp_planner
 from tools.python_risk_scan import FILE_METADATA as PYTHON_SCAN_METADATA, run as run_python_risk_scan
 from tools.structured_patcher import FILE_METADATA as PATCH_METADATA, run as run_structured_patch
@@ -46,6 +47,7 @@ SERVER_INFO = {
 }
 
 TOOL_REGISTRY = {
+    DOMAIN_AUDIT_METADATA["mcp_name"]: (DOMAIN_AUDIT_METADATA, run_domain_boundary_audit),
     WORKSPACE_METADATA["mcp_name"]: (WORKSPACE_METADATA, run_workspace_audit),
     DATA_METADATA["mcp_name"]: (DATA_METADATA, run_data_shape_inspector),
     MODULE_DECOMP_METADATA["mcp_name"]: (MODULE_DECOMP_METADATA, run_module_decomp_planner),

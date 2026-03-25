@@ -54,6 +54,10 @@ class DiagnosticService:
     def compare_benchmark_runs(self, left_run_id: int, right_run_id: int) -> dict[str, Any]:
         return self.prompt_tuning.compare_benchmark_runs(left_run_id, right_run_id)
 
+    def diff_prompt_versions(self, left_version_id: int, right_version_id: int) -> dict[str, Any]:
+        """Return a unified git diff between two prompt version snapshots."""
+        return self.prompt_tuning.diff_prompt_versions(left_version_id, right_version_id)
+
     def restore_prompt_version(self, version_id: int) -> dict[str, Any]:
         return self.prompt_tuning.restore_prompt_version(version_id)
 
@@ -315,15 +319,24 @@ class DiagnosticService:
             captured_events.append(self._activity_to_event(entry))
 
         activity.subscribe(_capture)
+        probe_config = self._build_config(
+            sandbox_root=sandbox_root,
+            model_name=model_name,
+            base_url=base_url,
+            docker_enabled=docker_enabled,
+            temperature=temperature,
+            num_ctx=num_ctx,
+        )
+        # Snapshot the model role assignments before the probe runs
+        model_roles_snapshot = {
+            "chat_model": probe_config.selected_model,
+            "planner_model": probe_config.planner_model,
+            "fast_probe_model": probe_config.fast_probe_model,
+            "coding_model": probe_config.coding_model,
+            "review_model": probe_config.review_model,
+        }
         engine = Engine(
-            config=self._build_config(
-                sandbox_root=sandbox_root,
-                model_name=model_name,
-                base_url=base_url,
-                docker_enabled=docker_enabled,
-                temperature=temperature,
-                num_ctx=num_ctx,
-            ),
+            config=probe_config,
             activity=activity,
             bus=bus,
         )
@@ -442,6 +455,9 @@ class DiagnosticService:
                 "temperature": temperature,
                 "num_ctx": num_ctx,
                 "first_token_latency_ms": round(first_token_latency_ms or 0.0, 1),
+                # Model role assignments active during this probe
+                **model_roles_snapshot,
+                # Full turn metadata from TurnPipeline (loop_mode, budget, stm, etc.)
                 **result_meta,
             },
             prompt_text=prompt_build.prompt if prompt_build else "",

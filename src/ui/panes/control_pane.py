@@ -6,7 +6,6 @@ This pane now owns the main horizontal work area:
   right workbench-> prompt context, sources, inspect, tools
 """
 
-import os
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -472,6 +471,7 @@ class ControlPane(tk.Frame):
         on_reload_prompt_docs=None,
         on_prompt_source_saved=None,
         on_set_tool_round_limit=None,
+        on_bag_refresh=None,
         initial_tool_round_limit: int = 12,
         **kw,
     ):
@@ -480,6 +480,7 @@ class ControlPane(tk.Frame):
 
         self._on_reload_prompt_docs = on_reload_prompt_docs
         self._on_prompt_source_saved = on_prompt_source_saved
+        self._on_bag_refresh = on_bag_refresh
         self._prompt_text = ""
         self._sources_text = ""
         self._last_prompt_text = ""
@@ -800,6 +801,21 @@ class ControlPane(tk.Frame):
         )
         self._compose_status.pack(side="left")
 
+        # Loop mode override selector — lets user force a specific execution loop
+        tk.Label(
+            compose_status_row, text="Mode:",
+            font=T.FONT_SMALL, fg=T.TEXT_DIM, bg=T.BG_DARK,
+        ).pack(side="right", padx=(0, 2))
+        self._loop_mode_var = tk.StringVar(value="auto")
+        _loop_combo = ttk.Combobox(
+            compose_status_row,
+            textvariable=self._loop_mode_var,
+            values=["auto", "tool_agent", "direct_chat", "planner_only", "thought_chain", "recovery_agent", "review_judge"],
+            width=14,
+            state="readonly",
+        )
+        _loop_combo.pack(side="right", padx=(0, 4))
+
         self.input_pane = InputPane(compose_tab, on_submit=on_submit)
         self.input_pane.pack(fill="both", expand=True, padx=4, pady=(2, 0))
 
@@ -825,10 +841,13 @@ class ControlPane(tk.Frame):
         sources_tab = tk.Frame(self._right_notebook, bg=T.BG_DARK)
         inspect_tab = tk.Frame(self._right_notebook, bg=T.BG_DARK)
         tools_tab = tk.Frame(self._right_notebook, bg=T.BG_DARK)
+        bag_tab = tk.Frame(self._right_notebook, bg=T.BG_DARK)
         self._right_notebook.add(prompt_tab, text="Prompt")
         self._right_notebook.add(sources_tab, text="Sources")
         self._right_notebook.add(inspect_tab, text="Inspect")
         self._right_notebook.add(tools_tab, text="Tools")
+        self._right_notebook.add(bag_tab, text="Bag")
+        self._build_bag_tab(bag_tab)
 
         self._compiled_summary = SummaryCard(prompt_tab, title="COMPILED PROMPT", accent=T.CYAN)
         self._compiled_summary.pack(fill="x", padx=4, pady=(4, 4))
@@ -1258,11 +1277,11 @@ class ControlPane(tk.Frame):
             return
 
         path = Path(source_path)
-        try:
-            content = path.read_text(encoding="utf-8")
-        except Exception as exc:
+        from src.core.project.source_file_service import read_prompt_source
+        content, err = read_prompt_source(path)
+        if err:
             self._set_source_editor_state(
-                f"Could not read source file:\n{exc}",
+                f"Could not read source file:\n{err}",
                 editable=False,
                 path=path,
                 runtime=True,
@@ -1290,20 +1309,20 @@ class ControlPane(tk.Frame):
         if not path:
             return
         source_path = Path(path)
-        try:
-            content = source_path.read_text(encoding="utf-8")
-        except Exception as exc:
-            messagebox.showerror("Load Failed", str(exc), parent=self.winfo_toplevel())
+        from src.core.project.source_file_service import read_prompt_source
+        content, err = read_prompt_source(source_path)
+        if err:
+            messagebox.showerror("Load Failed", err, parent=self.winfo_toplevel())
             return
         self._selected_source = {"layer": "external", "name": source_path.name, "path": str(source_path)}
         self._set_source_editor_state(content, editable=True, path=source_path, runtime=False)
 
     def _write_source_to_path(self, path: Path) -> bool:
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(self._source_editor.get("1.0", "end-1c"), encoding="utf-8")
-        except Exception as exc:
-            messagebox.showerror("Save Failed", str(exc), parent=self.winfo_toplevel())
+        from src.core.project.source_file_service import write_prompt_source
+        content = self._source_editor.get("1.0", "end-1c")
+        err = write_prompt_source(path, content)
+        if err:
+            messagebox.showerror("Save Failed", err, parent=self.winfo_toplevel())
             return False
         self._set_source_editor_state(
             self._source_editor.get("1.0", "end-1c"),
@@ -1346,12 +1365,12 @@ class ControlPane(tk.Frame):
     def _edit_source_external(self) -> None:
         if not self._source_editor_path or not self._source_editor_path.exists():
             return
-        os.startfile(str(self._source_editor_path))  # type: ignore[attr-defined]
+        from src.core.project.source_file_service import open_in_editor
+        open_in_editor(self._source_editor_path)
 
     def _open_source_folder(self) -> None:
-        folder = self._default_source_dir()
-        folder.mkdir(parents=True, exist_ok=True)
-        os.startfile(str(folder))  # type: ignore[attr-defined]
+        from src.core.project.source_file_service import open_folder
+        open_folder(self._default_source_dir())
 
     def _apply_default_layout(self) -> None:
         self._layout_apply_pending = False
@@ -1521,6 +1540,113 @@ class ControlPane(tk.Frame):
         self.response_preview.set_text(text)
         self.inspect_response_preview.set_text(text)
         self._update_prompt_summaries()
+
+    def get_loop_mode(self) -> str | None:
+        """Return the user-selected loop mode override, or None for auto-select."""
+        val = self._loop_mode_var.get() if hasattr(self, "_loop_mode_var") else "auto"
+        return val if val and val != "auto" else None
+
+    def set_loop_mode(self, mode: str | None) -> str:
+        """Set the compose-area loop mode override and return the applied value."""
+        allowed = {
+            "auto",
+            "tool_agent",
+            "direct_chat",
+            "planner_only",
+            "thought_chain",
+            "recovery_agent",
+            "review_judge",
+        }
+        value = (mode or "auto").strip() or "auto"
+        if value not in allowed:
+            raise ValueError(f"Unsupported loop mode: {value}")
+        self._loop_mode_var.set(value)
+        return value
+
+    # ── Evidence Bag Tab ──────────────────────────────────────────────────────
+
+    def _build_bag_tab(self, bag_tab: tk.Frame) -> None:
+        """Build the Evidence Bag explorer tab in the right workbench."""
+        header_row = tk.Frame(bag_tab, bg=T.BG_DARK)
+        header_row.pack(fill="x", padx=8, pady=(6, 2))
+
+        tk.Label(
+            header_row,
+            text="EVIDENCE BAG",
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_DARK,
+        ).pack(side="left")
+
+        self._bag_status_badge = tk.Label(
+            header_row,
+            text="disabled",
+            font=(T.FONT_FAMILY, T.FONT_SIZE_SM, "bold"),
+            fg=T.BG_DARK,
+            bg=T.TEXT_DIM,
+            padx=5,
+            pady=1,
+        )
+        self._bag_status_badge.pack(side="left", padx=6)
+
+        refresh_btn = tk.Button(
+            header_row,
+            text="Refresh",
+            font=T.FONT_SMALL,
+            fg=T.CYAN,
+            bg=T.BG_DARK,
+            activebackground=T.BG_MID,
+            activeforeground=T.CYAN,
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=2,
+            cursor="hand2",
+            command=self._on_bag_refresh if self._on_bag_refresh else _noop,
+        )
+        refresh_btn.pack(side="right")
+        refresh_btn.bind("<Enter>", lambda e: refresh_btn.config(bg=T.BG_MID))
+        refresh_btn.bind("<Leave>", lambda e: refresh_btn.config(bg=T.BG_DARK))
+
+        hint = tk.Label(
+            bag_tab,
+            text="Shows evidence that fell off the STM window (last ~128 tok summary). "
+                 "Click Refresh to fetch current bag contents.",
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_DARK,
+            wraplength=320,
+            justify="left",
+        )
+        hint.pack(fill="x", padx=8, pady=(0, 4))
+
+        self._bag_preview = TextPreview(
+            bag_tab,
+            label="BAG CONTENTS",
+            height=18,
+            max_chars=8000,
+        )
+        self._bag_preview.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+
+    def set_evidence_bag_display(self, content: str, *, enabled: bool = True) -> None:
+        """Update the evidence bag explorer tab with current bag contents.
+
+        Args:
+            content: Formatted bag summary text to display.
+            enabled: Whether the evidence bag feature is active.
+        """
+        if not hasattr(self, "_bag_preview"):
+            return
+        if enabled:
+            self._bag_status_badge.config(
+                text="active", bg=T.GREEN, fg=T.BG_DARK
+            )
+        else:
+            self._bag_status_badge.config(
+                text="disabled", bg=T.TEXT_DIM, fg=T.BG_DARK
+            )
+        display = content if content else "(bag is empty)"
+        self._bag_preview.set_text(display)
 
     def cycle_workspace_tabs(self) -> None:
         tabs = self._left_notebook.tabs()

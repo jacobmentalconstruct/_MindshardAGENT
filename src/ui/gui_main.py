@@ -54,6 +54,7 @@ class MainWindow:
         on_reload_prompt_docs=None,
         on_prompt_source_saved=None,
         on_set_tool_round_limit=None,
+        on_bag_refresh=None,
         on_open_settings=None,
         initial_tool_round_limit: int = 12,
         dpi_scale: float = 1.0,
@@ -188,6 +189,7 @@ class MainWindow:
             on_reload_prompt_docs=on_reload_prompt_docs,
             on_prompt_source_saved=on_prompt_source_saved,
             on_set_tool_round_limit=on_set_tool_round_limit,
+            on_bag_refresh=on_bag_refresh,
             initial_tool_round_limit=initial_tool_round_limit,
         )
         self._main_vertical_split.add(self.control_pane, stretch="always")

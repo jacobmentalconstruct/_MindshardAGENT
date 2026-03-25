@@ -90,17 +90,47 @@ def _render_benchmark_markdown(result: BenchmarkSuiteResult) -> str:
     ]
     for key, value in sorted(result.metadata.items()):
         lines.append(f"- {key}: {value}")
+    # Loop-mode breakdown (when multiple modes are in play)
+    loop_counts = result.metadata.get("loop_mode_counts", {})
+    loop_scores = result.metadata.get("loop_mode_avg_scores", {})
+    if loop_counts:
+        lines.extend(["", "## Loop Mode Breakdown", ""])
+        for lm, count in sorted(loop_counts.items()):
+            avg = loop_scores.get(lm, 0.0)
+            lines.append(f"- {lm}: {count} case(s), avg score={avg}")
+
+    # Model role summary
+    chat_models = result.metadata.get("chat_models_used", [])
+    planner_models = result.metadata.get("planner_models_used", [])
+    if chat_models or planner_models:
+        lines.extend(["", "## Model Roles Used", ""])
+        if chat_models:
+            lines.append(f"- Chat: {', '.join(chat_models)}")
+        if planner_models:
+            lines.append(f"- Planner: {', '.join(planner_models)}")
+
     lines.extend(["", "## Cases", ""])
     for case in result.cases:
         probe = case.result
+        m = probe.metadata
         lines.append(f"### {case.label}")
         lines.append(f"- Probe type: {case.probe_type}")
         lines.append(f"- Status: {probe.status}")
-        lines.append(f"- Overall score: {probe.metadata.get('overall_score', 0.0)}")
-        lines.append(f"- Accuracy score: {probe.metadata.get('accuracy_score', 0.0)}")
-        lines.append(f"- Efficiency score: {probe.metadata.get('efficiency_score', 0.0)}")
-        lines.append(f"- Tokens: {probe.metadata.get('total_tokens', 0)}")
-        lines.append(f"- Rounds: {probe.metadata.get('rounds', 0)}")
+        lines.append(f"- Loop mode: {m.get('loop_mode', '—')}")
+        if m.get("planner_model"):
+            lines.append(f"- Planner model: {m['planner_model']}")
+        if m.get("planning_used") is not None:
+            lines.append(f"- Planning used: {m['planning_used']}")
+        if m.get("probes_run") is not None:
+            lines.append(f"- Probes run: {m['probes_run']}")
+        if m.get("budget_trimmed") is not None:
+            trim_flag = " ⚠ TRIMMED" if m["budget_trimmed"] else ""
+            lines.append(f"- Budget: {m.get('budget_total_after', '?')}/{m.get('budget_available', '?')}{trim_flag}")
+        lines.append(f"- Overall score: {m.get('overall_score', 0.0)}")
+        lines.append(f"- Accuracy score: {m.get('accuracy_score', 0.0)}")
+        lines.append(f"- Efficiency score: {m.get('efficiency_score', 0.0)}")
+        lines.append(f"- Tokens: {m.get('total_tokens', 0)}")
+        lines.append(f"- Rounds: {m.get('rounds', 0)}")
         lines.append(f"- Summary: {probe.summary}")
         lines.append("")
     return "\n".join(lines) + "\n"

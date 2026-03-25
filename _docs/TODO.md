@@ -2,6 +2,12 @@
 
 ## High Priority
 
+- [ ] Finish stabilization follow-ups from the live UI bridge pass
+  - restore a visible Stop control in the UI that triggers the real engine stop path
+  - make stop-requested planner/thought-chain runs unwind back to `Ready` promptly
+  - ground Plan/thought-chain prompts in the attached software project to avoid ontology drift
+  - add small-model Plan guardrails: per-round timeout, first-token latency logging, heartbeat/progress telemetry, output caps
+  - persist Plan/thought-chain rounds and final results into session history so verification sessions are recoverable
 - [x] Internal diagnostic lab utility for prompt/model/engine probes under `_utils/`
 - [x] Hybrid prompt tuning history (`.prompt-versioning/` Git + SQLite probe tracking)
 - [x] Repeatable benchmark runner with token-aware scoring exposed in the diagnostic lab
@@ -12,18 +18,18 @@
 - [x] Add sandbox root folder picker dialog in UI
 
 - [x] Add cross-run comparison views and version rollback UI on top of prompt tuning history
-- [ ] Standardize diagnostic event schema so probe exports can be reused across apps
-- [ ] Expand benchmark suites beyond the initial intent / reality / architecture core
+- [x] Standardize diagnostic event schema so probe exports can be reused across apps
+- [x] Expand benchmark suites beyond the initial intent / reality / architecture core
 - [x] Add cross-run comparison views to the diagnostic lab
 - [x] Add explicit model-role slots and settings UI for planner / recovery / coding / review / probe routing
 - [x] Route initial execution planning through the planner model before non-trivial agent loops
 - [x] Extract loop manager / selector seam so response modes are modular instead of hardcoded
-- [ ] Expose active loop mode and per-loop benchmark results in the diagnostic lab
-- [ ] Trigger recovery replanning after repeated failure patterns
-- [ ] Expose model-role usage and per-role benchmark results in the diagnostic lab
-- [ ] Add prompt-version diff views and richer restore previews in the diagnostic lab
-- [ ] Add user-visible loop mode controls / overrides for testing specific response modes
-- [ ] Design graph-based thought-chain loop for branching plan exploration and merge-back
+- [x] Expose active loop mode and per-loop benchmark results in the diagnostic lab
+- [x] Trigger recovery replanning after repeated failure patterns
+- [x] Expose model-role usage and per-role benchmark results in the diagnostic lab
+- [x] Add prompt-version diff views and richer restore previews in the diagnostic lab
+- [x] Add user-visible loop mode controls / overrides for testing specific response modes
+- [x] Design graph-based thought-chain loop for branching plan exploration and merge-back
 
 ## Medium Priority
 
@@ -58,7 +64,7 @@
   - Dockerfile, DockerManager, DockerRunner, dual-mode engine, Docker-aware prompt builder
   - UI Docker panel: status light, enable toggle, Build/Start/Stop/Nuke buttons
   - Integration tested: volume mount, exec, network isolation, blocked commands
-- [ ] Per-session command policy customization
+- [x] Per-session command policy customization
 
 ## UX / UI
 
@@ -69,8 +75,28 @@
 - [x] Delete-active-session loads next available instead of creating new
 - [x] Tab breakout into standalone columns (right-click tab → pop out left/right, Dock button to return)
 - [x] Panel and column resizability (visible sashes on all PanedWindows, raised relief, 6px grab area)
-- [ ] Dark theme refinement and DPI scaling
-- [ ] Keyboard shortcuts (Ctrl+Enter submit already works)
+- [x] Dark theme refinement and DPI scaling
+- [x] Keyboard shortcuts (Ctrl+Enter submit, Escape stop, Ctrl+N new session, Ctrl+L clear, Ctrl+S save, Ctrl+Shift+N branch, F5 reload, Ctrl+Tab cycle tabs, Ctrl+, settings)
+
+## Architectural Boundary Repair (Phase 1B/1C — Session 5)
+
+- [x] Domain boundary audit tool (AST-based, final-tools MCP) — baseline 565 violations
+- [x] Extract project_command_handler.py — owns sandbox/project lifecycle ops
+- [x] Extract sync_command_handler.py — owns sync-to-source workflow
+- [x] Extract app_safety.py — owns confirm_destructive + confirm_gui_launch factories
+- [x] Introduce ui_facade.py — intent-level UI bridge (set_models, set_tool_count, streaming, docker, etc.)
+- [x] Extract source_file_service.py — owns prompt source file I/O + os.startfile
+- [x] Extract session_policy_dialog.py — owns session policy askstring dialogs
+- [x] Extract loop_registry.py — owns loop instantiation + registration policy
+- [x] Extract project_lifecycle.py — owns project detachment workflow
+- [x] ChatPane streaming protocol (begin_stream / update_stream / end_stream)
+- [x] app_streaming.py full rewrite — zero direct widget access (all via ui_facade)
+- [x] Extract sandbox_runtime_factory.py — owns Docker vs local backend decision
+- [x] Extract embedding_service.py — owns embedding availability + embed callable
+- [x] ResponseLoop.set_evidence_bag() public API (no more private field poke)
+- [x] Extract TurnPipeline — owns full stage sequencing algorithm (~270 lines)
+- [x] ResponseLoop stripped to threading wrapper + state (~130 lines, -1 domain)
+- [x] Audit after 1C: 454 violations (-111 from baseline, -19.6%)
 
 ## Tiered Memory / Evidence Bag
 
@@ -81,11 +107,14 @@
 - [x] Evidence adapter (thin wrapper around manifold SDK)
 - [x] `bag_inspect` MCP tool (observe bag contents + what agent sees)
 - [x] Config fields: `stm_window_size`, `evidence_bag_enabled`, `evidence_bag_summary_budget`, `evidence_bag_retrieval_budget`
-- [ ] UI evidence bag explorer tab (browse/expand bag contents)
-- [ ] CIS staleness handling (invalidate embedded summary when bag contents change)
-- [ ] NDJSON/Content-Length protocol adapter for MCP servers
-- [ ] App-wide highlight→ask context menu (right-click → ask in isolation or inject into chat)
-- [ ] Dev tools → agent tools pipeline (share tooling between dev and runtime)
+- [x] NDJSON/Content-Length protocol adapter for MCP servers (fixed session 4)
+- [x] Bag self-discoverable manifest (JSON schema describing capabilities + API)
+- [x] Bag structural layer: tree + manifest + viewport (inspect/focus on EvidencePackage)
+- [x] `bag_navigate` MCP tool (focus node, traverse edges, widen/narrow aperture)
+- [x] UI evidence bag explorer tab (browse/expand bag contents)
+- [x] CIS staleness handling (invalidate embedded summary when bag contents change)
+- [x] App-wide highlight→ask context menu (right-click → ask in isolation or inject into chat)
+- [x] Dev tools → agent tools pipeline (share tooling between dev and runtime)
 
 ## Context Budget / Multi-Pass
 
@@ -99,20 +128,20 @@
 
 ## Low Priority / Future
 
-- [ ] Teach agent project tidiness (folder structures, naming conventions, not dumping everything flat in sandbox root)
-- [ ] Sandbox-authored tool creation (agent creates tools under _tools/)
+- [x] Teach agent project tidiness (folder structures, naming conventions, not dumping everything flat in sandbox root)
+- [x] Sandbox-authored tool creation (agent creates tools under _tools/)
 - [x] Cannibalistic Thought Chains (agent self-talk spiral → task list generation)
   - 3-round spiral: brainstorm → refine → concrete task list
   - Each round's prompt demands more specificity than previous
   - Task parser extracts numbered items with complexity tags
   - "Plan" button triggers dialog → rounds shown in chat → final task list
-- [ ] Official toolbox root configuration and external tool loading
-- [ ] Per-session command policy customization
-- [ ] Loop family expansion:
-  - recovery-agent loop
-  - benchmark loop
-  - review/judge loop
-  - model-chain loop routing by intent
+- [x] Official toolbox root configuration and external tool loading
+- [x] Per-session command policy customization
+- [x] Loop family expansion:
+  - recovery-agent loop ✓
+  - review/judge loop ✓
+  - benchmark loop (deferred — needs benchmark runner integration)
+  - model-chain loop routing by intent (deferred — design in dev_tools_to_agent_pipeline.md)
 
 ## Deferred by Blueprint
 

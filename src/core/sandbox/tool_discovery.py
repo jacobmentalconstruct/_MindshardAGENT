@@ -83,16 +83,17 @@ def _parse_docstring_meta(source: str) -> dict[str, Any] | None:
     return {"name": name, "description": desc, "parameters": params}
 
 
-def discover_tools(sandbox_root: str | Path) -> list[ToolEntry]:
+def discover_tools(root: str | Path, *, source: str = "sandbox_local") -> list[ToolEntry]:
     """Scan .mindshard/tools/ directory for Python scripts with tool metadata.
 
     Args:
-        sandbox_root: Path to the sandbox root directory.
+        root: Path to the owning workspace root.
+        source: Source label to stamp onto discovered entries.
 
     Returns:
         List of discovered ToolEntry objects.
     """
-    tools_dir = Path(sandbox_root) / ".mindshard" / "tools"
+    tools_dir = Path(root) / ".mindshard" / "tools"
     if not tools_dir.exists():
         tools_dir.mkdir(parents=True, exist_ok=True)
         log.info("Created .mindshard/tools/ directory at %s", tools_dir)
@@ -103,18 +104,19 @@ def discover_tools(sandbox_root: str | Path) -> list[ToolEntry]:
         if py_file.name.startswith("_"):
             continue
         try:
-            source = py_file.read_text(encoding="utf-8")
-            meta = _parse_docstring_meta(source)
+            source_text = py_file.read_text(encoding="utf-8")
+            meta = _parse_docstring_meta(source_text)
             if meta:
                 entry = ToolEntry(
                     name=meta["name"],
                     description=meta.get("description", f"Sandbox tool: {py_file.stem}"),
-                    source="sandbox_local",
+                    source=source,
                     callable_name=py_file.stem,
                     parameters=meta.get("parameters", {}),
+                    script_path=str(py_file),
                 )
                 discovered.append(entry)
-                log.info("Discovered sandbox tool: %s (%s)", meta["name"], py_file.name)
+                log.info("Discovered %s tool: %s (%s)", source, meta["name"], py_file.name)
             else:
                 log.debug("No metadata in %s, skipping", py_file.name)
         except Exception as e:
@@ -123,19 +125,25 @@ def discover_tools(sandbox_root: str | Path) -> list[ToolEntry]:
     return discovered
 
 
-def register_discovered_tools(catalog: ToolCatalog, sandbox_root: str | Path) -> int:
-    """Discover and register sandbox tools into the catalog.
+def register_discovered_tools(
+    catalog: ToolCatalog,
+    root: str | Path,
+    *,
+    source: str = "sandbox_local",
+) -> int:
+    """Discover and register .mindshard/tools entries into the catalog.
 
     Args:
         catalog: The ToolCatalog to register tools into.
-        sandbox_root: Path to the sandbox root directory.
+        root: Path to the workspace/toolbox root directory.
+        source: Source label to stamp onto discovered entries.
 
     Returns:
         Number of tools registered.
     """
-    tools = discover_tools(sandbox_root)
+    tools = discover_tools(root, source=source)
     for entry in tools:
         catalog.register(entry)
     if tools:
-        log.info("Registered %d sandbox tool(s)", len(tools))
+        log.info("Registered %d %s tool(s)", len(tools), source)
     return len(tools)

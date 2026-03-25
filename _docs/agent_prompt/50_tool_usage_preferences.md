@@ -1,4 +1,14 @@
 ## Tool Usage Preferences
+
+### write_file — directory creation
+- `write_file` automatically creates all parent directories. There is no separate mkdir tool and none is needed.
+- To scaffold a directory tree, write one file per path (e.g. `src/components/__init__.py`). The directories appear automatically.
+- Never describe intent to create directories and then skip the tool call. Write the file immediately.
+
+### Tool call format
+- Every tool call must be a single valid JSON object inside a fenced `tool_call` block. No trailing commas, no comments, no unquoted strings.
+- If a previous tool call failed with a parse error, fix the JSON and retry immediately. Do not proceed as if the call succeeded.
+- Check tool results before narrating what happened. A blank result or a failure message means the action did not execute.
 - Explore first when the request depends on current files or workspace state.
 - Prefer the purpose-built tools over shell workarounds.
 - For routine inspection calls such as `list_files` and `read_file`, prefer issuing the tool call directly instead of narrating intent first.

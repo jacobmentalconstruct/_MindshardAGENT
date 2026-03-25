@@ -5,32 +5,26 @@ model/tool/session subsystems, and pushes structured activity events
 back to the UI via the activity stream and event bus.
 """
 
-import threading
 from typing import Any, Callable
 
 from src.core.config.app_config import AppConfig
-from src.core.agent.direct_chat_loop import DirectChatLoop
 from src.core.agent.loop_manager import LoopManager
+from src.core.agent.loop_registry import build_loop_manager
 from src.core.agent.loop_types import LoopRequest
-from src.core.agent.model_roles import EMBEDDING_ROLE, PRIMARY_CHAT_ROLE, resolve_model_for_role
-from src.core.agent.planner_only_loop import PlannerOnlyLoop
+from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.event_bus import EventBus
 from src.core.runtime.runtime_logger import get_logger
-from src.core.ollama.ollama_client import chat_stream
-from src.core.ollama.embedding_client import embed_text, check_embedding_model
+from src.core.ollama.embedding_service import EmbeddingService
 from src.core.ollama.tokenizer_adapter import TokenizerAdapter
 from src.core.sandbox.sandbox_manager import SandboxManager
+from src.core.sandbox.sandbox_runtime_factory import build_sandbox_runtime
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.file_writer import FileWriter
 from src.core.sandbox.docker_manager import DockerManager
-from src.core.sandbox.docker_runner import DockerRunner
-from src.core.sandbox.python_runner import PythonRunner
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.response_loop import ResponseLoop
-from src.core.agent.thought_chain_loop import ThoughtChainLoop
 from src.core.agent.thought_chain import ThoughtChain
-from src.core.sandbox.command_policy import CommandPolicy
 from src.core.sandbox.tool_discovery import register_discovered_tools
 from src.core.sessions.knowledge_store import KnowledgeStore
 from src.core.runtime.action_journal import ActionJournal
@@ -69,16 +63,18 @@ class Engine:
         # Sandbox + tools (initialized when sandbox is set)
         self.sandbox: SandboxManager | None = None
         self.docker_manager = DockerManager(activity, sandbox_root=config.sandbox_root or "")
-        self.docker_runner: DockerRunner | None = None
+        self.docker_runner = None        # set by build_sandbox_runtime
         self.tool_catalog = ToolCatalog()
         self.tool_router: ToolRouter | None = None
         self.response_loop: ResponseLoop | None = None
-        self.python_runner: PythonRunner | None = None
+        self.python_runner = None        # set by build_sandbox_runtime
         self.loop_manager = LoopManager(activity)
+
+        # Embedding (availability check + embed function — owned by EmbeddingService)
+        self.embedding_service = EmbeddingService(config, activity)
 
         # RAG
         self.knowledge: KnowledgeStore | None = None
-        self._embedding_available = False
         self._session_id_fn = None  # set by app.py
 
         # Evidence bag (tiered memory — STM falloff destination)
@@ -86,6 +82,9 @@ class Engine:
 
         # Action journal (initialized when sandbox is set)
         self.journal: ActionJournal | None = None
+
+        # Standalone thought chain (Plan button path — tracked for shutdown drain)
+        self._active_thought_chain: ThoughtChain | None = None
 
         # Local VCS — .mindshard/ git repo inside sandbox root
         self.vcs = MindshardVCS()
@@ -114,9 +113,8 @@ class Engine:
     def set_sandbox(self, sandbox_root: str) -> None:
         """Initialize or change the sandbox root.
 
-        If docker_enabled is True in config and Docker is available,
-        commands execute inside a container. Otherwise falls back to
-        local subprocess with allowlist policy.
+        Delegates backend selection to sandbox_runtime_factory — engine stores
+        the result but does not own the docker-vs-local decision.
         """
         # Update Docker container name for this sandbox path
         self.docker_manager.set_sandbox_root(sandbox_root)
@@ -148,49 +146,26 @@ class Engine:
             audit_log=self.sandbox.audit,
         )
 
-        # Choose CLI runner: Docker container or local subprocess
-        if self.config.docker_enabled and self.docker_manager.is_docker_available():
-            # Docker mode — commands run inside container
-            self.docker_runner = DockerRunner(
-                self.docker_manager, self.activity,
-                on_confirm_destructive=self._on_confirm_destructive,
-                audit_log=self.sandbox.audit,
-            )
-            self.command_policy = CommandPolicy(mode="permissive")
-            cli_runner = self.docker_runner
-            self.python_runner = PythonRunner(
-                self.sandbox.guard,
-                self.activity,
-                audit_log=self.sandbox.audit,
-                docker_manager=self.docker_manager,
-                gui_policy_getter=lambda: self.config.gui_launch_policy,
-                on_confirm_gui_launch=self._on_confirm_gui_launch,
-            )
-            self.activity.info("engine",
-                f"Docker sandbox mode — container: {self.docker_manager.container_status()}")
-        else:
-            # Local mode — commands run in Windows subprocess with allowlist
-            self.command_policy = CommandPolicy(mode="allowlist")
-            cli_runner = self.sandbox.cli
-            self.docker_runner = None
-            self.python_runner = PythonRunner(
-                self.sandbox.guard,
-                self.activity,
-                audit_log=self.sandbox.audit,
-                gui_policy_getter=lambda: self.config.gui_launch_policy,
-                on_confirm_gui_launch=self._on_confirm_gui_launch,
-            )
-            if self.config.docker_enabled:
-                self.activity.warn("engine",
-                    "Docker enabled but not available — falling back to local sandbox")
+        # Select execution backend (Docker container or local subprocess)
+        runtime = build_sandbox_runtime(
+            self.config, self.sandbox, self.docker_manager,
+            activity=self.activity,
+            on_confirm_destructive=self._on_confirm_destructive,
+            on_confirm_gui_launch=self._on_confirm_gui_launch,
+        )
+        self.docker_runner = runtime.docker_runner
+        self.python_runner = runtime.python_runner
+        self.command_policy = runtime.command_policy
 
         self.tool_router = ToolRouter(
-            self.tool_catalog, cli_runner, self.activity,
+            self.tool_catalog, runtime.cli_runner, self.activity,
             file_writer=self.file_writer,
             sandbox_root=sandbox_root,
             on_tools_reloaded=self._on_tools_reloaded,
+            reload_tools_fn=self.reload_discovered_tools,
             python_runner=self.python_runner,
         )
+
         # Initialize evidence bag adapter if enabled
         if self.config.evidence_bag_enabled:
             try:
@@ -207,20 +182,24 @@ class Engine:
             self.config, self.tool_catalog, self.tool_router, self.activity,
             command_policy=self.command_policy if not self.docker_runner else None,
             knowledge_store=self.knowledge,
-            embed_fn=self._embed if self._embedding_available else None,
+            embed_fn=self.embedding_service.get_fn(),
             session_id_fn=self._session_id_fn,
             docker_mode=bool(self.docker_runner),
             journal=self.journal,
             file_writer=self.file_writer,
             evidence_bag=self.evidence_bag,
         )
-        self.response_loop._vcs = self.vcs
-        self.response_loop._active_project = self.active_project
-        self.response_loop._project_meta = self.project_meta
-        self._register_loops()
+        self.response_loop.set_workspace(
+            vcs=self.vcs,
+            active_project=self.active_project,
+            project_meta=self.project_meta,
+        )
+        self._rebuild_loops()
         self.config.sandbox_root = sandbox_root
-        # Discover sandbox-local tools
-        n_tools = register_discovered_tools(self.tool_catalog, sandbox_root)
+
+        discovered_names = self.reload_discovered_tools()
+        n_tools = len([name for name in discovered_names if self.tool_catalog.get(name).source == "sandbox_local"])
+        n_toolbox = len([name for name in discovered_names if self.tool_catalog.get(name).source == "toolbox"])
 
         mode_str = "Docker container" if self.docker_runner else "local subprocess"
         self.activity.info("engine", f"Sandbox set: {sandbox_root} ({mode_str})")
@@ -229,9 +208,11 @@ class Engine:
                 f"Command policy: allowlist mode, {len(self.command_policy._allowed)} commands permitted")
         if n_tools:
             self.activity.info("engine", f"Discovered {n_tools} sandbox tool(s)")
+        if n_toolbox:
+            self.activity.info("engine", f"Discovered {n_toolbox} toolbox tool(s)")
         self.journal.record(aj.CONFIG_CHANGE, f"Sandbox set: {mode_str} mode",
                             {"sandbox_root": sandbox_root, "mode": mode_str,
-                             "tools_discovered": n_tools})
+                             "tools_discovered": len(discovered_names)})
         log.info("Sandbox initialized: %s (mode=%s)", sandbox_root, mode_str)
 
     def _init_workspace_dirs(self, sandbox_root: str) -> None:
@@ -250,8 +231,12 @@ class Engine:
         """
         self.active_project = project_path
         if self.response_loop:
-            self.response_loop._active_project = project_path
-        self._register_loops()
+            self.response_loop.set_workspace(
+                vcs=self.vcs,
+                active_project=project_path,
+                project_meta=self.project_meta,
+            )
+        self._rebuild_loops()
         log.info("Active project: %s", project_path or "(sandbox root)")
 
     def set_knowledge_store(self, knowledge: KnowledgeStore,
@@ -260,62 +245,37 @@ class Engine:
         self.knowledge = knowledge
         if session_id_fn:
             self._session_id_fn = session_id_fn
-        # Update response loop if it exists
         if self.response_loop:
-            self.response_loop._knowledge = knowledge
-            self.response_loop._session_id_fn = self._session_id_fn
-            if self._embedding_available:
-                self.response_loop._embed_fn = self._embed
-        self._register_loops()
+            self.response_loop.set_rag_context(
+                knowledge=knowledge,
+                session_id_fn=self._session_id_fn,
+                embed_fn=self.embedding_service.get_fn(),
+            )
+        self._rebuild_loops()
 
     def set_evidence_bag(self, evidence_bag) -> None:
         """Attach an evidence bag adapter. Called if bag is initialized after engine setup."""
         self.evidence_bag = evidence_bag
         if self.response_loop:
-            self.response_loop._evidence_bag = evidence_bag
+            self.response_loop.set_evidence_bag(evidence_bag)
 
-    def _register_loops(self) -> None:
-        """Rebuild the loop registry from the current runtime state."""
-        self.loop_manager = LoopManager(self.activity)
-        self.loop_manager.register(DirectChatLoop(self.config, self.activity))
-        self.loop_manager.register(
-            PlannerOnlyLoop(
-                self.config,
-                self.activity,
-                self.tool_catalog,
-                sandbox_root_getter=lambda: self.config.sandbox_root,
-                active_project_getter=lambda: self.active_project,
-            )
+    def _rebuild_loops(self) -> None:
+        """Rebuild the loop manager from current runtime state via loop_registry."""
+        self.loop_manager = build_loop_manager(
+            config=self.config,
+            activity=self.activity,
+            tool_catalog=self.tool_catalog,
+            response_loop=self.response_loop,
+            sandbox_root_getter=lambda: self.config.sandbox_root,
+            active_project_getter=lambda: self.active_project,
         )
-        self.loop_manager.register(ThoughtChainLoop(self.config, self.activity))
-        if self.response_loop is not None:
-            self.loop_manager.register(self.response_loop)
 
     def check_embeddings(self) -> bool:
         """Check if the embedding model is available. Call on startup."""
-        info = check_embedding_model(
-            base_url=self.config.ollama_base_url,
-            model=resolve_model_for_role(self.config, EMBEDDING_ROLE),
-        )
-        self._embedding_available = info["available"]
-        if info["available"]:
-            self.activity.info("rag",
-                f"Embedding model ready: {info['model']} ({info['dim']}-dim)")
-            # Update response loop embed fn
-            if self.response_loop:
-                self.response_loop._embed_fn = self._embed
-        else:
-            self.activity.warn("rag",
-                f"Embedding model {resolve_model_for_role(self.config, EMBEDDING_ROLE)} not available — RAG disabled")
-        return self._embedding_available
-
-    def _embed(self, text: str) -> list[float]:
-        """Embed text using the configured Ollama model."""
-        return embed_text(
-            text,
-            base_url=self.config.ollama_base_url,
-            model=resolve_model_for_role(self.config, EMBEDDING_ROLE),
-        )
+        available = self.embedding_service.check()
+        if available and self.response_loop:
+            self.response_loop.set_rag_context(embed_fn=self.embedding_service.embed)
+        return available
 
     def run_cli(self, command: str, cwd: str | None = None) -> dict[str, Any]:
         """Execute a CLI command directly in the sandbox (for the CLI panel)."""
@@ -332,9 +292,14 @@ class Engine:
         on_token: Callable[[str], None] | None = None,
         on_complete: Callable[[dict[str, Any]], None] | None = None,
         on_error: Callable[[str], None] | None = None,
+        mode_hint: str | None = None,
     ) -> None:
-        """Submit a user prompt through the loop manager."""
+        """Submit a user prompt through the loop manager.
 
+        mode_hint — when non-empty, forces a specific loop mode (e.g. "direct_chat",
+        "tool_agent", "planner_only", "thought_chain").  None or empty string means
+        automatic selection via loop_selector.
+        """
         model = resolve_model_for_role(self.config, PRIMARY_CHAT_ROLE)
         if not model:
             if on_error:
@@ -342,7 +307,12 @@ class Engine:
             return
 
         token_est = self.tokenizer.count(user_text)
-        self.activity.model("engine", f"Sending prompt to {model} (~{token_est} tokens)")
+        effective_mode = mode_hint or None
+        self.activity.model(
+            "engine",
+            f"Sending prompt to {model} (~{token_est} tokens)"
+            + (f" [mode: {effective_mode}]" if effective_mode else ""),
+        )
 
         request = LoopRequest(
             user_text=user_text,
@@ -350,6 +320,7 @@ class Engine:
             on_token=on_token,
             on_complete=lambda result: self._handle_loop_complete(result, on_complete),
             on_error=on_error,
+            mode_hint=effective_mode,
         )
         try:
             selected_loop = self.loop_manager.run(request)
@@ -369,8 +340,29 @@ class Engine:
     ) -> None:
         """Run a Cannibalistic Thought Chain to decompose a goal into tasks."""
         chain = ThoughtChain(self.config, self.activity)
-        chain.run(goal, depth=depth,
-                  on_round=on_round, on_complete=on_complete, on_error=on_error)
+        self._active_thought_chain = chain
+
+        def _clear_active() -> None:
+            if self._active_thought_chain is chain:
+                self._active_thought_chain = None
+
+        def _wrapped_complete(result: dict[str, Any]) -> None:
+            _clear_active()
+            if on_complete:
+                on_complete(result)
+
+        def _wrapped_error(err: str) -> None:
+            _clear_active()
+            if on_error:
+                on_error(err)
+
+        chain.run(
+            goal,
+            depth=depth,
+            on_round=on_round,
+            on_complete=_wrapped_complete,
+            on_error=_wrapped_error,
+        )
 
     def _handle_loop_complete(self, result: dict, on_complete) -> None:
         additions = result.get("history_addition", [])
@@ -395,40 +387,6 @@ class Engine:
         if on_complete:
             on_complete(result)
 
-    def _simple_chat(self, user_text, on_token, on_complete, on_error):
-        model = resolve_model_for_role(self.config, PRIMARY_CHAT_ROLE)
-        self._chat_history.append({"role": "user", "content": user_text})
-
-        def _worker():
-            try:
-                result = chat_stream(
-                    base_url=self.config.ollama_base_url,
-                    model=model,
-                    messages=list(self._chat_history),
-                    on_token=on_token,
-                    temperature=self.config.temperature,
-                    num_ctx=self.config.max_context_tokens,
-                )
-                content = result.get("content", "")
-                self._chat_history.append({"role": "assistant", "content": content})
-                meta = {
-                    "model": result.get("model", model),
-                    "tokens_in": f"~{result.get('prompt_eval_count', '?')}",
-                    "tokens_out": f"~{result.get('eval_count', '?')}",
-                    "time": f"{result.get('wall_ms', 0):.0f}ms",
-                }
-                if on_complete:
-                    on_complete({"content": content, "metadata": meta})
-            except Exception as e:
-                log.exception("Chat request failed")
-                self.activity.error("engine", f"Chat failed: {e}")
-                if self._chat_history and self._chat_history[-1]["role"] == "user":
-                    self._chat_history.pop()
-                if on_error:
-                    on_error(str(e))
-
-        threading.Thread(target=_worker, daemon=True, name="chat-worker").start()
-
     def clear_history(self) -> None:
         self._chat_history.clear()
         self.activity.info("engine", "Chat history cleared")
@@ -436,6 +394,8 @@ class Engine:
     def request_stop(self) -> None:
         """Request that the active loop stop as soon as possible."""
         self.loop_manager.request_stop()
+        if self._active_thought_chain is not None:
+            self._active_thought_chain.request_stop()
         self.activity.info("engine", "Stop requested")
 
     def get_history(self) -> list[dict[str, str]]:
@@ -453,70 +413,49 @@ class Engine:
         return self.response_loop.preview_prompt(user_text=user_text, chat_history=history)
 
     def detach_project(self, on_progress=None, keep_sidecar: bool = False) -> dict:
-        """Final snapshot → archive .mindshard/ → register in vault → delete sidecar."""
-        from src.core.project.project_archiver import archive_sidecar, remove_sidecar
-        result = {"success": False, "error": None, "archive_path": "", "sidecar_retained": keep_sidecar}
-
-        if not self.config.sandbox_root:
-            result["error"] = "No project attached"
-            return result
-
-        # 1. Final VCS snapshot
-        snap_hash = None
-        if self.vcs.is_attached:
-            try:
-                snap_hash = self.vcs.snapshot("Final snapshot — MindshardAGENT detaching")
-            except Exception as e:
-                log.warning("Final snapshot failed: %s", e)
-
-        if on_progress:
-            on_progress("Archiving .mindshard/ ...")
-
-        # 2. Archive sidecar
-        archive_result = archive_sidecar(
-            self.config.sandbox_root,
-            self.vault.vault_dir,
-            final_snapshot_hash=snap_hash,
-        )
-        if not archive_result["success"]:
-            result["error"] = archive_result.get("error", "Archive failed")
-            return result
-
-        if on_progress:
-            on_progress("Registering in memory vault ...")
-
-        # 3. Register in vault
-        meta_data = {}
-        if self.project_meta:
-            meta_data = {
-                "project_root": self.config.sandbox_root,
-                "source_path": self.project_meta.source_path or "",
-                "profile": self.project_meta.profile,
-                "project_purpose": self.project_meta.get("project_purpose", ""),
-                "current_goal": self.project_meta.get("current_goal", ""),
-            }
-        self.vault.register(archive_result, meta_data)
-
-        if not keep_sidecar:
-            if on_progress:
-                on_progress("Removing .mindshard/ ...")
-
-            # 4. Remove sidecar
-            removed = remove_sidecar(self.config.sandbox_root)
-            if not removed:
-                result["error"] = "Archive saved but sidecar removal failed"
-                result["archive_path"] = archive_result["archive_path"]
-                return result
-
-        # 5. Clear runtime state
-        self.vcs = MindshardVCS()  # reset
-        self.project_meta = None
-        self.config.sandbox_root = ""
-
-        result["success"] = True
-        result["archive_path"] = archive_result["archive_path"]
-        result["project_name"] = archive_result["project_name"]
-        return result
+        """Delegate project detachment to project_lifecycle.detach()."""
+        from src.core.project.project_lifecycle import detach
+        return detach(self, on_progress=on_progress, keep_sidecar=keep_sidecar)
 
     def set_history(self, history: list[dict[str, str]]) -> None:
         self._chat_history = list(history)
+
+    def reload_discovered_tools(self) -> list[str]:
+        """Reload all non-builtin tools from the active sandbox and toolbox root."""
+        from pathlib import Path
+
+        sandbox_root = str(self.config.sandbox_root or "").strip()
+        toolbox_root = str(self.config.toolbox_root or "").strip()
+
+        self.tool_catalog.clear_discovered_tools()
+
+        if sandbox_root:
+            register_discovered_tools(
+                self.tool_catalog,
+                sandbox_root,
+                source="sandbox_local",
+            )
+
+        toolbox_names: list[str] = []
+        if toolbox_root:
+            if Path(toolbox_root).is_dir():
+                before = set(self.tool_catalog.discovered_tool_names())
+                register_discovered_tools(
+                    self.tool_catalog,
+                    toolbox_root,
+                    source="toolbox",
+                )
+                after = self.tool_catalog.discovered_tool_names()
+                toolbox_names = [name for name in after if name not in before]
+            else:
+                self.activity.warn("engine", f"Toolbox root not found: {toolbox_root}")
+
+        names = self.tool_catalog.discovered_tool_names()
+        if self._on_tools_reloaded:
+            self._on_tools_reloaded(len(names), names)
+        log.info(
+            "Reloaded discovered tools: %d sandbox, %d toolbox",
+            len(self.tool_catalog.sandbox_tool_names()),
+            len(toolbox_names),
+        )
+        return names

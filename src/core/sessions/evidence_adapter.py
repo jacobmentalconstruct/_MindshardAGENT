@@ -30,7 +30,7 @@ def _ensure_sdk():
     if _EvidencePackage is not None:
         return
 
-    sdk_root = Path(__file__).resolve().parents[3] / ".dev-tools" / "drop-bin" / "_manifold-mcp"
+    sdk_root = Path(__file__).resolve().parents[3] / ".dev-tools" / "_manifold-mcp"
     if not sdk_root.exists():
         raise ImportError(f"Manifold SDK not found at {sdk_root}")
 

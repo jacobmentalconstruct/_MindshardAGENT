@@ -36,7 +36,15 @@ def _blob_to_vec(blob: bytes) -> list[float]:
 
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Compute cosine similarity between two vectors."""
+    """Compute cosine similarity between two vectors.
+
+    Returns 0.0 immediately on dimension mismatch — this happens when the
+    embedding model changes mid-session and stored vectors have a different
+    dimensionality than the query vector.  Silently comparing via zip() would
+    truncate and produce a meaningless score; 0.0 correctly signals no match.
+    """
+    if len(a) != len(b):
+        return 0.0
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(x * x for x in b))
@@ -237,6 +245,20 @@ class KnowledgeStore:
         with self._connect() as conn:
             cur = conn.execute(
                 "DELETE FROM knowledge WHERE session_id = ?", (session_id,))
+            conn.commit()
+            return cur.rowcount
+
+    def delete_by_source(self, session_id: str, source: str) -> int:
+        """Delete all knowledge chunks for a session with a specific source label.
+
+        Used to invalidate stale derived summaries (e.g. source='evidence_bag')
+        before re-embedding updated content.  Returns count deleted.
+        """
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM knowledge WHERE session_id = ? AND source = ?",
+                (session_id, source),
+            )
             conn.commit()
             return cur.rowcount
 

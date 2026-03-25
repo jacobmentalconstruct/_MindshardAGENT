@@ -72,6 +72,8 @@ class ThoughtChain:
     def __init__(self, config: AppConfig, activity: ActivityStream):
         self._config = config
         self._activity = activity
+        self._stop_requested = False
+        self._worker_thread: threading.Thread | None = None
 
     def run(
         self,
@@ -91,6 +93,7 @@ class ThoughtChain:
             on_error: Called on failure
         """
         depth = max(2, min(depth, MAX_DEPTH))
+        self._stop_requested = False
 
         def _worker():
             try:
@@ -100,7 +103,16 @@ class ThoughtChain:
                 if on_error:
                     on_error(str(e))
 
-        threading.Thread(target=_worker, daemon=True, name="thought-chain").start()
+        thread = threading.Thread(target=_worker, daemon=True, name="thought-chain")
+        self._worker_thread = thread
+        thread.start()
+
+    def join(self, timeout: float = 3.0) -> None:
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=timeout)
+
+    def request_stop(self) -> None:
+        self._stop_requested = True
 
     def _run_sync(self, goal, depth, on_round, on_complete, on_error):
         model = resolve_model_for_role(self._config, PLANNER_ROLE)
@@ -111,8 +123,12 @@ class ThoughtChain:
 
         self._activity.info("ctc", f"Starting thought chain: {depth} rounds with planner {model}")
         rounds_output: list[str] = []
+        stopped = False
 
         for round_num in range(1, depth + 1):
+            if self._stop_requested:
+                stopped = True
+                break
             # Pick the right system prompt for this round
             if round_num == 1:
                 system = _SYSTEM_ROUND_1
@@ -148,12 +164,18 @@ class ThoughtChain:
                 base_url=self._config.ollama_base_url,
                 model=model,
                 messages=messages,
+                should_stop=lambda: self._stop_requested,
                 temperature=self._config.temperature,
                 num_ctx=self._config.max_context_tokens,
             )
 
             text = result.get("content", "")
             rounds_output.append(text)
+
+            if result.get("stopped"):
+                stopped = True
+                self._activity.info("ctc", f"Thought chain stopped during round {round_num}/{depth}")
+                break
 
             self._activity.info("ctc",
                 f"Round {round_num}/{depth} complete ({len(text)} chars)")
@@ -162,8 +184,8 @@ class ThoughtChain:
                 on_round(round_num, text)
 
         # Parse tasks from the final round
-        final_text = rounds_output[-1]
-        tasks = parse_task_list(final_text)
+        final_text = rounds_output[-1] if rounds_output else ""
+        tasks = parse_task_list(final_text) if final_text and not stopped else []
 
         self._activity.info("ctc",
             f"Thought chain complete: {len(tasks)} tasks extracted")
@@ -175,6 +197,8 @@ class ThoughtChain:
                 "tasks": tasks,
                 "final_text": final_text,
                 "depth": depth,
+                "stopped": stopped,
+                "completed_rounds": len(rounds_output),
             })
 
 

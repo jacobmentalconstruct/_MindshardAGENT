@@ -56,6 +56,7 @@ def load_prompt_sources(
     sandbox_root: str | Path | None = None,
     global_prompt_dir: str | Path | None = None,
     override_dir: str | Path | None = None,
+    skip_prefixes: tuple[str, ...] = (),
 ) -> PromptSourceResult:
     """Load global prompt docs and optional project override docs."""
 
@@ -63,9 +64,13 @@ def load_prompt_sources(
     global_dir = Path(global_prompt_dir).resolve() if global_prompt_dir else default_global_prompt_dir()
     overrides_dir = Path(override_dir).resolve() if override_dir else project_override_dir(sandbox_root)
 
-    global_sections = _load_sections_from_dir(global_dir, "global_doc", warn_if_missing=True, warnings=warnings)
+    global_sections = _load_sections_from_dir(
+        global_dir, "global_doc", warn_if_missing=True, warnings=warnings,
+        skip_prefixes=skip_prefixes,
+    )
     override_sections = _load_sections_from_dir(
-        overrides_dir, "project_override", warn_if_missing=False, warnings=warnings
+        overrides_dir, "project_override", warn_if_missing=False, warnings=warnings,
+        skip_prefixes=skip_prefixes,
     )
 
     global_names = {section.name for section in global_sections}
@@ -95,6 +100,7 @@ def _load_sections_from_dir(
     *,
     warn_if_missing: bool,
     warnings: list[str],
+    skip_prefixes: tuple[str, ...] = (),
 ) -> list[PromptSection]:
     if base_dir is None:
         return []
@@ -108,6 +114,8 @@ def _load_sections_from_dir(
 
     sections: list[PromptSection] = []
     for path in sorted(base_dir.glob("*.md"), key=lambda item: item.name.lower()):
+        if skip_prefixes and any(path.name.startswith(p) for p in skip_prefixes):
+            continue
         try:
             content = path.read_text(encoding="utf-8")
         except Exception as exc:  # pragma: no cover - exercised via warnings contract

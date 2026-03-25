@@ -138,6 +138,155 @@ class EvidencePackage:
     def corpus_path(self) -> Path:
         return corpus_bundle_path(self.store_root, self.corpus_id)
 
+    # ── Structural layer ─────────────────────────────────────────────────────
+
+    def inspect(self) -> dict[str, Any]:
+        """Return a structural tree + flat manifest of the bag contents.
+
+        The tree groups entries by document (each ingest_turn() = one document).
+        Use focus(node_id) to read the full content of any document or claim node.
+
+        Returns:
+          goal       — current active goal string
+          tree       — list of DocumentEntry dicts (one per ingested turn)
+          stats      — aggregate counts
+        """
+        corpus = self._load_corpus()
+        docs = {d["document_id"]: d for d in corpus.get("documents", [])}
+        nodes = corpus.get("nodes", [])
+        spans = corpus.get("evidence_spans", [])
+
+        # Span text lookup by id
+        span_text = {s["evidence_span_id"]: s["text"] for s in spans}
+
+        # Group claim nodes by document_id
+        claims_by_doc: dict[str, list[dict]] = {}
+        doc_nodes: dict[str, dict] = {}
+        for node in nodes:
+            if node["kind"] == "document":
+                doc_nodes[node["document_id"]] = node
+            elif node["kind"] == "claim":
+                claims_by_doc.setdefault(node["document_id"], []).append(node)
+
+        tree = []
+        for doc_id, doc in docs.items():
+            doc_node = doc_nodes.get(doc_id, {})
+            doc_claims = claims_by_doc.get(doc_id, [])
+            # Parse source_role from title (format: "source_role:source")
+            title_parts = doc.get("title", "").split(":", 1)
+            source_role = title_parts[0] if title_parts else "unknown"
+            source = title_parts[1] if len(title_parts) > 1 else ""
+            tree.append({
+                "node_id": doc_node.get("node_id", ""),
+                "document_id": doc_id,
+                "source_role": source_role,
+                "source": source,
+                "source_type": doc.get("source_type", ""),
+                "chars": doc.get("char_count", 0),
+                "claim_count": len(doc_claims),
+                "preview": doc_claims[0]["text"][:120].strip() if doc_claims else "",
+            })
+
+        total_claims = sum(1 for n in nodes if n["kind"] == "claim")
+        total_entities = sum(1 for n in nodes if n["kind"] == "entity")
+
+        return {
+            "goal": self.goal,
+            "tree": tree,
+            "stats": {
+                "document_count": len(docs),
+                "claim_count": total_claims,
+                "entity_count": total_entities,
+                "span_count": len(spans),
+                "total_chars": sum(d.get("char_count", 0) for d in docs.values()),
+            },
+        }
+
+    def focus(self, node_id: str) -> dict[str, Any]:
+        """Return the full content of a node and its immediate neighbors.
+
+        Supports document nodes (returns all claims in the document) and
+        claim nodes (returns the sentence + sibling claims in the same document).
+
+        Args:
+          node_id — node_id from inspect() tree output
+
+        Returns:
+          node      — the node record
+          content   — reconstructed readable text for this node
+          neighbors — list of related nodes (siblings, connected via hyperedges)
+        """
+        corpus = self._load_corpus()
+        nodes_by_id = {n["node_id"]: n for n in corpus.get("nodes", [])}
+        spans_by_id = {s["evidence_span_id"]: s for s in corpus.get("evidence_spans", [])}
+        hyperedges = corpus.get("hyperedges", [])
+
+        node = nodes_by_id.get(node_id)
+        if node is None:
+            return {
+                "node": None,
+                "content": "",
+                "neighbors": [],
+                "error": f"Node '{node_id}' not found in corpus",
+            }
+
+        # Gather text content for this node
+        if node["kind"] == "document":
+            # Return all claims in this document, in order
+            doc_id = node["document_id"]
+            claims = sorted(
+                [n for n in corpus["nodes"]
+                 if n["kind"] == "claim" and n["document_id"] == doc_id],
+                key=lambda n: n.get("sentence_index", 0),
+            )
+            content = " ".join(c["text"] for c in claims)
+            neighbor_ids = {c["node_id"] for c in claims}
+        elif node["kind"] == "claim":
+            # Return own text; find sibling claims in same document
+            content = node.get("text", "")
+            doc_id = node["document_id"]
+            neighbor_ids = {
+                n["node_id"] for n in corpus["nodes"]
+                if n["kind"] == "claim"
+                and n["document_id"] == doc_id
+                and n["node_id"] != node_id
+            }
+        else:
+            # Entity: gather all evidence spans this entity appears in
+            span_ids = set(node.get("evidence_span_ids", []))
+            content = " ".join(
+                spans_by_id[sid]["text"]
+                for sid in span_ids
+                if sid in spans_by_id
+            )
+            # Neighbors: other nodes that share any of the same spans
+            neighbor_ids = {
+                n["node_id"] for n in corpus["nodes"]
+                if n["node_id"] != node_id
+                and span_ids.intersection(n.get("evidence_span_ids", []))
+            }
+
+        neighbors = [
+            {
+                "node_id": nid,
+                "kind": nodes_by_id[nid]["kind"],
+                "label": nodes_by_id[nid].get("label", "")[:120],
+            }
+            for nid in list(neighbor_ids)[:12]
+            if nid in nodes_by_id
+        ]
+
+        return {
+            "node": {
+                "node_id": node["node_id"],
+                "kind": node["kind"],
+                "label": node.get("label", "")[:120],
+                "document_id": node.get("document_id", ""),
+            },
+            "content": content,
+            "neighbors": neighbors,
+        }
+
     def _effective_query(self, query: str) -> str:
         query_text = (query or "").strip()
         if self.goal:

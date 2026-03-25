@@ -22,6 +22,7 @@ class DirectChatLoop:
         self._config = config
         self._activity = activity
         self._stop_requested = False
+        self._worker_thread: threading.Thread | None = None
 
     def run(self, request: LoopRequest) -> None:
         def _worker():
@@ -33,7 +34,9 @@ class DirectChatLoop:
                 if request.on_error:
                     request.on_error(str(exc))
 
-        threading.Thread(target=_worker, daemon=True, name="direct-chat-loop").start()
+        thread = threading.Thread(target=_worker, daemon=True, name="direct-chat-loop")
+        self._worker_thread = thread
+        thread.start()
 
     def _run_sync(self, request: LoopRequest) -> None:
         model = resolve_model_for_role(self._config, PRIMARY_CHAT_ROLE)
@@ -77,3 +80,7 @@ class DirectChatLoop:
 
     def request_stop(self) -> None:
         self._stop_requested = True
+
+    def join(self, timeout: float = 3.0) -> None:
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=timeout)

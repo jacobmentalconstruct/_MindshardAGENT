@@ -43,3 +43,9 @@ class LoopManager:
         loop = self._loops.get(self._active_loop_id)
         if loop is not None:
             loop.request_stop()
+
+    def join_all(self, timeout: float = 3.0) -> None:
+        """Wait for all registered loop threads to finish (up to timeout each)."""
+        for loop in self._loops.values():
+            if hasattr(loop, "join"):
+                loop.join(timeout=timeout)

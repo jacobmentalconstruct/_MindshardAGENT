@@ -46,6 +46,7 @@ class SettingsDialog(tk.Toplevel):
         initial_planning_enabled: bool,
         initial_recovery_planning_enabled: bool,
         initial_probe_models: dict[str, str] | None = None,
+        initial_toolbox_root: str = "",
     ):
         super().__init__(parent)
         self.title("Settings")
@@ -62,6 +63,7 @@ class SettingsDialog(tk.Toplevel):
         self._gui_launch_policy = tk.StringVar(value=initial_gui_launch_policy or "ask")
         self._planning_enabled = tk.IntVar(value=1 if initial_planning_enabled else 0)
         self._recovery_planning_enabled = tk.IntVar(value=1 if initial_recovery_planning_enabled else 0)
+        self._toolbox_root_var = tk.StringVar(value=initial_toolbox_root or "")
         self._role_vars = {
             PRIMARY_CHAT_ROLE: tk.StringVar(value=initial_model_roles.get(PRIMARY_CHAT_ROLE, "")),
             PLANNER_ROLE: tk.StringVar(value=initial_model_roles.get(PLANNER_ROLE, "")),
@@ -379,6 +381,67 @@ class SettingsDialog(tk.Toplevel):
             wraplength=420,
         ).pack(fill="x", padx=10, pady=(0, 10))
 
+        toolbox_card = self._card(parent, "EXTERNAL TOOLBOX ROOT")
+        tk.Label(
+            toolbox_card,
+            text=(
+                "Optional path to an external tool library directory.\n"
+                "Python scripts in this folder with valid metadata headers are loaded\n"
+                "as agent tools alongside sandbox-local tools."
+            ),
+            font=T.FONT_SMALL,
+            fg=T.TEXT_DIM,
+            bg=T.BG_MID,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        ).pack(fill="x", padx=10, pady=(0, 6))
+
+        tb_row = tk.Frame(toolbox_card, bg=T.BG_MID)
+        tb_row.pack(fill="x", padx=10, pady=(0, 4))
+
+        tb_entry = tk.Entry(
+            tb_row,
+            textvariable=self._toolbox_root_var,
+            font=T.FONT_SMALL,
+            fg=T.TEXT_INPUT,
+            bg=T.BG_LIGHT,
+            insertbackground=T.CYAN,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=T.BORDER,
+            highlightcolor=T.BORDER_GLOW,
+            width=40,
+        )
+        tb_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        def _pick_toolbox():
+            from tkinter import filedialog as _fd
+            path = _fd.askdirectory(
+                title="Select External Toolbox Root",
+                initialdir=self._toolbox_root_var.get() or ".",
+                parent=self,
+            )
+            if path:
+                self._toolbox_root_var.set(path)
+
+        tk.Button(
+            tb_row,
+            text="Browse",
+            font=T.FONT_SMALL,
+            fg=T.CYAN,
+            bg=T.BG_LIGHT,
+            activebackground=T.BG_SURFACE,
+            activeforeground=T.CYAN,
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=3,
+            cursor="hand2",
+            command=_pick_toolbox,
+        ).pack(side="left")
+
     def _build_gui_tab(self, parent) -> None:
         card = self._card(parent, "LOCAL WINDOW LAUNCHES")
         tk.Label(
@@ -472,6 +535,7 @@ class SettingsDialog(tk.Toplevel):
             "planning_enabled": bool(self._planning_enabled.get()),
             "recovery_planning_enabled": bool(self._recovery_planning_enabled.get()),
             "probe_models": probe_models,
+            "toolbox_root": self._toolbox_root_var.get().strip(),
         }
         self.destroy()
 

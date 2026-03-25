@@ -1,0 +1,40 @@
+{
+  "db_manifest_version": "1.0",
+  "schema_version": "1.0.0",
+  "sqlite_user_version": 1,
+  "package_name": "app-journal",
+  "package_manifest_version": "1.0",
+  "package_status": "active",
+  "package_description": "Standalone SQLite-backed journal package with Tkinter UI and MCP tools for project notes.",
+  "db_schema": {
+    "table_names": [
+      "journal_meta",
+      "journal_migrations",
+      "journal_entries"
+    ],
+    "entry_primary_id": "entry_uid",
+    "metadata_store": "journal_meta",
+    "migration_store": "journal_migrations",
+    "schema_version": "1.0.0"
+  },
+  "project_convention": {
+    "project_root": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT",
+    "db_path": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT\\_docs\\_journalDB\\app_journal.sqlite3",
+    "app_dir": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT\\_docs\\_AppJOURNAL",
+    "exports_dir": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT\\_docs\\_AppJOURNAL\\exports"
+  },
+  "agent_entrypoints": {
+    "mcp": "mcp_server.py",
+    "cli_tools": [
+      "tools/journal_init.py",
+      "tools/journal_write.py",
+      "tools/journal_query.py",
+      "tools/journal_export.py",
+      "tools/journal_manifest.py"
+    ]
+  },
+  "notes": [
+    "The database is intended to be self-describing enough for an agent to inspect and use it directly.",
+    "The package manifest on disk remains the source of truth for the vendored tool folder."
+  ]
+}

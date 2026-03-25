@@ -23,12 +23,13 @@ def do_docker_probe(s: AppState) -> None:
             info = s.engine.docker_manager.get_info()
             if not s.app_closing["value"]:
                 def _apply():
-                    s.window.control_pane.docker_panel.set_status(
-                        info["status"],
-                        docker_available=info["docker_available"],
-                        image_exists=info["image_exists"],
-                    )
-                    s.window.control_pane.docker_panel.set_enabled(s.config.docker_enabled)
+                    if s.ui_facade:
+                        s.ui_facade.set_docker_status(
+                            info["status"],
+                            docker_available=info["docker_available"],
+                            image_exists=info["image_exists"],
+                        )
+                        s.ui_facade.set_docker_enabled(s.config.docker_enabled)
                 s.root.after(0, _apply)
         except Exception:
             pass

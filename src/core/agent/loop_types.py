@@ -11,6 +11,7 @@ TOOL_AGENT_LOOP = "tool_agent"
 PLANNER_ONLY_LOOP = "planner_only"
 THOUGHT_CHAIN_LOOP = "thought_chain"
 RECOVERY_AGENT_LOOP = "recovery_agent"
+REVIEW_JUDGE_LOOP = "review_judge"
 
 
 @dataclass(frozen=True)

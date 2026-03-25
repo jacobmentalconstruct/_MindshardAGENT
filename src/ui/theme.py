@@ -1,7 +1,12 @@
-"""Cyberpunk UI theme constants.
+"""Cyberpunk UI theme constants and DPI scaling utilities.
 
 Dark base with neon accent colors. All UI components pull colors
 and fonts from here for consistency.
+
+DPI scaling:
+  Call apply_dpi_scale(dpi_scale) once after enable_dpi_awareness() returns.
+  All FONT_* tuples are then replaced with DPI-adjusted versions.
+  Widgets created after that call automatically pick up scaled fonts.
 """
 
 # ── Base palette ──────────────────────────────────────────────
@@ -59,6 +64,7 @@ FONT_BUTTON   = (FONT_FAMILY, FONT_SIZE_MD, "bold")
 
 
 # ── DPI scaling ──────────────────────────────────────────────
+
 def enable_dpi_awareness(root) -> float:
     """Enable Windows DPI awareness and return the scaling factor.
 
@@ -89,3 +95,40 @@ def enable_dpi_awareness(root) -> float:
     except Exception:
         scale = 1.0
     return scale
+
+
+def apply_dpi_scale(dpi_scale: float) -> None:
+    """Scale all FONT_* globals to match the display DPI.
+
+    Call once after enable_dpi_awareness() returns, before building any widgets.
+    Adjusts font sizes by the DPI scale factor so text is legible at all
+    common DPI settings (96, 120, 144, 192).
+
+    At 1.0 (96 DPI) fonts are unchanged.
+    At 1.25 (120 DPI / 125%) sizes scale up by 25%.
+    At 1.5 (144 DPI / 150%) sizes scale up by 50%.
+    """
+    if dpi_scale <= 1.0:
+        return  # no adjustment needed at standard DPI
+
+    # Compute scaled sizes (always ≥ minimum for readability)
+    def _scale(base_size: int, minimum: int = 8) -> int:
+        return max(minimum, round(base_size * dpi_scale))
+
+    global FONT_SIZE_SM, FONT_SIZE_MD, FONT_SIZE_LG, FONT_SIZE_XL, FONT_SIZE_TITLE
+    global FONT_BODY, FONT_SMALL, FONT_HEADING, FONT_TITLE
+    global FONT_INPUT, FONT_LOG, FONT_BUTTON
+
+    FONT_SIZE_SM    = _scale(9,  minimum=8)
+    FONT_SIZE_MD    = _scale(10, minimum=9)
+    FONT_SIZE_LG    = _scale(12, minimum=10)
+    FONT_SIZE_XL    = _scale(14, minimum=11)
+    FONT_SIZE_TITLE = _scale(16, minimum=13)
+
+    FONT_BODY    = (FONT_FAMILY, FONT_SIZE_MD)
+    FONT_SMALL   = (FONT_FAMILY, FONT_SIZE_SM)
+    FONT_HEADING = (FONT_FAMILY, FONT_SIZE_LG, "bold")
+    FONT_TITLE   = (FONT_FAMILY, FONT_SIZE_TITLE, "bold")
+    FONT_INPUT   = (FONT_FAMILY, FONT_SIZE_MD)
+    FONT_LOG     = (FONT_FAMILY, FONT_SIZE_SM)
+    FONT_BUTTON  = (FONT_FAMILY, FONT_SIZE_MD, "bold")

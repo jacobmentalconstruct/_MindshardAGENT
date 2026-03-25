@@ -16,12 +16,15 @@ class ThoughtChainLoop:
         self._config = config
         self._activity = activity
         self._depth = depth
+        self._chain: ThoughtChain | None = None
 
     def run(self, request: LoopRequest) -> None:
         chain = ThoughtChain(self._config, self._activity)
+        self._chain = chain
 
         def _on_complete(result: dict) -> None:
             tasks = result.get("tasks", [])
+            stopped = bool(result.get("stopped"))
             if tasks:
                 lines = [
                     f"{task['number']}. {'[' + task['complexity'] + '] ' if task.get('complexity') else ''}{task['text']}"
@@ -30,8 +33,13 @@ class ThoughtChainLoop:
                 content = "Task list:\n" + "\n".join(lines)
             else:
                 content = result.get("final_text", "")
+            if stopped:
+                completed = int(result.get("completed_rounds", 0) or 0)
+                stop_note = f"[Stopped by user request after {completed} round(s).]"
+                content = f"{content}\n\n{stop_note}".strip() if content else stop_note
 
             if request.on_complete:
+                completed_rounds = int(result.get("completed_rounds", 0) or 0)
                 request.on_complete({
                     "content": content,
                     "metadata": {
@@ -39,10 +47,11 @@ class ThoughtChainLoop:
                         "tokens_in": "?",
                         "tokens_out": "?",
                         "time": "?",
-                        "rounds": result.get("depth", self._depth),
+                        "rounds": completed_rounds or result.get("depth", self._depth),
                         "loop_mode": self.loop_id,
-                        "thought_chain_rounds": result.get("depth", self._depth),
+                        "thought_chain_rounds": completed_rounds or result.get("depth", self._depth),
                         "task_count": len(tasks),
+                        "stopped": stopped,
                     },
                     "history_addition": [
                         {"role": "user", "content": request.user_text},
@@ -58,4 +67,9 @@ class ThoughtChainLoop:
         )
 
     def request_stop(self) -> None:
-        return
+        if self._chain is not None:
+            self._chain.request_stop()
+
+    def join(self, timeout: float = 3.0) -> None:
+        if self._chain is not None:
+            self._chain.join(timeout=timeout)

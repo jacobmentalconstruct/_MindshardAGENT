@@ -1344,3 +1344,103 @@ Config fields ready: `multipass_enabled`, `multipass_strategy` ("iterative" vs "
 Budget report's `would_benefit_from_multipass` flag will drive the decision when enabled.
 The iterative strategy builds response incrementally across sub-prompts; synthesize
 merges parallel sub-responses. Both record which strategy was used for comparison data.
+
+---
+
+## 2026-03-25T14:42 — STAB-001: Core Stabilization, UI Bridge, Live Verification
+
+### Summary
+Focused on core stabilization before returning to builder-contract alignment.
+This pass closed the active runtime defects from the bug/frailty sweep, restored
+trustworthy automated tests, and made the visible Tk app directly drivable for
+live end-to-end verification.
+
+### Core Runtime Fixes Landed
+- Windows sandbox/local tool execution no longer relies on fragile shell quoting
+- assistant persistence no longer fails silently on stream finalization
+- session store access is serialized with an `RLock`
+- shutdown now drains worker loops before DB close, including standalone and
+  loop-managed thought-chain paths
+- VCS init/detach race was closed by tracking the async init thread and waiting
+  before snapshot/archive
+- discovered toolbox tools now preserve their real script path/source and reload
+  correctly across sandbox switches
+- planner/thought-chain stop handling now propagates honestly instead of only
+  changing UI state
+
+### UI Control Bridge Added
+Built a localhost-only in-process control bridge for the running Tk app:
+- `src/app_ui_bridge.py` — local HTTP bridge
+- `src/mcp/ui_bridge_server.py` + `mcp_ui_bridge_server.py` — MCP proxy
+- `src/ui/ui_facade.py` — expanded with visible-control intent methods
+
+Supported visible actions now include:
+- attach project
+- start new session
+- set input text / submit
+- set loop mode
+- click faux buttons / run Plan
+- request stop
+- reload tools / prompt docs
+- query live UI state
+
+### Live Verification
+Visible testing was run against:
+- `C:\Users\jacob\Documents\_UsefulHelperAPPS\_MindshardBridgeLab`
+
+Confirmed live behaviors:
+- bridge can control the visible app window
+- model label/startup sync repaired
+- direct-chat path succeeded (`BRIDGE_OK`)
+- planner-only stop path succeeded and recorded `[Stopped by user request.]`
+- thought-chain/Plan path completes visibly through all rounds and posts a final
+  task list
+
+### Bridge-State Hardening
+A real visibility bug showed up during Plan testing: the bridge treated the app
+as idle immediately because it only watched `ui_state.is_streaming`.
+
+Fixes:
+- added shared busy-operation tracking in `UIState` / `AppState`
+- `thought_chain_command_handler` now marks Plan runs busy and clears busy on
+  completion/error
+- `app_streaming` now tracks busy mode for direct-chat / planner-only /
+  thought-chain submit paths
+- Escape/request-stop now marks the app as stopping instead of lying about
+  immediate idle
+- bridge state now exposes `is_busy`, `busy_kind`, and `stop_requested`
+- `wait_until_idle` now waits on busy state, not streaming-only state
+
+### Test Results
+- `python -m pytest -q` -> 40 passed
+- `python -m tests.test_tool_roundtrip` -> 92 passed
+- regression coverage added for toolbox execution/source retention, stop
+  behavior, and bridge idle detection
+
+### New Hardening TODOs From Live Testing
+1. Plan/thought-chain domain anchoring
+   The planner interpreted "bridge lab workspace" as a physical/civil-engineering
+   scenario because the thought-chain prompt is generic and not grounded in the
+   attached software project.
+2. Plan performance guardrails for 4B models
+   Current live run showed very slow round timings: round 1 ~88.8s, round 2
+   ~177.1s, round 3 still in progress when logged. Needs per-round timeout,
+   first-token latency logging, heartbeat/progress telemetry, and output caps.
+3. Bridge sequencing discipline
+   Dependent UI bridge actions like attach-project then new-session must be sent
+   sequentially, not in parallel.
+
+### Status
+Core runtime stability is materially better, automated tests are green, and the
+app is visibly testable again. Immediate next work should stay in stabilization:
+finish live-testing hardening (prompt anchoring + planner performance
+guardrails), then continue through the remaining bug/frailty list before
+resuming builder-contract alignment.
+
+### Late-Session Note
+A later live `Plan` run on `qwen3.5:4b` accepted a real stop request but did not
+return to `Ready`; the window remained stuck in `Stop requested`. The app was
+hard-closed after preserving records. Session cleanup afterward kept only the
+two meaningful saved sessions:
+- `Bridge UI Smoke — BRIDGE_OK round-trip`
+- `Bridge UI Smoke — Planner stop verification`

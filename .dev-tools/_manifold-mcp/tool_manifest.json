@@ -60,6 +60,18 @@
       "script": "tools/manifold_extract.py",
       "mcp_name": "manifold_extract",
       "category": "extract"
+    },
+    {
+      "tool_name": "bag_inspect",
+      "script": "tools/bag_inspect.py",
+      "mcp_name": "bag_inspect",
+      "category": "inspect"
+    },
+    {
+      "tool_name": "bag_navigate",
+      "script": "tools/bag_navigate.py",
+      "mcp_name": "bag_navigate",
+      "category": "inspect"
     }
   ]
 }

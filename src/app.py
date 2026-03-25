@@ -10,16 +10,17 @@ Responsibilities:
 
 This file was decomposed from a 66KB monolith into:
   app_state.py      — shared mutable state (AppState)
+  app_safety.py     — safety gate callbacks (destructive + GUI launch confirm)
   app_session.py    — session management callbacks
   app_prompt.py     — prompt inspection and versioning
   app_docker.py     — Docker management callbacks
   app_streaming.py  — chat submission and streaming
   app_commands.py   — action-button / settings / model callbacks
   app_polling.py    — startup bootstrap and periodic polling
+  src/ui/ui_facade.py — intent-level bridge between app.py and UI widget tree
 """
 
 import sys
-import threading
 import tkinter as tk
 from pathlib import Path
 
@@ -41,7 +42,9 @@ from src.core.sessions.knowledge_store import KnowledgeStore
 from src.core.registry.state_registry import StateRegistry
 from src.ui.ui_state import UIState
 from src.ui.gui_main import MainWindow
+from src.ui.ui_facade import UIFacade
 from src.app_state import AppState
+from src.app_safety import build_confirm_destructive, build_confirm_gui_launch
 
 # Extracted modules
 from src.app_session import (
@@ -49,6 +52,7 @@ from src.app_session import (
     on_session_rename, on_session_delete, on_session_branch,
     on_session_policy, save_current_session,
 )
+from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.app_prompt import (
     on_prompt_source_saved, refresh_prompt_inspector,
 )
@@ -56,6 +60,7 @@ from src.app_docker import (
     on_docker_toggle, on_docker_build, on_docker_start,
     on_docker_stop, on_docker_destroy,
 )
+from src.app_ui_bridge import UIControlBridgeServer
 from src.app_streaming import on_submit
 from src.app_commands import (
     on_model_select, on_model_refresh, on_cli_command,
@@ -65,6 +70,23 @@ from src.app_commands import (
     on_edit_prompt_overrides, handle_faux_click,
 )
 from src.app_polling import schedule_startup_timers
+
+
+def _refresh_evidence_bag(s) -> None:
+    """Fetch current evidence bag state and push it to the UI explorer tab."""
+    if not s.ui_facade:
+        return
+    bag = getattr(s.engine, "evidence_bag", None)
+    if bag is None:
+        s.safe_ui(lambda: s.ui_facade.set_evidence_bag_display("(evidence bag not enabled)", enabled=False))
+        return
+    try:
+        content = bag.build_summary("", token_budget=800) or "(bag is empty — no falloff turns yet)"
+        enabled = True
+    except Exception as exc:
+        content = f"(error fetching bag contents: {exc})"
+        enabled = False
+    s.safe_ui(lambda: s.ui_facade.set_evidence_bag_display(content, enabled=enabled))
 
 
 def main() -> None:
@@ -85,87 +107,44 @@ def main() -> None:
     ui_state = UIState()
     registry = StateRegistry()
 
-    # ── Tkinter root (early — needed for confirm dialog) ─
+    # ── Tkinter root ──────────────────────────────────
     root = tk.Tk()
 
     # ── DPI awareness ─────────────────────────────────
-    from src.ui.theme import enable_dpi_awareness
+    from src.ui.theme import apply_dpi_scale, enable_dpi_awareness
     dpi_scale = enable_dpi_awareness(root)
+    apply_dpi_scale(dpi_scale)
     log.info("DPI scale: %.2f", dpi_scale)
 
-    # ── Destructive command confirmation ─────────────
-    # These live here because they need root for dialog + threading.Event for sync
-    _confirm_result = {"value": False, "event": threading.Event()}
+    # ── Safety callbacks (built before Engine; s is bound lazily via _s_ref) ─
+    _s_ref: dict = {"s": None}
 
-    def _confirm_destructive(command: str) -> bool:
-        """Ask user to confirm destructive commands. Thread-safe via root.after."""
-        _confirm_result["event"].clear()
-        _confirm_result["value"] = False
-
-        def _ask():
-            from tkinter import messagebox
-            result = messagebox.askyesno(
-                "Destructive Command",
-                f"The agent wants to run a destructive command:\n\n"
-                f"  {command}\n\n"
-                f"Allow this?",
-            )
-            _confirm_result["value"] = result
-            _confirm_result["event"].set()
-
-        s.safe_ui(_ask)
-        _confirm_result["event"].wait(timeout=60)
-        return _confirm_result["value"]
-
-    _gui_confirm_result = {"value": "deny", "event": threading.Event()}
-
-    def _confirm_gui_launch(command: str, match) -> str:
-        """Ask user whether an agent-triggered GUI launch should be allowed."""
-        _gui_confirm_result["event"].clear()
-        _gui_confirm_result["value"] = "deny"
-
-        def _ask():
-            from src.ui.dialogs.gui_launch_dialog import GuiLaunchDialog
-
-            reason_map = {
-                "python_tkinter_module": "The agent is trying to launch Tkinter directly via the Python module.",
-                "python_script_tkinter": "The target script appears to import or construct Tkinter widgets.",
-                "direct_python_script_tkinter": "The target script appears to import or construct Tkinter widgets.",
-            }
-            dialog = GuiLaunchDialog(
-                root,
-                command=command,
-                target_path=getattr(match, "target_path", ""),
-                reason=reason_map.get(getattr(match, "reason", ""), "This looks like a local GUI or Tkinter launch."),
-            )
-            decision = dialog.result or "deny"
-            if decision == "always_allow":
-                config.gui_launch_policy = "allow"
-                config.save(PROJECT_ROOT)
-                activity.info("settings", "GUI launch policy changed to allow")
-                try:
-                    s.window.set_status("GUI policy updated — local windows now allowed")
-                except Exception:
-                    pass
-            elif decision == "allow_once":
-                activity.info("safety", f"GUI launch approved once: {command}")
-            else:
-                activity.warn("safety", f"GUI launch denied: {command}")
-            _gui_confirm_result["value"] = decision
-            _gui_confirm_result["event"].set()
-
-        s.safe_ui(_ask)
-        _gui_confirm_result["event"].wait(timeout=120)
-        return _gui_confirm_result["value"]
+    on_confirm_destructive = build_confirm_destructive(
+        get_safe_ui=lambda: _s_ref["s"].safe_ui,
+        root=root,
+    )
+    on_confirm_gui_launch = build_confirm_gui_launch(
+        get_safe_ui=lambda: _s_ref["s"].safe_ui,
+        root=root,
+        config=config,
+        activity=activity,
+        project_root=PROJECT_ROOT,
+        get_window=lambda: getattr(_s_ref["s"], "window", None),
+    )
 
     # ── Engine ────────────────────────────────────────
     def _on_tools_reloaded(count: int, names: list):
-        s.safe_ui(lambda: s.window.control_pane.set_tool_count(count, names))
+        if _s_ref["s"] and _s_ref["s"].ui_facade:
+            _s_ref["s"].safe_ui(lambda: _s_ref["s"].ui_facade.set_tool_count(count, names))
 
-    engine = Engine(config=config, activity=activity, bus=bus,
-                    on_confirm_destructive=_confirm_destructive,
-                    on_tools_reloaded=_on_tools_reloaded,
-                    on_confirm_gui_launch=_confirm_gui_launch)
+    engine = Engine(
+        config=config,
+        activity=activity,
+        bus=bus,
+        on_confirm_destructive=on_confirm_destructive,
+        on_tools_reloaded=_on_tools_reloaded,
+        on_confirm_gui_launch=on_confirm_gui_launch,
+    )
 
     # ── Default sandbox ───────────────────────────────
     default_sandbox = PROJECT_ROOT / "_sandbox"
@@ -194,6 +173,7 @@ def main() -> None:
         session_store=session_store,
         knowledge_store=knowledge_store,
     )
+    _s_ref["s"] = s  # bind s so safety callbacks can resolve s.safe_ui
 
     engine.set_knowledge_store(
         knowledge_store,
@@ -221,6 +201,18 @@ def main() -> None:
             s.stream_flush_id["id"] = None
         log.info("Application closing")
         engine.request_stop()
+        # Wait up to 3s for every registered loop thread to drain before closing
+        # shared resources (DB, UI).  Covers tool-agent, direct-chat, planner-only,
+        # thought-chain (via loop_manager), and any future loop types.
+        if hasattr(engine, "loop_manager") and engine.loop_manager:
+            engine.loop_manager.join_all(timeout=3.0)
+        # Also drain any standalone thought chain spawned via the Plan button
+        # (bypasses loop_manager, goes through engine.run_thought_chain directly).
+        ctc = getattr(engine, "_active_thought_chain", None)
+        if ctc is not None:
+            ctc.join(timeout=3.0)
+        if s.ui_bridge is not None:
+            s.ui_bridge.stop()
         save_current_session(s)
         config.save(PROJECT_ROOT)
         s.session_store.close()
@@ -250,7 +242,8 @@ def main() -> None:
         on_docker_start=lambda: on_docker_start(s),
         on_docker_stop=lambda: on_docker_stop(s),
         on_docker_destroy=lambda: on_docker_destroy(s),
-        on_vcs_snapshot=lambda: window.control_pane.vcs_panel.refresh(),
+        on_vcs_snapshot=lambda: s.ui_facade.refresh_vcs() if s.ui_facade else None,
+        on_bag_refresh=lambda: _refresh_evidence_bag(s),
         on_reload_tools=lambda: on_reload_tools(s),
         on_reload_prompt_docs=lambda: on_reload_prompt_docs(s),
         on_prompt_source_saved=lambda path: on_prompt_source_saved(s, path),
@@ -261,17 +254,60 @@ def main() -> None:
     )
     s.window = window
 
+    # ── Wire UI facade ────────────────────────────────
+    ui_facade = UIFacade(window)
+    s.ui_facade = ui_facade
+
+    # ── Optional local UI control bridge ─────────────
+    if config.ui_bridge_enabled:
+        ui_bridge = UIControlBridgeServer(
+            s,
+            host=config.ui_bridge_host,
+            port=config.ui_bridge_port,
+        )
+        ui_bridge.start()
+        s.ui_bridge = ui_bridge
+        activity.info("ui_bridge", f"UI bridge ready at {ui_bridge.url}")
+
     # ── Wire VCS panel to engine ──────────────────────
-    window.control_pane.vcs_panel.set_vcs(engine.vcs)
+    ui_facade.wire_vcs(engine.vcs)
+
+    # ── Wire right-click context menus (highlight → ask) ─────────
+
+    def _on_ask_selection(text: str) -> None:
+        """Pre-fill the input with the selected text as a question."""
+        try:
+            ui_facade.set_input_text(f"Regarding this:\n\n{text}\n\n")
+            ui_facade.focus_input()
+        except Exception:
+            pass
+
+    def _on_inject_selection(text: str) -> None:
+        """Append the selected text as context into the current chat input."""
+        try:
+            existing = ui_facade.get_input_text()
+            injected = f"{existing}\n\n[Context]\n{text}" if existing.strip() else f"[Context]\n{text}"
+            ui_facade.set_input_text(injected)
+            ui_facade.focus_input()
+        except Exception:
+            pass
+
+    ui_facade.attach_context_menus(
+        on_ask=_on_ask_selection, on_inject=_on_inject_selection
+    )
 
     # ── Seed initial project name + tool count ────────
     if config.sandbox_root:
         initial_name = engine.project_meta.display_name if engine.project_meta else Path(config.sandbox_root).name
         initial_source = engine.project_meta.source_path if engine.project_meta else ""
+        initial_model = resolve_model_for_role(config, PRIMARY_CHAT_ROLE) or "(none)"
         window.set_project_name(initial_name)
         window.set_project_paths(initial_source or "", config.sandbox_root)
-        initial_tools = engine.tool_catalog.sandbox_tool_names()
-        window.control_pane.set_tool_count(len(initial_tools), initial_tools)
+        window.set_model(initial_model)
+        ui_state.selected_model = initial_model if initial_model != "(none)" else ""
+        engine.tokenizer.set_model(ui_state.selected_model)
+        initial_tools = engine.tool_catalog.discovered_tool_names()
+        ui_facade.set_tool_count(len(initial_tools), initial_tools)
 
     # ── Apply window geometry ─────────────────────────
     root.geometry(f"{config.window_width}x{config.window_height}")
@@ -283,22 +319,17 @@ def main() -> None:
     log_model_roles(s)
     window.set_status("Starting up...")
     ui_state.sandbox_root = config.sandbox_root
-    window.control_pane.input_pane.set_enabled(False)
+    ui_facade.set_input_enabled(False)
 
     # ── Register startup and polling timers ───────────
     schedule_startup_timers(s)
 
-    # ── Global keyboard shortcuts ────────────────────
+    # ── Global keyboard shortcuts ─────────────────────
     def _on_escape(event=None):
-        if ui_state.is_streaming:
+        if ui_state.is_busy:
             engine.request_stop()
-            ui_state.is_streaming = False
-            if s.stream_flush_id["id"] is not None:
-                root.after_cancel(s.stream_flush_id["id"])
-                s.stream_flush_id["id"] = None
-            window.control_pane.input_pane.set_enabled(True)
-            window.set_status("Stopped")
-            activity.info("ui", "Streaming stopped via Escape")
+            s.mark_stop_requested(status_text="Stopping...")
+            activity.info("ui", f"Stop requested via Escape ({ui_state.busy_kind or 'busy'})")
         return "break"
 
     def _on_ctrl_n(event=None):
@@ -306,17 +337,41 @@ def main() -> None:
         return "break"
 
     def _on_ctrl_l(event=None):
-        window.chat_pane.clear()
+        ui_facade.clear_chat()
         engine.clear_history()
         activity.info("ui", "Chat cleared via Ctrl+L")
         return "break"
 
     def _on_ctrl_tab(event=None):
-        window.control_pane.cycle_workspace_tabs()
+        ui_facade.cycle_workspace_tabs()
         return "break"
 
     def _on_ctrl_comma(event=None):
         on_open_settings(s)
+        return "break"
+
+    def _on_ctrl_s(event=None):
+        """Save the active session."""
+        from src.app_session import schedule_autosave
+        schedule_autosave(s)
+        window.set_status("Session saved")
+        activity.info("ui", "Session saved via Ctrl+S")
+        return "break"
+
+    def _on_ctrl_shift_n(event=None):
+        """Branch the active session."""
+        from src.app_session import on_session_branch
+        sid = s.active_session.get("sid", "")
+        if sid:
+            on_session_branch(s, sid)
+        return "break"
+
+    def _on_f5(event=None):
+        """Reload tools and prompt docs."""
+        from src.app_commands import on_reload_tools, on_reload_prompt_docs
+        on_reload_tools(s)
+        on_reload_prompt_docs(s)
+        activity.info("ui", "Tools and prompt docs reloaded via F5")
         return "break"
 
     root.bind("<Escape>", _on_escape)
@@ -326,6 +381,11 @@ def main() -> None:
     root.bind("<Control-L>", _on_ctrl_l)
     root.bind("<Control-Tab>", _on_ctrl_tab)
     root.bind("<Control-comma>", _on_ctrl_comma)
+    root.bind("<Control-s>", _on_ctrl_s)
+    root.bind("<Control-S>", _on_ctrl_s)
+    root.bind("<Control-Shift-n>", _on_ctrl_shift_n)
+    root.bind("<Control-Shift-N>", _on_ctrl_shift_n)
+    root.bind("<F5>", _on_f5)
 
     # ── Main loop ─────────────────────────────────────
     log.info("Entering main loop")

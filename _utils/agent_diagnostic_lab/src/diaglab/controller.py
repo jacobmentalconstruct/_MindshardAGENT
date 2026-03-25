@@ -32,6 +32,7 @@ class DiagnosticController:
             run_benchmark_suite=self.run_benchmark_suite,
             restore_prompt_version=self.restore_prompt_version,
             compare_benchmark_runs=self.compare_benchmark_runs,
+            diff_prompt_versions=self.diff_prompt_versions,
             stop_active_probe=self.stop_active_probe,
             export_last_result=self.export_last_result,
         )
@@ -109,6 +110,19 @@ class DiagnosticController:
             lambda: self.service.compare_benchmark_runs(left_run_id, right_run_id),
         )
 
+    def diff_prompt_versions(self) -> None:
+        history_inputs = self.view.get_history_inputs()
+        left_id = history_inputs["diff_left_version_id"]
+        right_id = history_inputs["diff_right_version_id"]
+        if left_id <= 0 or right_id <= 0:
+            self.view.set_status("Enter two prompt version IDs to diff")
+            return
+        self.view.set_busy(True, f"Diffing prompt versions {left_id} and {right_id}...")
+        self._run_async(
+            "history_diff",
+            lambda: self.service.diff_prompt_versions(left_id, right_id),
+        )
+
     def stop_active_probe(self) -> None:
         stopped = self.service.stop_active_probe()
         self.view.set_status("Stop requested" if stopped else "No active probe to stop")
@@ -167,6 +181,9 @@ class DiagnosticController:
             elif kind == "history_compare":
                 self.view.set_busy(False, "Benchmark comparison ready")
                 self.view.show_history_message(self._format_history_comparison(payload))
+            elif kind == "history_diff":
+                self.view.set_busy(False, f"Diff: v{payload['left_version_id']} → v{payload['right_version_id']}")
+                self.view.show_history_message(self._format_version_diff(payload))
             elif kind == "export":
                 self.view.set_status(f"Report exported to {payload}")
             elif kind == "error":
@@ -194,6 +211,19 @@ class DiagnosticController:
             lines.extend(f"- {path}" for path in restored_files)
         else:
             lines.append("- (no files restored)")
+        return "\n".join(lines)
+
+    def _format_version_diff(self, payload: dict[str, object]) -> str:
+        lines = [
+            f"Prompt Version Diff: v{payload.get('left_version_id')} → v{payload.get('right_version_id')}",
+            "",
+            f"Left:  [{str(payload.get('left_commit', ''))[:12]}] {payload.get('left_reason', '')}  {payload.get('left_created_at', '')}",
+            f"Right: [{str(payload.get('right_commit', ''))[:12]}] {payload.get('right_reason', '')}  {payload.get('right_created_at', '')}",
+            "",
+            "─" * 80,
+            "",
+            str(payload.get("diff_text", "(no diff)")),
+        ]
         return "\n".join(lines)
 
     def _format_history_comparison(self, payload: dict[str, object]) -> str:

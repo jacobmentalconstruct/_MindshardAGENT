@@ -8,12 +8,31 @@ Lifecycle:
   5. Delete .mindshard/ from working copy
 """
 from __future__ import annotations
+import os
 import shutil
+import stat
 import zipfile
 from pathlib import Path
 from typing import Optional
 from src.core.utils.clock import utc_iso
 from src.core.runtime.runtime_logger import get_logger
+
+
+def _force_rmtree(path: Path) -> None:
+    """Remove a directory tree, clearing read-only flags on any files that resist.
+
+    On Windows, git object files (.git/objects/**) are marked read-only. Plain
+    shutil.rmtree raises PermissionError on those files.  The onerror handler
+    strips the write-protect bit and retries — this is the standard Windows fix.
+    """
+    def _onerror(func, fpath, _excinfo):
+        try:
+            os.chmod(fpath, stat.S_IWRITE)
+            func(fpath)
+        except Exception:
+            pass  # best-effort; outer rmtree will surface the real failure
+
+    shutil.rmtree(path, onerror=_onerror)
 
 log = get_logger("project_archiver")
 
@@ -95,7 +114,7 @@ def remove_sidecar(project_root: str | Path) -> bool:
     if not sidecar.exists():
         return True
     try:
-        shutil.rmtree(sidecar)
+        _force_rmtree(sidecar)
         log.info("Sidecar removed from %s", project_root)
         return True
     except Exception as e:

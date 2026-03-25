@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from typing import Callable
 
 from src.core.agent.model_roles import PLANNER_ROLE, resolve_model_for_role
 from src.core.config.app_config import AppConfig
@@ -42,6 +43,7 @@ class PlannerStageResult:
     wall_ms: float
     tokens_in: int
     tokens_out: int
+    stopped: bool = False
 
 
 _SECTION_ORDER = ("GOAL", "FIRST_STEPS", "RISKS", "DONE_WHEN")
@@ -82,6 +84,7 @@ def run_execution_planner(
     user_text: str,
     sandbox_root: str,
     active_project: str = "",
+    should_stop: Callable[[], bool] | None = None,
 ) -> PlannerStageResult | None:
     if not config.planning_enabled or not should_plan_request(user_text):
         return None
@@ -111,6 +114,7 @@ def run_execution_planner(
         base_url=config.ollama_base_url,
         model=model_name,
         messages=messages,
+        should_stop=should_stop,
         temperature=min(config.temperature, 0.3),
         num_ctx=min(config.max_context_tokens, 4096),
     )
@@ -125,6 +129,7 @@ def run_execution_planner(
         wall_ms=float(result.get("wall_ms", 0.0) or 0.0),
         tokens_in=int(result.get("prompt_eval_count", 0) or 0),
         tokens_out=int(result.get("eval_count", 0) or 0),
+        stopped=bool(result.get("stopped", False)),
     )
 
 

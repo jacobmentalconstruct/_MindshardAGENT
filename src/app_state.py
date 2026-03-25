@@ -7,7 +7,6 @@ instead of relying on nonlocal / closure capture.
 
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from typing import Any, Callable, Optional
 
@@ -29,14 +28,16 @@ class AppState:
         "config", "log", "activity", "bus", "ui_state", "registry",
         "root", "engine", "prompt_tuning", "window",
         "session_store", "knowledge_store",
+        # UI intent facade (set after MainWindow is created)
+        "ui_facade", "ui_bridge",
         # Lifecycle
         "app_closing", "scheduled_after",
         # Session
         "active_session", "autosave_timer",
         # Streaming
         "streaming_content", "stream_flush_id", "stream_dirty",
-        # Confirmation (thread-sync)
-        "confirm_result", "gui_confirm_result",
+        # Busy operation tracking
+        "busy_state",
     )
 
     def __init__(
@@ -63,7 +64,9 @@ class AppState:
         self.root = root
         self.engine = engine
         self.prompt_tuning = prompt_tuning
-        self.window: Any = None  # set after MainWindow is created
+        self.window: Any = None       # set after MainWindow is created
+        self.ui_facade: Any = None    # set after UIFacade is wired in app.py
+        self.ui_bridge: Any = None    # set if the local UI control bridge is started
 
         # Stores (can be reassigned when sandbox changes)
         self.session_store = session_store
@@ -82,9 +85,13 @@ class AppState:
         self.stream_flush_id: dict[str, Any] = {"id": None}
         self.stream_dirty: dict[str, bool] = {"val": False}
 
-        # Confirmation state (thread-safe via Events)
-        self.confirm_result: dict[str, Any] = {"value": False, "event": threading.Event()}
-        self.gui_confirm_result: dict[str, Any] = {"value": "deny", "event": threading.Event()}
+        # Busy operation state
+        self.busy_state: dict[str, Any] = {
+            "next_token": 0,
+            "active_token": 0,
+            "kind": "",
+            "input_locked": False,
+        }
 
     # ── Timer helpers ─────────────────────────────────
 
@@ -123,3 +130,64 @@ class AppState:
             self.root.after(0, lambda: None if self.app_closing["value"] else callback())
         except tk.TclError:
             pass
+
+    # ── Busy-operation helpers ─────────────────────────
+
+    def begin_busy(
+        self,
+        kind: str,
+        *,
+        status_text: str | None = None,
+        disable_input: bool = True,
+    ) -> int:
+        """Mark the app busy for a long-running operation and return its token."""
+        token = int(self.busy_state.get("next_token", 0) or 0) + 1
+        self.busy_state["next_token"] = token
+        self.busy_state["active_token"] = token
+        self.busy_state["kind"] = str(kind or "").strip()
+        self.busy_state["input_locked"] = bool(disable_input)
+
+        self.ui_state.is_busy = True
+        self.ui_state.busy_kind = self.busy_state["kind"]
+        self.ui_state.stop_requested = False
+
+        if status_text and self.window is not None:
+            self.window.set_status(status_text)
+        if disable_input and self.ui_facade is not None:
+            self.ui_facade.set_input_enabled(False)
+        return token
+
+    def end_busy(
+        self,
+        token: int | None = None,
+        *,
+        status_text: str | None = "Ready",
+        enable_input: bool = True,
+    ) -> bool:
+        """Clear the active busy marker if *token* still owns it."""
+        active_token = int(self.busy_state.get("active_token", 0) or 0)
+        if token is not None and active_token and int(token) != active_token:
+            return False
+
+        self.busy_state["active_token"] = 0
+        self.busy_state["kind"] = ""
+        self.busy_state["input_locked"] = False
+
+        self.ui_state.is_busy = False
+        self.ui_state.busy_kind = ""
+        self.ui_state.stop_requested = False
+
+        if status_text and self.window is not None:
+            self.window.set_status(status_text)
+        if enable_input and self.ui_facade is not None:
+            self.ui_facade.set_input_enabled(True)
+        return True
+
+    def mark_stop_requested(self, *, status_text: str | None = "Stopping...") -> bool:
+        """Mark that the current busy operation has been asked to stop."""
+        if not self.ui_state.is_busy:
+            return False
+        self.ui_state.stop_requested = True
+        if status_text and self.window is not None:
+            self.window.set_status(status_text)
+        return True

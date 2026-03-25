@@ -1,0 +1,67 @@
+{
+  "name": "evidence_bag",
+  "version": "1.1",
+  "description": "Reversible evidence store. Full text preserved, query-driven assembly. Supplement for STM — NOT a replacement.",
+  "warning": "The bag surfaces what is relevant but not how it connects in sequence. STM provides the causal thread. Use both together.",
+  "capabilities": ["ingest", "query", "reconstruct", "set_goal", "inspect", "focus"],
+  "api": {
+    "ingest_turn": {
+      "description": "Ingest one conversation turn into the bag",
+      "params": {
+        "text": "string — full turn text",
+        "source": "string — origin label (e.g. 'chat')",
+        "source_role": "string — 'user' or 'assistant'",
+        "turn_id": "string — optional stable identifier",
+        "metadata": "object — optional extra metadata"
+      },
+      "returns": "document_id string or null"
+    },
+    "window": {
+      "description": "Query the bag and return a token-budget-constrained evidence slice",
+      "params": {
+        "query": "string — what to retrieve",
+        "token_budget": "integer — max tokens (default 512)"
+      },
+      "returns": "{ query, goal, bag_id, text, summary, selected_nodes, evidence_spans }"
+    },
+    "reconstruct": {
+      "description": "Reconstruct full text from a saved bag by ID or file path",
+      "params": {
+        "bag_id": "string — optional bag identifier",
+        "bag_file": "string — optional path to bag JSON file",
+        "mode": "string — 'grouped' (default) or 'flat'"
+      },
+      "returns": "{ text, span_count }"
+    },
+    "inspect": {
+      "description": "Return a structural tree + item manifest of everything currently in the bag",
+      "params": {},
+      "returns": "{ goal, tree: [DocumentEntry], stats } — see focus() to drill into a node"
+    },
+    "focus": {
+      "description": "Return the full content of a specific node and its immediate neighbors",
+      "params": {
+        "node_id": "string — node_id from inspect() output"
+      },
+      "returns": "{ node, content: string, neighbors: [NodeEntry] }"
+    },
+    "set_goal": {
+      "description": "Set the active goal that biases all subsequent window() queries",
+      "params": {
+        "goal_text": "string"
+      },
+      "returns": "null"
+    },
+    "close": {
+      "description": "Persist state and release resources",
+      "params": {},
+      "returns": "null"
+    }
+  },
+  "usage_pattern": [
+    "1. Inspect the bag first: inspect() → see what documents are stored",
+    "2. Focus on a specific document or claim: focus(node_id) → read full content",
+    "3. Query for relevant context: window(query, token_budget) → get scored evidence slice",
+    "4. Combine with STM: bag provides old/overflow evidence; STM provides recent causal thread"
+  ]
+}

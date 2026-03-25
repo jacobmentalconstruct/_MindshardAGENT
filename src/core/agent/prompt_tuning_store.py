@@ -369,6 +369,39 @@ class PromptTuningStore:
         comparison["case_deltas"] = case_deltas
         return comparison
 
+    def diff_prompt_versions(self, left_version_id: int, right_version_id: int) -> dict[str, Any]:
+        """Return a unified git diff between two prompt version snapshots.
+
+        Diffs the versioned prompt files (global agent prompt docs and project
+        overrides) exactly as they were at each snapshot commit.
+        """
+        left = self.get_prompt_version(left_version_id)
+        right = self.get_prompt_version(right_version_id)
+        if not left or not right:
+            raise ValueError("One or both prompt versions could not be loaded")
+        lc = str(left["git_commit"])
+        rc = str(right["git_commit"])
+        try:
+            self._ensure_ready()
+            stat_proc = self._run_git("diff", "--stat", lc, rc)
+            diff_proc = self._run_git("diff", lc, rc)
+            stat_text = (stat_proc.stdout or "").strip()
+            diff_text = (diff_proc.stdout or "").strip()
+            combined = "\n\n".join(filter(None, [stat_text, diff_text])) or "(no differences)"
+        except Exception as exc:
+            combined = f"[git diff failed: {exc}]"
+        return {
+            "left_version_id": left_version_id,
+            "right_version_id": right_version_id,
+            "left_commit": lc[:12],
+            "right_commit": rc[:12],
+            "left_reason": left.get("reason", ""),
+            "right_reason": right.get("reason", ""),
+            "left_created_at": left.get("created_at", ""),
+            "right_created_at": right.get("created_at", ""),
+            "diff_text": combined,
+        }
+
     def restore_prompt_version(self, version_id: int) -> dict[str, Any]:
         version = self.get_prompt_version(version_id)
         if not version:

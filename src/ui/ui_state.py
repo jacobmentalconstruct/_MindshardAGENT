@@ -13,6 +13,9 @@ class UIState:
 
     # Chat
     is_streaming: bool = False
+    is_busy: bool = False
+    busy_kind: str = ""
+    stop_requested: bool = False
     last_user_input: str = ""
 
     # Model picker

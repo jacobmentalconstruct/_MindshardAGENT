@@ -1,4 +1,4 @@
-"""Tool catalog — registry of built-in, official, and sandbox-local tools.
+"""Tool catalog — registry of built-in, official, sandbox-local, and toolbox tools.
 
 Built-in tools: cli_in_sandbox, write_file, read_file, list_files,
 run_python_file, reload_tools
@@ -17,9 +17,10 @@ class ToolEntry:
     """Metadata for a registered tool."""
     name: str
     description: str
-    source: str          # "builtin", "official", "sandbox_local"
+    source: str          # "builtin", "official", "sandbox_local", "toolbox"
     callable_name: str   # internal dispatch key
     parameters: dict[str, Any] = field(default_factory=dict)
+    script_path: str = ""
 
 
 # Built-in tool definition
@@ -92,9 +93,9 @@ RUN_PYTHON_FILE = ToolEntry(
 
 RELOAD_TOOLS = ToolEntry(
     name="reload_tools",
-    description="Re-scan .mindshard/tools/ and register any new or updated sandbox tools. "
-                "Call this after writing a new tool script so you can use it immediately. "
-                "Returns the list of currently available sandbox tools.",
+    description="Re-scan discovered tool roots and register any new or updated tools. "
+                "Call this after writing a tool script so you can use it immediately. "
+                "Returns the list of currently available discovered tools.",
     source="builtin",
     callable_name="reload_tools",
     parameters={},
@@ -123,6 +124,22 @@ class ToolCatalog:
     def list_tools(self) -> list[ToolEntry]:
         return list(self._tools.values())
 
+    def clear_discovered_tools(self) -> int:
+        """Remove all non-builtin tools (sandbox_local, toolbox, etc.).
+
+        Called before re-discovery on sandbox/toolbox switches so that tools
+        from the previous project don't linger in the catalog.
+
+        Returns count of tools removed.
+        """
+        stale = [name for name, entry in self._tools.items()
+                 if entry.source != "builtin"]
+        for name in stale:
+            del self._tools[name]
+        if stale:
+            log.info("Cleared %d discovered tool(s): %s", len(stale), stale)
+        return len(stale)
+
     def reload_sandbox_tools(self, sandbox_root: str) -> list[str]:
         """Clear all sandbox_local tools and re-discover from .mindshard/tools/.
 
@@ -145,6 +162,10 @@ class ToolCatalog:
     def sandbox_tool_names(self) -> list[str]:
         """Return names of all currently registered sandbox_local tools."""
         return [name for name, e in self._tools.items() if e.source == "sandbox_local"]
+
+    def discovered_tool_names(self) -> list[str]:
+        """Return names of all non-builtin tools currently registered."""
+        return [name for name, e in self._tools.items() if e.source != "builtin"]
 
     def to_schema_list(self) -> list[dict[str, Any]]:
         """Export tool definitions as JSON-schema-like dicts for prompt building."""

@@ -30,10 +30,13 @@ class PlannerOnlyLoop:
         self._tool_catalog = tool_catalog
         self._sandbox_root_getter = sandbox_root_getter
         self._active_project_getter = active_project_getter
+        self._stop_requested = False
+        self._worker_thread: threading.Thread | None = None
 
     def run(self, request: LoopRequest) -> None:
         def _worker():
             try:
+                self._stop_requested = False
                 planner_result = run_execution_planner(
                     config=self._config,
                     activity=self._activity,
@@ -41,14 +44,41 @@ class PlannerOnlyLoop:
                     user_text=request.user_text,
                     sandbox_root=self._sandbox_root_getter(),
                     active_project=self._active_project_getter(),
+                    should_stop=lambda: self._stop_requested,
                 )
-                if not planner_result or not planner_result.plan_text:
+                if not planner_result:
+                    if self._stop_requested and request.on_complete:
+                        request.on_complete({
+                            "content": "[Stopped by user request.]",
+                            "metadata": {
+                                "model": "",
+                                "tokens_in": "~0",
+                                "tokens_out": "~0",
+                                "time": "0ms",
+                                "rounds": 1,
+                                "loop_mode": self.loop_id,
+                                "planning_used": False,
+                                "planner_model": "",
+                                "stopped": True,
+                            },
+                            "history_addition": [
+                                {"role": "user", "content": request.user_text},
+                                {"role": "assistant", "content": "[Stopped by user request.]"},
+                            ],
+                        })
+                    elif request.on_error:
+                        request.on_error("Planner did not produce a plan")
+                    return
+                if not planner_result.plan_text and not planner_result.stopped:
                     if request.on_error:
                         request.on_error("Planner did not produce a plan")
                     return
+                content = planner_result.plan_text or "[Stopped by user request.]"
+                if planner_result.stopped and planner_result.plan_text:
+                    content = f"{planner_result.plan_text}\n\n[Stopped by user request.]"
                 if request.on_complete:
                     request.on_complete({
-                        "content": planner_result.plan_text,
+                        "content": content,
                         "metadata": {
                             "model": planner_result.model_name,
                             "tokens_in": f"~{planner_result.tokens_in}",
@@ -58,10 +88,11 @@ class PlannerOnlyLoop:
                             "loop_mode": self.loop_id,
                             "planning_used": True,
                             "planner_model": planner_result.model_name,
+                            "stopped": planner_result.stopped,
                         },
                         "history_addition": [
                             {"role": "user", "content": request.user_text},
-                            {"role": "assistant", "content": planner_result.plan_text},
+                            {"role": "assistant", "content": content},
                         ],
                     })
             except Exception as exc:
@@ -69,7 +100,13 @@ class PlannerOnlyLoop:
                 if request.on_error:
                     request.on_error(str(exc))
 
-        threading.Thread(target=_worker, daemon=True, name="planner-only-loop").start()
+        thread = threading.Thread(target=_worker, daemon=True, name="planner-only-loop")
+        self._worker_thread = thread
+        thread.start()
 
     def request_stop(self) -> None:
-        return
+        self._stop_requested = True
+
+    def join(self, timeout: float = 3.0) -> None:
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=timeout)

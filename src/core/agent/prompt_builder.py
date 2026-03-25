@@ -88,6 +88,7 @@ def build_system_prompt_bundle(
     active_project: str = "",
     project_brief: str = "",
     project_meta_path: str = "",
+    self_awareness_enabled: bool = False,
 ) -> PromptBuildResult:
     """Build the full system prompt plus diagnostics.
 
@@ -97,7 +98,8 @@ def build_system_prompt_bundle(
     """
     compact = _is_small_model(model_name)
 
-    source_result = load_prompt_sources(sandbox_root=sandbox_root)
+    skip = () if self_awareness_enabled else ("55_",)
+    source_result = load_prompt_sources(sandbox_root=sandbox_root, skip_prefixes=skip)
     sections: list[PromptSection] = list(source_result.sections)
 
     behavior_text = source_result.text.strip()

@@ -79,27 +79,20 @@ def _call_tool(name: str, arguments: dict) -> dict:
 
 
 def _read_message() -> dict | None:
-    headers = {}
-    while True:
-        line = sys.stdin.buffer.readline()
-        if not line:
-            return None
-        if line in {b"\r\n", b"\n"}:
-            break
-        key, value = line.decode("utf-8").split(":", 1)
-        headers[key.strip().lower()] = value.strip()
-
-    length = int(headers.get("content-length", "0"))
-    if length <= 0:
+    """Read one NDJSON message from stdin (newline-delimited JSON)."""
+    line = sys.stdin.buffer.readline()
+    if not line:
         return None
-    payload = sys.stdin.buffer.read(length)
-    return json.loads(payload.decode("utf-8"))
+    line = line.strip()
+    if not line:
+        return None
+    return json.loads(line.decode("utf-8"))
 
 
 def _write_message(payload: dict) -> None:
-    body = json.dumps(payload).encode("utf-8")
-    sys.stdout.buffer.write(f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8"))
-    sys.stdout.buffer.write(body)
+    """Write one NDJSON message to stdout."""
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    sys.stdout.buffer.write(body + b"\n")
     sys.stdout.buffer.flush()
 
 
@@ -113,11 +106,12 @@ def _handle_request(message: dict) -> dict | None:
     if method == "ping":
         return {"jsonrpc": "2.0", "id": message_id, "result": {}}
     if method == "initialize":
+        client_version = params.get("protocolVersion", "2024-11-05")
         return {
             "jsonrpc": "2.0",
             "id": message_id,
             "result": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": client_version,
                 "serverInfo": SERVER_INFO,
                 "capabilities": {"tools": {}}
             }

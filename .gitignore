@@ -97,6 +97,12 @@ vectors/
 reports/
 output/
 
+# --- MindshardAGENT runtime sidecars and sandbox state ---
+# These are generated at runtime and must never be committed.
+.mindshard/
+_sandbox/
+*.zip
+
 # --wierd odds-n-ends
 _randomDOCS/
 _sanbox-area/

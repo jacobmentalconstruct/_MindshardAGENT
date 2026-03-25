@@ -29,7 +29,7 @@ def log_model_roles(s: AppState) -> None:
 
 def refresh_session_list(s: AppState) -> None:
     sessions = s.session_store.list_sessions()
-    s.window.control_pane.session_panel.set_sessions(sessions, s.active_session["sid"])
+    s.ui_facade.refresh_session_list(sessions, s.active_session["sid"])
 
 
 def load_session(s: AppState, sid: str) -> None:
@@ -49,10 +49,7 @@ def load_session(s: AppState, sid: str) -> None:
     history = [{"role": m["role"], "content": m["content"]} for m in messages]
     s.engine.set_history(history)
 
-    s.window.chat_pane.clear()
-    for m in messages:
-        s.window.chat_pane.add_message(m["role"], m["content"])
-    s.window.chat_pane.scroll_to_bottom()
+    s.ui_facade.load_chat_history(messages)
 
     s.window.set_session_title(session["title"])
     s.window.set_save_dirty(False)
@@ -140,39 +137,20 @@ def on_session_branch(s: AppState, sid: str) -> None:
 
 
 def on_session_policy(s: AppState, sid: str) -> None:
-    """Open a dialog to edit per-session command policy overrides."""
-    from tkinter import simpledialog
+    """Open dialogs to collect per-session command policy overrides, then apply them."""
+    from src.ui.dialogs.session_policy_dialog import ask_session_policy
 
     current = s.session_store.get_command_policy(sid)
-    allow_add = ", ".join(current.get("allow_add", []))
-    allow_remove = ", ".join(current.get("allow_remove", []))
-
-    add_str = simpledialog.askstring(
-        "Session Policy — Extra Allowed",
-        "Commands to ADD to allowlist for this session\n"
-        "(comma-separated, e.g. 'npm, yarn').\n"
-        "Leave blank for defaults.\n"
-        "Security-blocked commands (powershell, curl, etc.) cannot be added.",
-        initialvalue=allow_add,
-        parent=s.root,
+    result = ask_session_policy(
+        s.root,
+        current_allow_add=current.get("allow_add", []),
+        current_allow_remove=current.get("allow_remove", []),
     )
-    if add_str is None:
+    if result is None:
         return
 
-    remove_str = simpledialog.askstring(
-        "Session Policy — Restricted",
-        "Commands to REMOVE from allowlist for this session\n"
-        "(comma-separated, e.g. 'git, rm').\n"
-        "Leave blank for defaults.",
-        initialvalue=allow_remove,
-        parent=s.root,
-    )
-    if remove_str is None:
-        return
-
-    policy = {}
-    adds = [c.strip() for c in add_str.split(",") if c.strip()]
-    removes = [c.strip() for c in remove_str.split(",") if c.strip()]
+    adds, removes = result
+    policy: dict = {}
     if adds:
         policy["allow_add"] = adds
     if removes:

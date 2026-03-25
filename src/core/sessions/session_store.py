@@ -5,6 +5,7 @@ Database lives at .mindshard/sessions/sessions.db by default.
 """
 
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,7 @@ class SessionStore:
     def __init__(self, db_path: str | Path):
         self._db_path = str(db_path)
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()  # RLock: methods may call other locked methods
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
@@ -41,7 +43,8 @@ class SessionStore:
         log.info("SessionStore initialized at %s", self._db_path)
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     # ── Session CRUD ──────────────────────────────────
 
@@ -51,13 +54,14 @@ class SessionStore:
             title = auto_session_title()
         sid = make_session_id()
         now = utc_iso()
-        self._conn.execute(
-            "INSERT INTO sessions (session_id, title, parent_session_id, "
-            "created_at, updated_at, active_model, sandbox_root) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (sid, title, parent_id, now, now, model, sandbox_root),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO sessions (session_id, title, parent_session_id, "
+                "created_at, updated_at, active_model, sandbox_root) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (sid, title, parent_id, now, now, model, sandbox_root),
+            )
+            self._conn.commit()
         log.info("New session: %s (%s)", sid, title)
         return sid
 
@@ -72,33 +76,37 @@ class SessionStore:
             updates.append("active_model = ?")
             params.append(model)
         params.append(session_id)
-        self._conn.execute(
-            f"UPDATE sessions SET {', '.join(updates)} WHERE session_id = ?", params)
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                f"UPDATE sessions SET {', '.join(updates)} WHERE session_id = ?", params)
+            self._conn.commit()
         log.info("Session saved: %s", session_id)
 
     def delete_session(self, session_id: str) -> None:
-        # Unlink child branches first so FK doesn't block delete
-        self._conn.execute(
-            "UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?",
-            (session_id,))
-        self._conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
-        self._conn.commit()
+        with self._lock:
+            # Unlink child branches first so FK doesn't block delete
+            self._conn.execute(
+                "UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?",
+                (session_id,))
+            self._conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+            self._conn.commit()
         log.info("Session deleted: %s", session_id)
 
     def list_sessions(self) -> list[dict[str, Any]]:
-        cur = self._conn.execute(
-            "SELECT session_id, title, parent_session_id, created_at, updated_at, "
-            "active_model FROM sessions ORDER BY updated_at DESC")
-        cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT session_id, title, parent_session_id, created_at, updated_at, "
+                "active_model FROM sessions ORDER BY updated_at DESC")
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
-        cur = self._conn.execute(
-            "SELECT * FROM sessions WHERE session_id = ?", (session_id,))
-        cols = [d[0] for d in cur.description]
-        row = cur.fetchone()
-        return dict(zip(cols, row)) if row else None
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT * FROM sessions WHERE session_id = ?", (session_id,))
+            cols = [d[0] for d in cur.description]
+            row = cur.fetchone()
+            return dict(zip(cols, row)) if row else None
 
     # ── Messages ──────────────────────────────────────
 
@@ -106,44 +114,52 @@ class SessionStore:
                     model_name: str = "", token_in: int = 0, token_out: int = 0,
                     inference_ms: float = 0, tool_count: int = 0) -> str:
         mid = make_message_id()
-        self._conn.execute(
-            "INSERT INTO messages (message_id, session_id, role, content, created_at, "
-            "model_name, token_in_est, token_out_est, inference_ms, tool_count) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (mid, session_id, role, content, utc_iso(), model_name,
-             token_in, token_out, inference_ms, tool_count),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO messages (message_id, session_id, role, content, created_at, "
+                "model_name, token_in_est, token_out_est, inference_ms, tool_count) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (mid, session_id, role, content, utc_iso(), model_name,
+                 token_in, token_out, inference_ms, tool_count),
+            )
+            self._conn.commit()
         return mid
 
     def get_messages(self, session_id: str) -> list[dict[str, Any]]:
-        cur = self._conn.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at",
-            (session_id,))
-        cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at",
+                (session_id,))
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
 
     def message_count(self, session_id: str) -> int:
         """Return the number of messages in a session."""
-        cur = self._conn.execute(
-            "SELECT COUNT(*) FROM messages WHERE session_id = ?", (session_id,))
-        return cur.fetchone()[0]
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT COUNT(*) FROM messages WHERE session_id = ?", (session_id,))
+            return cur.fetchone()[0]
 
     def purge_empty(self, keep_sid: str | None = None) -> int:
         """Delete sessions with zero messages. Optionally keep one by ID.
 
         Returns count of purged sessions.
+
+        The SELECT and all deletes run under a single lock acquisition so that
+        no other thread can create or modify sessions between the read and the
+        deletes (RLock allows the nested delete_session calls to re-acquire).
         """
-        cur = self._conn.execute(
-            "SELECT session_id FROM sessions WHERE session_id NOT IN "
-            "(SELECT DISTINCT session_id FROM messages)")
-        empty_sids = [row[0] for row in cur.fetchall()]
-        purged = 0
-        for sid in empty_sids:
-            if sid == keep_sid:
-                continue
-            self.delete_session(sid)
-            purged += 1
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT session_id FROM sessions WHERE session_id NOT IN "
+                "(SELECT DISTINCT session_id FROM messages)")
+            empty_sids = [row[0] for row in cur.fetchall()]
+            purged = 0
+            for sid in empty_sids:
+                if sid == keep_sid:
+                    continue
+                self.delete_session(sid)
+                purged += 1
         if purged:
             log.info("Purged %d empty session(s)", purged)
         return purged
@@ -159,10 +175,11 @@ class SessionStore:
         - allow_remove: global-allowed commands blocked for this session
         """
         import json
-        cur = self._conn.execute(
-            "SELECT command_policy_json FROM sessions WHERE session_id = ?",
-            (session_id,))
-        row = cur.fetchone()
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT command_policy_json FROM sessions WHERE session_id = ?",
+                (session_id,))
+            row = cur.fetchone()
         if not row or not row[0]:
             return {}
         try:
@@ -174,11 +191,12 @@ class SessionStore:
         """Save per-session command policy overrides."""
         import json
         policy_json = json.dumps(policy) if policy else ""
-        self._conn.execute(
-            "UPDATE sessions SET command_policy_json = ?, updated_at = ? "
-            "WHERE session_id = ?",
-            (policy_json, utc_iso(), session_id))
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "UPDATE sessions SET command_policy_json = ?, updated_at = ? "
+                "WHERE session_id = ?",
+                (policy_json, utc_iso(), session_id))
+            self._conn.commit()
         log.info("Command policy updated for session %s", session_id)
 
     # ── Branching ─────────────────────────────────────
@@ -225,12 +243,13 @@ class SessionStore:
                      started_at: str, finished_at: str) -> str:
         from src.core.utils.ids import make_tool_run_id
         trid = make_tool_run_id()
-        self._conn.execute(
-            "INSERT INTO tool_runs (tool_run_id, session_id, message_id, tool_name, "
-            "command_text, cwd, stdout, stderr, exit_code, started_at, finished_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (trid, session_id, message_id, tool_name, command_text, cwd,
-             stdout, stderr, exit_code, started_at, finished_at),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO tool_runs (tool_run_id, session_id, message_id, tool_name, "
+                "command_text, cwd, stdout, stderr, exit_code, started_at, finished_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (trid, session_id, message_id, tool_name, command_text, cwd,
+                 stdout, stderr, exit_code, started_at, finished_at),
+            )
+            self._conn.commit()
         return trid

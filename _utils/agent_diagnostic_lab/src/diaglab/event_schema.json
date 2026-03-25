@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "diagnostic_event",
+  "title": "DiagnosticEvent",
+  "description": "Structured event emitted by agent probe runs. Compatible with MindshardAGENT ActivityStream entries and diaglab probe captures. Import or copy this schema to validate or consume probe exports across apps.",
+  "version": "1.0",
+  "type": "object",
+  "required": ["timestamp", "source", "kind", "message"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the event was emitted"
+    },
+    "source": {
+      "type": "string",
+      "description": "Component or subsystem that emitted the event (e.g. 'engine', 'agent', 'tool', 'rag', 'budget', 'planner')"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["info", "warn", "error", "model", "tool", "phase", "debug"],
+      "description": "Event severity / classification:\n  info  — normal operation\n  warn  — degraded or unexpected but non-fatal\n  error — failure\n  model — model invocation / inference event\n  tool  — tool call dispatch / result\n  phase — pipeline stage transition\n  debug — verbose diagnostic, not shown in normal views"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable event description"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Optional structured data attached to the event (e.g. token counts, scores, latency)",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "timestamp": "2026-03-24T01:00:00Z",
+      "source": "engine",
+      "kind": "model",
+      "message": "Sending prompt to qwen2.5:7b (~342 tokens)",
+      "payload": {"model": "qwen2.5:7b", "token_estimate": 342}
+    },
+    {
+      "timestamp": "2026-03-24T01:00:01Z",
+      "source": "budget",
+      "kind": "warn",
+      "message": "Token budget trimmed: 12400 -> 8192/8192 tokens",
+      "payload": {"before": 12400, "after": 8192, "available": 8192}
+    },
+    {
+      "timestamp": "2026-03-24T01:00:02Z",
+      "source": "tool",
+      "kind": "tool",
+      "message": "run_shell: ls -la /sandbox/src",
+      "payload": {"tool": "run_shell", "exit_code": 0}
+    }
+  ]
+}

@@ -35,6 +35,7 @@ class DiagnosticView:
         run_benchmark_suite,
         restore_prompt_version,
         compare_benchmark_runs,
+        diff_prompt_versions,
         stop_active_probe,
         export_last_result,
     ) -> None:
@@ -48,6 +49,7 @@ class DiagnosticView:
         self.benchmark_btn.configure(command=run_benchmark_suite)
         self.restore_version_btn.configure(command=restore_prompt_version)
         self.compare_runs_btn.configure(command=compare_benchmark_runs)
+        self.diff_versions_btn.configure(command=diff_prompt_versions)
         self.stop_btn.configure(command=stop_active_probe)
         self.export_btn.configure(command=export_last_result)
 
@@ -68,6 +70,8 @@ class DiagnosticView:
             "version_id": int(self.version_id_var.get() or 0),
             "left_run_id": int(self.compare_left_var.get() or 0),
             "right_run_id": int(self.compare_right_var.get() or 0),
+            "diff_left_version_id": int(self.diff_left_var.get() or 0),
+            "diff_right_version_id": int(self.diff_right_var.get() or 0),
         }
 
     def set_models(self, models: list[str]) -> None:
@@ -130,6 +134,7 @@ class DiagnosticView:
             self.benchmark_btn,
             self.restore_version_btn,
             self.compare_runs_btn,
+            self.diff_versions_btn,
             self.export_btn,
         ):
             button.configure(state=state)
@@ -310,7 +315,36 @@ class DiagnosticView:
         self.compare_runs_btn = self._action_button(compare_row, "Compare")
         self.compare_runs_btn.grid(row=0, column=2, padx=(6, 0))
         self.refresh_history_btn = self._action_button(last_probe_frame.body, "Refresh History")
-        self.refresh_history_btn.grid(row=5, column=0, sticky="ew", padx=10, pady=(8, 10))
+        self.refresh_history_btn.grid(row=5, column=0, sticky="ew", padx=10, pady=(8, 6))
+        tk.Label(last_probe_frame.body, text="Diff Prompt Versions", bg=theme.BG_MID, fg=theme.TEXT_DIM, font=theme.FONT_SMALL).grid(
+            row=6, column=0, sticky="w", padx=10, pady=(8, 2)
+        )
+        self.diff_left_var = tk.StringVar()
+        self.diff_right_var = tk.StringVar()
+        diff_row = tk.Frame(last_probe_frame.body, bg=theme.BG_MID)
+        diff_row.grid(row=7, column=0, sticky="ew", padx=10, pady=(0, 10))
+        diff_row.columnconfigure(0, weight=1)
+        diff_row.columnconfigure(1, weight=1)
+        tk.Entry(
+            diff_row,
+            textvariable=self.diff_left_var,
+            bg=theme.BG_LIGHT,
+            fg=theme.TEXT_INPUT,
+            insertbackground=theme.CYAN,
+            relief="flat",
+            font=theme.FONT_INPUT,
+        ).grid(row=0, column=0, sticky="ew")
+        tk.Entry(
+            diff_row,
+            textvariable=self.diff_right_var,
+            bg=theme.BG_LIGHT,
+            fg=theme.TEXT_INPUT,
+            insertbackground=theme.CYAN,
+            relief="flat",
+            font=theme.FONT_INPUT,
+        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        self.diff_versions_btn = self._action_button(diff_row, "Diff")
+        self.diff_versions_btn.grid(row=0, column=2, padx=(6, 0))
 
         self.notebook = ttk.Notebook(results_col, style="Lab.TNotebook")
         self.notebook.grid(row=0, column=0, sticky="nsew")
@@ -551,17 +585,31 @@ class DiagnosticView:
         lines: list[str] = []
         for case in result.cases:
             probe = case.result
+            m = probe.metadata
+            # Model role line — only include roles that are populated
+            role_parts = [f"chat={m.get('model', '—')}"]
+            if m.get("planner_model"):
+                role_parts.append(f"planner={m['planner_model']}")
+            if m.get("fast_probe_model"):
+                role_parts.append(f"probe={m['fast_probe_model']}")
             lines.extend(
                 [
                     f"[{case.case_id}] {case.label}",
-                    f"  - Probe type: {case.probe_type}",
-                    f"  - Status: {probe.status}",
-                    f"  - Overall score: {probe.metadata.get('overall_score', 0.0)}",
-                    f"  - Accuracy score: {probe.metadata.get('accuracy_score', 0.0)}",
-                    f"  - Efficiency score: {probe.metadata.get('efficiency_score', 0.0)}",
-                    f"  - Tokens: {probe.metadata.get('total_tokens', 0)}",
-                    f"  - Rounds: {probe.metadata.get('rounds', 0)}",
-                    f"  - Summary: {probe.summary}",
+                    f"  - Probe type:      {case.probe_type}",
+                    f"  - Status:          {probe.status}",
+                    f"  - Loop mode:       {m.get('loop_mode', '—')}",
+                    f"  - Models:          {', '.join(role_parts)}",
+                    f"  - Planning used:   {m.get('planning_used', False)}",
+                    f"  - Probes run:      {m.get('probes_run', 0)} ({m.get('probe_total_ms', 0):.0f}ms)",
+                    f"  - STM window:      {m.get('stm_window_size', '—')} turns, falloff={m.get('stm_falloff_count', 0)}",
+                    f"  - Budget:          {m.get('budget_total_after', '?')}/{m.get('budget_available', '?')} tokens"
+                    + (" ⚠ TRIMMED" if m.get("budget_trimmed") else ""),
+                    f"  - Overall score:   {m.get('overall_score', 0.0)}",
+                    f"  - Accuracy score:  {m.get('accuracy_score', 0.0)}",
+                    f"  - Efficiency score:{m.get('efficiency_score', 0.0)}",
+                    f"  - Tokens:          {m.get('total_tokens', 0)}",
+                    f"  - Rounds:          {m.get('rounds', 0)}",
+                    f"  - Summary:         {probe.summary}",
                     "",
                 ]
             )

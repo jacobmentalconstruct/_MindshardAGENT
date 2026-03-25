@@ -90,12 +90,17 @@ Let me check what's there.'''
     text_plain = "I don't need to run any commands for this."
     _check("No false positive", not router.has_tool_calls(text_plain))
 
-    # Malformed JSON
+    # Malformed JSON — router returns a sentinel so the model gets an explicit
+    # error message instead of silently dropping the call (which caused hallucinated success).
     text_bad = '''```tool_call
 {bad json here}
 ```'''
     calls_bad = router.extract_tool_calls(text_bad)
-    _check("Handles malformed JSON gracefully", len(calls_bad) == 0)
+    _check("Malformed JSON returns sentinel (not dropped)", len(calls_bad) == 1)
+    _check("Sentinel tool name is __malformed__", calls_bad[0].get("tool") == "__malformed__")
+    result_bad = router.execute(calls_bad[0])
+    _check("Sentinel execute returns failure", result_bad["success"] is False)
+    _check("Sentinel error message is descriptive", "parse" in result_bad.get("error", "").lower())
 
     # Multiple tool calls
     text_multi = '''```tool_call

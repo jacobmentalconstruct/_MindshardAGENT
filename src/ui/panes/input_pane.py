@@ -70,3 +70,29 @@ class InputPane(tk.Frame):
         state = "normal" if enabled else "disabled"
         self._text.config(state=state)
         self._submit_btn.config(state=state)
+
+    def is_enabled(self) -> bool:
+        return str(self._text.cget("state")) == "normal"
+
+    def set_text(self, text: str) -> None:
+        """Replace the current input content with the given text."""
+        current_state = str(self._text.cget("state"))
+        self._text.config(state="normal")
+        self._text.delete("1.0", "end")
+        self._text.insert("1.0", text)
+        if current_state == "disabled":
+            self._text.config(state="disabled")
+        self._update_token_count()
+
+    def focus_input(self) -> None:
+        """Move keyboard focus to the text input field."""
+        self._text.focus_set()
+        self._text.mark_set("insert", "end")
+
+    def submit(self) -> bool:
+        """Submit the current input content if possible."""
+        text = self.get_text()
+        if not text or not self.is_enabled():
+            return False
+        self._handle_submit()
+        return True

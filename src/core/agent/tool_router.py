@@ -6,6 +6,7 @@ name and parameters, and routes to the appropriate handler.
 
 import json
 import re
+import sys
 from typing import Any
 
 from src.core.sandbox.tool_catalog import ToolCatalog
@@ -28,26 +29,40 @@ class ToolRouter:
 
     def __init__(self, catalog: ToolCatalog, cli: CLIRunner, activity: ActivityStream,
                  file_writer: FileWriter | None = None, sandbox_root: str = "",
-                 on_tools_reloaded=None, python_runner: PythonRunner | None = None):
+                 on_tools_reloaded=None, reload_tools_fn=None,
+                 python_runner: PythonRunner | None = None):
         self._catalog = catalog
         self._cli = cli
         self._file_writer = file_writer
         self._activity = activity
         self._sandbox_root = sandbox_root
         self._on_tools_reloaded = on_tools_reloaded  # callback(count, names)
+        self._reload_tools_fn = reload_tools_fn
         self._python_runner = python_runner
 
     def extract_tool_calls(self, text: str) -> list[dict[str, Any]]:
-        """Extract tool_call JSON blocks from assistant text."""
+        """Extract tool_call JSON blocks from assistant text.
+
+        Malformed blocks (invalid JSON) are returned as sentinel dicts with
+        ``tool="__malformed__"`` so that ``execute_all`` can report the failure
+        back to the model explicitly rather than silently dropping the call.
+        """
         calls = []
         for match in _TOOL_CALL_RE.finditer(text):
             raw = match.group(1).strip()
             try:
                 parsed = json.loads(raw)
                 calls.append(parsed)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
                 log.warning("Failed to parse tool call JSON: %s", raw[:200])
-                self._activity.warn("tool_router", f"Malformed tool call: {raw[:100]}")
+                self._activity.warn("tool_router", f"Malformed tool call JSON: {raw[:100]}")
+                # Return error sentinel — execute() will surface this to the model
+                # so it knows to fix its format rather than assuming success.
+                calls.append({
+                    "tool": "__malformed__",
+                    "_raw": raw[:300],
+                    "_error": str(exc),
+                })
         return calls
 
     def has_tool_calls(self, text: str) -> bool:
@@ -59,6 +74,21 @@ class ToolRouter:
         Returns dict with: tool_name, success, result (or error).
         """
         tool_name = tool_call.get("tool", "")
+
+        # Malformed sentinel — JSON parse failed in extract_tool_calls()
+        if tool_name == "__malformed__":
+            raw = tool_call.get("_raw", "")
+            err = tool_call.get("_error", "JSON parse error")
+            msg = (
+                f"Your tool call could not be parsed (invalid JSON). "
+                f"Parse error: {err}. "
+                f"Ensure the tool call block contains only valid JSON with no trailing commas, "
+                f"comments, or unquoted strings. "
+                f"Received: {raw[:150]}"
+            )
+            log.warning("Malformed tool call returned to model: %s", err)
+            return {"tool_name": "tool_call", "success": False, "error": msg}
+
         entry = self._catalog.get(tool_name)
 
         if not entry:
@@ -165,14 +195,14 @@ class ToolRouter:
             if not self._sandbox_root:
                 return {"tool_name": tool_name, "success": False,
                         "error": "No sandbox root configured"}
-            names = self._catalog.reload_sandbox_tools(self._sandbox_root)
+            names = self._reload_discovered_tools()
             self._activity.tool("tool_router",
-                f"Tools reloaded: {len(names)} sandbox tool(s) available")
+                f"Tools reloaded: {len(names)} discovered tool(s) available")
             if names:
-                summary = f"Reloaded. Sandbox tools now available: {', '.join(names)}"
+                summary = f"Reloaded. Discovered tools now available: {', '.join(names)}"
             else:
-                summary = "Reloaded. No sandbox tools found in .mindshard/tools/ yet."
-            if self._on_tools_reloaded:
+                summary = "Reloaded. No discovered tools found yet."
+            if self._on_tools_reloaded and not self._reload_tools_fn:
                 self._on_tools_reloaded(len(names), names)
             return {
                 "tool_name": tool_name,
@@ -180,44 +210,70 @@ class ToolRouter:
                 "result": {"summary": summary, "tools": names},
             }
 
-        # Sandbox-local tool: execute Python script via CLI
-        if entry.source == "sandbox_local":
-            return self._execute_sandbox_tool(tool_name, tool_call, entry)
+        # Discovered Python tool: execute the registered script path directly.
+        if entry.source != "builtin":
+            return self._execute_script_tool(tool_name, tool_call, entry)
 
         return {"tool_name": tool_name, "success": False, "error": f"No handler for tool: {tool_name}"}
 
-    def _execute_sandbox_tool(self, tool_name: str, tool_call: dict[str, Any],
-                               entry) -> dict[str, Any]:
-        """Execute a sandbox-local tool by running its Python script via CLI.
+    def _execute_script_tool(self, tool_name: str, tool_call: dict[str, Any], entry) -> dict[str, Any]:
+        """Execute a discovered Python tool by running its script directly.
 
-        The script is invoked as: python .mindshard/tools/<callable_name>.py --json '<params>'
-        Parameters are passed as a JSON string on stdin or as a --json argument.
+        Uses subprocess.run with an explicit arg list (no shell=True) so that
+        the JSON params string is passed as a single argv element without any
+        platform-specific shell-quoting issues.  Single-quote escaping on
+        Windows cmd.exe does not work, so we bypass the shell entirely here.
         """
         import json as _json
+        import subprocess as _subprocess
         params = {k: v for k, v in tool_call.items() if k != "tool"}
         params_json = _json.dumps(params)
-        # Escape for shell
-        escaped = params_json.replace("'", "'\"'\"'")
-        command = f"python .mindshard/tools/{entry.callable_name}.py --json '{escaped}'"
-        self._activity.tool("tool_router", f"Sandbox tool: {tool_name}")
-        result = self._cli.run(command)
-        return {
-            "tool_name": tool_name,
-            "success": result["exit_code"] == 0,
-            "result": result,
-        }
+
+        script_path = entry.script_path or f".mindshard/tools/{entry.callable_name}.py"
+        cmd = [sys.executable, script_path, "--json", params_json]
+
+        self._activity.tool("tool_router", f"Tool: {tool_name}")
+        log.info("Tool exec: %s source=%s path=%s", tool_name, entry.source, script_path)
+
+        try:
+            proc = _subprocess.run(
+                cmd,
+                cwd=self._sandbox_root or None,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return {
+                "tool_name": tool_name,
+                "success": proc.returncode == 0,
+                "result": {
+                    "exit_code": proc.returncode,
+                    "stdout": proc.stdout,
+                    "stderr": proc.stderr,
+                },
+            }
+        except _subprocess.TimeoutExpired:
+            return {"tool_name": tool_name, "success": False,
+                    "error": "Tool timed out after 30s"}
+        except Exception as exc:
+            return {"tool_name": tool_name, "success": False, "error": str(exc)}
 
     def _auto_reload_tools(self) -> None:
-        """Silently reload sandbox tools after a write to .mindshard/tools/."""
+        """Silently reload discovered tools after a write to .mindshard/tools/."""
         try:
-            names = self._catalog.reload_sandbox_tools(self._sandbox_root)
+            names = self._reload_discovered_tools()
             if names:
                 self._activity.tool("tool_router",
                     f"Auto-registered new tool(s): {', '.join(names)}")
-            if self._on_tools_reloaded:
+            if self._on_tools_reloaded and not self._reload_tools_fn:
                 self._on_tools_reloaded(len(names), names)
         except Exception as e:
             log.warning("Auto tool reload failed: %s", e)
+
+    def _reload_discovered_tools(self) -> list[str]:
+        if self._reload_tools_fn:
+            return list(self._reload_tools_fn())
+        return self._catalog.reload_sandbox_tools(self._sandbox_root)
 
     def execute_all(self, text: str) -> list[dict[str, Any]]:
         """Extract and execute all tool calls in a response."""

@@ -127,7 +127,7 @@ def compact_tool_call_transcript(text: str) -> str:
             tool_call = json.loads(raw)
             summaries.append(_format_tool_call(tool_call))
         except json.JSONDecodeError:
-            summaries.append("malformed_tool_call")
+            summaries.append("tool_call(parse_error — model retrying)")
         last_end = match.end()
 
     tail = text[last_end:].strip()
