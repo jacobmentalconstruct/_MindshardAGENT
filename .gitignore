@@ -107,3 +107,9 @@ _sandbox/
 _randomDOCS/
 _sanbox-area/
 _db/
+.claude/
+claude/
+.dev-tools/
+dev-tools/
+.mindshard/
+mindshard/
