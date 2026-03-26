@@ -35,6 +35,9 @@ pip-log.txt
 .vscode/
 .idea/
 *.code-workspace
+.claude/
+.codex/
+.cursor/
 
 # --- OS junk ---
 .DS_Store
@@ -102,6 +105,21 @@ output/
 .mindshard/
 _sandbox/
 *.zip
+
+# --- Local builder / vendored tool workspaces ---
+# These are local helper/tooling surfaces, not app runtime source.
+.dev-tools/
+
+# --- Private local machine state ---
+*.local.json
+*.local.toml
+*.local.yaml
+*.local.yml
+*.local.ini
+*.secret
+*.secrets
+local_settings/
+private/
 
 # --wierd odds-n-ends
 _randomDOCS/

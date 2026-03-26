@@ -61,15 +61,27 @@ SCHEMA_VERSION = "1.0.0"
 SQLITE_USER_VERSION = 1
 
 
+def _sanitize_path_arg(value: str | Path | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    normalized = normalized.replace("\"", "").replace("'", "")
+    return normalized or None
+
+
 def _resolve_project_root(project_root: str | Path | None) -> Path:
-    if project_root:
-        return Path(project_root).resolve()
+    normalized = _sanitize_path_arg(project_root)
+    if normalized:
+        return Path(normalized).resolve()
     return Path.cwd().resolve()
 
 
 def resolve_paths(project_root: str | Path | None = None, db_path: str | Path | None = None) -> dict[str, str]:
-    if db_path:
-        resolved_db_path = Path(db_path).resolve()
+    normalized_db_path = _sanitize_path_arg(db_path)
+    if normalized_db_path:
+        resolved_db_path = Path(normalized_db_path).resolve()
         docs_dir = resolved_db_path.parent.parent if resolved_db_path.parent.name == "_journalDB" else resolved_db_path.parent
         project_root_path = docs_dir.parent if docs_dir.name == "_docs" else resolved_db_path.parent
     else:
