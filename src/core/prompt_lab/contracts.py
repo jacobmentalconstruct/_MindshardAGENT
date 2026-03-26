@@ -22,6 +22,8 @@ PROMPT_PROFILE_KIND = "prompt_profile"
 EXECUTION_PLAN_KIND = "execution_plan"
 BINDING_RECORD_KIND = "binding_record"
 PROMPT_BUILD_ARTIFACT_KIND = "prompt_build_artifact"
+PUBLISHED_PROMPT_LAB_PACKAGE_KIND = "published_prompt_lab_package"
+ACTIVE_PROMPT_LAB_STATE_KIND = "active_prompt_lab_state"
 EVAL_RUN_KIND = "eval_run"
 PROMOTION_RECORD_KIND = "promotion_record"
 VALIDATION_SNAPSHOT_KIND = "validation_snapshot"
@@ -111,6 +113,37 @@ class PromptBuildArtifact:
 
 
 @dataclass(frozen=True)
+class PublishedPromptLabPackage:
+    id: str
+    package_name: str
+    prompt_profile_ids: list[str] = field(default_factory=list)
+    execution_plan_id: str = ""
+    binding_ids: list[str] = field(default_factory=list)
+    validation_snapshot_id: str = ""
+    validation_status: str = "unknown"
+    source_fingerprint: str = ""
+    prompt_fingerprint: str = ""
+    execution_plan_fingerprint: str = ""
+    binding_fingerprint: str = ""
+    package_fingerprint: str = ""
+    created_at: str = ""
+    published_at: str = ""
+    published_by: str = ""
+    notes: str = ""
+
+
+@dataclass(frozen=True)
+class ActivePromptLabState:
+    id: str = "active"
+    published_package_id: str = ""
+    package_fingerprint: str = ""
+    validation_snapshot_id: str = ""
+    activated_at: str = ""
+    activated_by: str = ""
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class EvalRun:
     id: str
     execution_plan_id: str
@@ -154,13 +187,20 @@ class PromotionRecord:
 
 
 DesignObject: TypeAlias = (
-    PromptProfile | ExecutionPlan | BindingRecord | PromptBuildArtifact
+    PromptProfile
+    | ExecutionPlan
+    | BindingRecord
+    | PromptBuildArtifact
+    | PublishedPromptLabPackage
+    | ActivePromptLabState
 )
 PromptLabRecord: TypeAlias = (
     PromptProfile
     | ExecutionPlan
     | BindingRecord
     | PromptBuildArtifact
+    | PublishedPromptLabPackage
+    | ActivePromptLabState
     | EvalRun
     | PromotionRecord
     | ValidationSnapshot
@@ -172,6 +212,8 @@ RECORD_KIND_TO_TYPE: dict[str, type[PromptLabRecord]] = {
     EXECUTION_PLAN_KIND: ExecutionPlan,
     BINDING_RECORD_KIND: BindingRecord,
     PROMPT_BUILD_ARTIFACT_KIND: PromptBuildArtifact,
+    PUBLISHED_PROMPT_LAB_PACKAGE_KIND: PublishedPromptLabPackage,
+    ACTIVE_PROMPT_LAB_STATE_KIND: ActivePromptLabState,
     EVAL_RUN_KIND: EvalRun,
     PROMOTION_RECORD_KIND: PromotionRecord,
     VALIDATION_SNAPSHOT_KIND: ValidationSnapshot,
@@ -186,6 +228,8 @@ JSON_DESIGN_KINDS = {
     EXECUTION_PLAN_KIND,
     BINDING_RECORD_KIND,
     PROMPT_BUILD_ARTIFACT_KIND,
+    PUBLISHED_PROMPT_LAB_PACKAGE_KIND,
+    ACTIVE_PROMPT_LAB_STATE_KIND,
 }
 SQLITE_HISTORY_KINDS = {
     EVAL_RUN_KIND,
@@ -299,6 +343,33 @@ def canonicalize_record(record: PromptLabRecord) -> PromptLabRecord:
             source_fingerprint=source_fingerprint,
             prompt_fingerprint=prompt_fingerprint,
         )
+    if isinstance(record, PublishedPromptLabPackage):
+        created_at = record.created_at or utc_iso()
+        published_at = record.published_at or created_at
+        package_fingerprint = record.package_fingerprint or compute_fingerprint(
+            {
+                "id": record.id,
+                "package_name": record.package_name,
+                "prompt_profile_ids": record.prompt_profile_ids,
+                "execution_plan_id": record.execution_plan_id,
+                "binding_ids": record.binding_ids,
+                "validation_snapshot_id": record.validation_snapshot_id,
+                "validation_status": record.validation_status,
+                "source_fingerprint": record.source_fingerprint,
+                "prompt_fingerprint": record.prompt_fingerprint,
+                "execution_plan_fingerprint": record.execution_plan_fingerprint,
+                "binding_fingerprint": record.binding_fingerprint,
+                "notes": record.notes,
+            }
+        )
+        return replace(
+            record,
+            created_at=created_at,
+            published_at=published_at,
+            package_fingerprint=package_fingerprint,
+        )
+    if isinstance(record, ActivePromptLabState):
+        return replace(record, activated_at=record.activated_at or utc_iso())
     if isinstance(record, EvalRun):
         return replace(record, created_at=record.created_at or utc_iso())
     if isinstance(record, ValidationSnapshot):

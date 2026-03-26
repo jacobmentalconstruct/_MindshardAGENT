@@ -143,6 +143,10 @@ class UIFacade:
         """Clear the prompt inspector view (used after project detach)."""
         self._win.control_pane.set_prompt_inspector("", "")
 
+    def set_prompt_lab_summary(self, text: str) -> None:
+        """Update the Prompt Lab active-package summary shown in the workbench."""
+        self._win.control_pane.set_prompt_lab_summary(text)
+
     # ── Workspace navigation ──────────────────────────────────────────────────
 
     def cycle_workspace_tabs(self) -> None:

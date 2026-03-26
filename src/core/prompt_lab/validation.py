@@ -9,6 +9,8 @@ from typing import Any
 from src.core.utils.clock import utc_iso
 
 from .contracts import (
+    ActivePromptLabState,
+    PublishedPromptLabPackage,
     ValidationSnapshot,
     compute_fingerprint,
 )
@@ -195,3 +197,130 @@ def validate_prompt_lab_state(project_root: str | Path | PromptLabStorage) -> Va
         binding_fingerprint=binding_fingerprint,
         created_at=utc_iso(),
     )
+
+
+def validate_package_selection(
+    storage: PromptLabStorage,
+    execution_plan_id: str,
+    prompt_profile_ids: list[str],
+    binding_ids: list[str],
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+
+    try:
+        plan = storage.load_design_object("execution_plan", execution_plan_id)
+    except FileNotFoundError:
+        return [
+            _finding(
+                "package.unknown_plan",
+                f"Package references unknown execution plan '{execution_plan_id}'.",
+            )
+        ]
+
+    requested_profiles = set(prompt_profile_ids)
+    for profile_id in prompt_profile_ids:
+        try:
+            storage.load_design_object("prompt_profile", profile_id)
+        except FileNotFoundError:
+            findings.append(
+                _finding(
+                    "package.unknown_profile",
+                    f"Package references unknown prompt profile '{profile_id}'.",
+                )
+            )
+
+    bindings = []
+    for binding_id in binding_ids:
+        try:
+            bindings.append(storage.load_design_object("binding_record", binding_id))
+        except FileNotFoundError:
+            findings.append(
+                _finding(
+                    "package.unknown_binding",
+                    f"Package references unknown binding '{binding_id}'.",
+                )
+            )
+
+    enabled_nodes = {node.id for node in plan.nodes if node.enabled}
+    seen_nodes: set[str] = set()
+    for binding in bindings:
+        if binding.execution_plan_id != execution_plan_id:
+            findings.append(
+                _finding(
+                    "package.binding_plan_mismatch",
+                    f"Binding '{binding.id}' belongs to plan '{binding.execution_plan_id}', not '{execution_plan_id}'.",
+                )
+            )
+        if binding.node_id not in {node.id for node in plan.nodes}:
+            findings.append(
+                _finding(
+                    "package.binding_unknown_node",
+                    f"Binding '{binding.id}' references node '{binding.node_id}' which is not in plan '{execution_plan_id}'.",
+                )
+            )
+        if binding.prompt_profile_id not in requested_profiles:
+            findings.append(
+                _finding(
+                    "package.binding_profile_not_in_package",
+                    f"Binding '{binding.id}' uses prompt profile '{binding.prompt_profile_id}' which is not included in the package.",
+                )
+            )
+        if binding.fallback_profile_id and binding.fallback_profile_id not in requested_profiles:
+            findings.append(
+                _finding(
+                    "package.binding_fallback_not_in_package",
+                    f"Binding '{binding.id}' uses fallback prompt profile '{binding.fallback_profile_id}' which is not included in the package.",
+                )
+            )
+        if binding.node_id in seen_nodes:
+            findings.append(
+                _finding(
+                    "package.duplicate_node_binding",
+                    f"Package contains multiple bindings for node '{binding.node_id}'.",
+                )
+            )
+        seen_nodes.add(binding.node_id)
+
+    missing_nodes = enabled_nodes - seen_nodes
+    for node_id in sorted(missing_nodes):
+        findings.append(
+            _finding(
+                "package.missing_enabled_node_binding",
+                f"Enabled node '{node_id}' is not covered by the selected package bindings.",
+            )
+        )
+
+    return findings
+
+
+def validate_active_state(
+    storage: PromptLabStorage,
+    active_state: ActivePromptLabState,
+) -> list[dict[str, Any]]:
+    if not active_state.published_package_id.strip():
+        return [_finding("active.missing_package", "Active Prompt Lab state does not reference a published package.")]
+    try:
+        package = storage.load_design_object("published_prompt_lab_package", active_state.published_package_id)
+    except FileNotFoundError:
+        return [
+            _finding(
+                "active.unknown_package",
+                f"Active Prompt Lab state references unknown package '{active_state.published_package_id}'.",
+            )
+        ]
+    findings: list[dict[str, Any]] = []
+    if active_state.package_fingerprint != package.package_fingerprint:
+        findings.append(
+            _finding(
+                "active.fingerprint_mismatch",
+                f"Active Prompt Lab state fingerprint does not match published package '{package.id}'.",
+            )
+        )
+    if active_state.validation_snapshot_id and active_state.validation_snapshot_id != package.validation_snapshot_id:
+        findings.append(
+            _finding(
+                "active.validation_snapshot_mismatch",
+                f"Active Prompt Lab state validation snapshot does not match published package '{package.id}'.",
+            )
+        )
+    return findings

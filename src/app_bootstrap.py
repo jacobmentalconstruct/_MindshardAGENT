@@ -22,7 +22,9 @@ from src.app_commands import (
     on_model_refresh,
     on_model_select,
     on_open_settings,
+    on_open_prompt_lab,
     on_reload_prompt_docs,
+    on_reload_prompt_lab_state,
     on_reload_tools,
     on_sandbox_pick,
     on_set_tool_round_limit,
@@ -37,6 +39,7 @@ from src.app_docker import (
 from src.app_lifecycle import build_on_close, request_active_stop
 from src.app_polling import schedule_startup_timers
 from src.app_prompt import on_prompt_source_saved
+from src.app_prompt_lab import refresh_prompt_lab_summary
 from src.app_safety import build_confirm_destructive, build_confirm_gui_launch
 from src.app_session import (
     log_model_roles,
@@ -154,6 +157,7 @@ def bootstrap_app(project_root: Path) -> AppBootstrapResult:
     _attach_context_menus(ui_facade)
     _seed_initial_ui(s, config)
     _start_runtime(s)
+    refresh_prompt_lab_summary(s, announce=False)
     _bind_global_shortcuts(root, s, ui_facade)
 
     return AppBootstrapResult(root=root, state=s, log=log)
@@ -243,6 +247,8 @@ def _build_window(
         on_bag_refresh=lambda: _refresh_evidence_bag(s),
         on_reload_tools=lambda: on_reload_tools(s),
         on_reload_prompt_docs=lambda: on_reload_prompt_docs(s),
+        on_open_prompt_lab=lambda: on_open_prompt_lab(s),
+        on_reload_prompt_lab_state=lambda: on_reload_prompt_lab_state(s),
         on_prompt_source_saved=lambda path: on_prompt_source_saved(s, path),
         on_set_tool_round_limit=lambda val: on_set_tool_round_limit(s, val),
         on_open_settings=lambda: on_open_settings(s),
@@ -350,6 +356,7 @@ def _bind_global_shortcuts(root: tk.Tk, s: AppState, ui_facade: UIFacade) -> Non
     def _on_f5(_event=None):
         on_reload_tools(s)
         on_reload_prompt_docs(s)
+        on_reload_prompt_lab_state(s)
         s.activity.info("ui", "Tools and prompt docs reloaded via F5")
         return "break"
 

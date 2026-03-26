@@ -63,6 +63,7 @@ def attach_sandbox(s: AppState, new_root: str, brief_data: dict | None = None) -
     """
     from src.app_session import on_session_new, refresh_session_list  # noqa: F401
     from src.app_prompt import refresh_prompt_inspector
+    from src.app_prompt_lab import refresh_prompt_lab_summary
 
     s.config.sandbox_root = new_root
     s.engine.set_sandbox(new_root)
@@ -92,6 +93,7 @@ def attach_sandbox(s: AppState, new_root: str, brief_data: dict | None = None) -
         s.ui_facade.set_tool_count(len(sandbox_tool_names), sandbox_tool_names)
         s.ui_facade.refresh_vcs()
     refresh_prompt_inspector(s)
+    refresh_prompt_lab_summary(s, announce=False)
 
 
 # ── Attach self (self-edit working copy) ──────────────────────────────────────
@@ -104,6 +106,7 @@ def attach_self(s: AppState, dest_root: str) -> None:
     """
     from src.app_session import on_session_new
     from src.app_prompt import refresh_prompt_inspector
+    from src.app_prompt_lab import refresh_prompt_lab_summary
     from src.core.sandbox.project_loader import load_project, list_project_files
     from src.core.project.project_meta import PROFILE_SELF_EDIT
     from src.core.utils.clock import utc_iso
@@ -166,6 +169,7 @@ def attach_self(s: AppState, dest_root: str) -> None:
             s.ui_facade.set_tool_count(len(sandbox_tool_names), sandbox_tool_names)
             s.ui_facade.refresh_vcs()
         refresh_prompt_inspector(s)
+        refresh_prompt_lab_summary(s, announce=False)
 
     threading.Thread(target=_do_load_self, daemon=True, name="load-self").start()
 
@@ -197,6 +201,8 @@ def detach(s: AppState, keep_sidecar: bool) -> None:
         s.safe_ui(lambda: _finish_detach(result))
 
     def _finish_detach(result: dict):
+        from src.app_prompt_lab import refresh_prompt_lab_summary
+
         if s.ui_facade:
             s.ui_facade.set_input_enabled(True)
         if result["success"]:
@@ -217,6 +223,7 @@ def detach(s: AppState, keep_sidecar: bool) -> None:
             if s.ui_facade:
                 s.ui_facade.clear_prompt_inspector()
                 s.ui_facade.refresh_vcs()
+            refresh_prompt_lab_summary(s, announce=False)
         else:
             s.window.set_status("Detach failed")
             if s.ui_facade:

@@ -52,6 +52,8 @@ class ControlPane(tk.Frame):
         on_vcs_snapshot=None,
         on_reload_tools=None,
         on_reload_prompt_docs=None,
+        on_open_prompt_lab=None,
+        on_reload_prompt_lab_state=None,
         on_prompt_source_saved=None,
         on_set_tool_round_limit=None,
         on_bag_refresh=None,
@@ -104,6 +106,8 @@ class ControlPane(tk.Frame):
             self._main_work_area,
             on_reload_tools=on_reload_tools,
             on_reload_prompt_docs=on_reload_prompt_docs,
+            on_open_prompt_lab=on_open_prompt_lab,
+            on_reload_prompt_lab_state=on_reload_prompt_lab_state,
             on_prompt_source_saved=on_prompt_source_saved,
             on_set_tool_round_limit=on_set_tool_round_limit,
             on_bag_refresh=on_bag_refresh,
@@ -178,6 +182,9 @@ class ControlPane(tk.Frame):
 
     def set_prompt_inspector(self, prompt_text: str, sources_text: str) -> None:
         self.prompt_workbench.set_prompt_inspector(prompt_text, sources_text)
+
+    def set_prompt_lab_summary(self, summary_text: str) -> None:
+        self.prompt_workbench.set_prompt_lab_summary(summary_text)
 
     def set_last_prompt(self, text: str) -> None:
         self.prompt_workbench.set_last_prompt(text)

@@ -275,7 +275,8 @@ The builder shall be confined to the designated sandbox project area and may con
 
 Authorized build boundary:
 
-`/<CODEX-or-CODE-CLAUDE-Sandbox-Area>/<current project root folder>/...`
+`/<current user chosen root folder>/<current project root folder>/...`
+`/<current user chosen root folder>/<current project root folder>/...`
 
 Everything inside the current project root folder and its subfolders is considered the project build domain. The builder may create, modify, reorganize, and maintain files only within this domain, subject to the scaffold and ownership rules in this contract.
 

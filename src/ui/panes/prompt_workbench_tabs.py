@@ -20,6 +20,18 @@ def _noop():
     """Sentinel used in place of anonymous lambda no-ops."""
 
 
+def _nearest_existing_dir(path: Path | None) -> Path | None:
+    if path is None:
+        return None
+    candidate = path if path.is_dir() else path.parent
+    while True:
+        if candidate.exists():
+            return candidate
+        if candidate.parent == candidate:
+            return None
+        candidate = candidate.parent
+
+
 def _make_toolbar_btn(parent, text: str, command, width: int | None = None) -> tk.Button:
     btn_kwargs = {
         "master": parent,
@@ -47,15 +59,19 @@ def _make_toolbar_btn(parent, text: str, command, width: int | None = None) -> t
 class PromptTab(tk.Frame):
     """Prompt summary tab with current prompt/response previews."""
 
-    def __init__(self, parent, *, on_reload_prompt_docs=None, **kw):
+    def __init__(self, parent, *, on_reload_prompt_docs=None, on_open_prompt_lab=None, on_reload_prompt_lab_state=None, **kw):
         kw.setdefault("bg", T.BG_DARK)
         super().__init__(parent, **kw)
         self._on_reload_prompt_docs = on_reload_prompt_docs
+        self._on_open_prompt_lab = on_open_prompt_lab
+        self._on_reload_prompt_lab_state = on_reload_prompt_lab_state
 
         self._compiled_summary = SummaryCard(self, title="COMPILED PROMPT", accent=T.CYAN)
         self._compiled_summary.pack(fill="x", padx=4, pady=(4, 4))
         self._source_summary = SummaryCard(self, title="SOURCE LAYERS", accent=T.PURPLE)
         self._source_summary.pack(fill="x", padx=4, pady=4)
+        self._prompt_lab_summary = SummaryCard(self, title="PROMPT LAB", accent=T.GREEN)
+        self._prompt_lab_summary.pack(fill="x", padx=4, pady=4)
 
         self.prompt_preview = TextPreview(self, label="LAST PROMPT", height=5, max_chars=4000)
         self.prompt_preview.pack(fill="x", padx=4, pady=2)
@@ -65,16 +81,27 @@ class PromptTab(tk.Frame):
         action_row = tk.Frame(self, bg=T.BG_DARK)
         action_row.pack(fill="x", padx=4, pady=(0, 4))
         _make_toolbar_btn(action_row, "Reload Docs", self._refresh_prompt_docs).pack(side="left")
+        _make_toolbar_btn(action_row, "Reload Lab", self._refresh_prompt_lab).pack(side="left", padx=(6, 0))
+        _make_toolbar_btn(action_row, "Open Lab", self._open_prompt_lab).pack(side="left", padx=(6, 0))
 
     def _refresh_prompt_docs(self) -> None:
         if self._on_reload_prompt_docs:
             self._on_reload_prompt_docs()
+
+    def _refresh_prompt_lab(self) -> None:
+        if self._on_reload_prompt_lab_state:
+            self._on_reload_prompt_lab_state()
+
+    def _open_prompt_lab(self) -> None:
+        if self._on_open_prompt_lab:
+            self._on_open_prompt_lab()
 
     def update_summaries(
         self,
         *,
         prompt_text: str,
         sources_text: str,
+        prompt_lab_summary: str,
         last_prompt_text: str,
         last_response_text: str,
     ) -> None:
@@ -106,6 +133,7 @@ class PromptTab(tk.Frame):
         self._source_summary.set_body(
             source_text + f"\nLast prompt {last_prompt_chars} chars | response {last_response_chars} chars"
         )
+        self._prompt_lab_summary.set_body(prompt_lab_summary or "Prompt Lab state not loaded yet.")
 
     def set_last_prompt(self, text: str) -> None:
         self.prompt_preview.set_text(text)
@@ -201,13 +229,18 @@ class SourcesTab(tk.Frame):
         self.set_sources_text("")
 
     def _default_source_dir(self) -> Path:
-        if self._source_editor_path:
-            return self._source_editor_path.parent
+        existing = _nearest_existing_dir(self._source_editor_path)
+        if existing:
+            return existing
         if self._selected_source and self._selected_source.get("path"):
-            return Path(self._selected_source["path"]).resolve().parent
+            existing = _nearest_existing_dir(Path(self._selected_source["path"]).resolve())
+            if existing:
+                return existing
         for layer in self._source_layers:
             if layer.get("path"):
-                return Path(layer["path"]).resolve().parent
+                existing = _nearest_existing_dir(Path(layer["path"]).resolve())
+                if existing:
+                    return existing
         return default_global_prompt_dir()
 
     def _set_source_editor_state(self, text: str, *, editable: bool, path: Path | None, runtime: bool) -> None:
@@ -275,6 +308,13 @@ class SourcesTab(tk.Frame):
 
         content, err = read_prompt_source(path)
         if err:
+            if not path.exists():
+                err = (
+                    "Source file is missing on disk.\n"
+                    "Use Open Folder to inspect the nearest existing directory, "
+                    "or Save As to recreate it.\n\n"
+                    f"{err}"
+                )
             self._set_source_editor_state(
                 f"Could not read source file:\n{err}",
                 editable=False,
@@ -362,7 +402,10 @@ class SourcesTab(tk.Frame):
     def _open_source_folder(self) -> None:
         from src.core.project.source_file_service import open_folder
 
-        open_folder(self._default_source_dir())
+        folder = self._default_source_dir()
+        err = open_folder(folder)
+        if err:
+            messagebox.showerror("Open Folder Failed", err, parent=self.winfo_toplevel())
 
     def set_sources_text(self, sources_text: str) -> None:
         self._sources_text = sources_text or ""

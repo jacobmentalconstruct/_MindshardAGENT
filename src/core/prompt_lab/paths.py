@@ -13,6 +13,7 @@ class PromptLabPaths:
     assets_root: Path
     state_root: Path
     db_path: Path
+    operations_log_path: Path
     prompt_profiles_dir: Path
     execution_plans_dir: Path
     bindings_dir: Path
@@ -33,6 +34,7 @@ def resolve_prompt_lab_paths(project_root: str | Path) -> PromptLabPaths:
         assets_root=root / "prompt_lab",
         state_root=state_root,
         db_path=state_root / "prompt_lab.sqlite3",
+        operations_log_path=state_root / "operations.jsonl",
         prompt_profiles_dir=state_root / "prompt_profiles",
         execution_plans_dir=state_root / "execution_plans",
         bindings_dir=state_root / "bindings",

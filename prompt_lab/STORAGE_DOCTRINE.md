@@ -22,6 +22,8 @@ These records belong to the subsystem itself:
 - prompt profiles
 - execution plans
 - binding records
+- published Prompt Lab packages
+- active Prompt Lab state
 - build artifacts
 - evaluation runs
 - promotion records
@@ -38,7 +40,43 @@ These records belong to the subsystem itself:
   graph-capable identity and relationship fields for later evolution.
 - Prompt Lab CLI commands are inspection/admin oriented and must not become an
   uncontrolled editing surface.
+- Published packages are the only publishable design bundles.
+- Active state must point only to a published package, never to drafts or loose
+  design objects.
+- Publish requires a structurally valid Prompt Lab state and a package
+  selection that fully covers the enabled nodes of the selected execution plan.
 
 ## Project-local storage root
 
 - `.mindshard/prompt_lab/`
+
+## Phase 1B package contract
+
+- published packages live under `.mindshard/prompt_lab/published/`
+- active state lives under `.mindshard/prompt_lab/active/`
+- promotion history remains indexed in SQLite
+- the main app is still expected to consume only active published state when
+  runtime integration lands
+
+## Phase 1C operational doctrine
+
+- Prompt Lab MCP tools operate on the same canonical services and storage as the CLI.
+- Prompt Lab administrative and runtime-facing actions are logged to
+  `.mindshard/prompt_lab/operations.jsonl`.
+- Runtime inspection/loaders resolve only the explicit active published package.
+- The main app may summarize and reload Prompt Lab state, but it must not derive
+  runtime behavior from drafts or loose design objects.
+
+## Phase 2 workbench doctrine
+
+- The dedicated Prompt Lab workbench is the real subsystem UI surface.
+- The main app bridge remains a launch/summary/reload seam only.
+- The workbench stays read/admin-safe until richer editing phases are
+  deliberately implemented.
+- `Open Lab` should now open the dedicated Prompt Lab workbench, not merely the
+  filesystem location.
+- runtime/apply feedback should be explicit and calm: status lines, validation
+  visibility, and activation outcomes should be inspectable without widening
+  the main-app bridge
+- evaluation and promotion history should deepen through inspect-first surfaces
+  before any broader editing power is introduced

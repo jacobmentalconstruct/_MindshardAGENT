@@ -24,6 +24,8 @@ class PromptWorkbench(tk.Frame):
         *,
         on_reload_tools=None,
         on_reload_prompt_docs=None,
+        on_open_prompt_lab=None,
+        on_reload_prompt_lab_state=None,
         on_prompt_source_saved=None,
         on_set_tool_round_limit=None,
         on_bag_refresh=None,
@@ -35,6 +37,7 @@ class PromptWorkbench(tk.Frame):
 
         self._prompt_text = ""
         self._sources_text = ""
+        self._prompt_lab_summary = ""
         self._last_prompt_text = ""
         self._last_response_text = ""
 
@@ -49,7 +52,12 @@ class PromptWorkbench(tk.Frame):
         self._right_notebook = ttk.Notebook(self)
         self._right_notebook.pack(fill="both", expand=True, padx=4, pady=(0, 4))
 
-        self._prompt_tab = PromptTab(self._right_notebook, on_reload_prompt_docs=on_reload_prompt_docs)
+        self._prompt_tab = PromptTab(
+            self._right_notebook,
+            on_reload_prompt_docs=on_reload_prompt_docs,
+            on_open_prompt_lab=on_open_prompt_lab,
+            on_reload_prompt_lab_state=on_reload_prompt_lab_state,
+        )
         self._sources_tab = SourcesTab(self._right_notebook, on_prompt_source_saved=on_prompt_source_saved)
         self._inspect_tab = InspectTab(self._right_notebook)
         self._tools_tab = ToolsTab(
@@ -81,6 +89,7 @@ class PromptWorkbench(tk.Frame):
         self._prompt_tab.update_summaries(
             prompt_text=self._prompt_text,
             sources_text=self._sources_text,
+            prompt_lab_summary=self._prompt_lab_summary,
             last_prompt_text=self._last_prompt_text,
             last_response_text=self._last_response_text,
         )
@@ -96,6 +105,10 @@ class PromptWorkbench(tk.Frame):
         self._sources_text = sources_text or ""
         self._inspect_tab.set_prompt_inspector(self._prompt_text, self._sources_text)
         self._sources_tab.set_sources_text(self._sources_text)
+        self._update_prompt_summaries()
+
+    def set_prompt_lab_summary(self, summary_text: str) -> None:
+        self._prompt_lab_summary = summary_text or ""
         self._update_prompt_summaries()
 
     def set_last_prompt(self, text: str) -> None:

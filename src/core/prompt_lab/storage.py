@@ -13,19 +13,23 @@ import sqlite3
 from typing import Any
 
 from .contracts import (
+    ACTIVE_PROMPT_LAB_STATE_KIND,
     BINDING_RECORD_KIND,
     EVAL_RUN_KIND,
     EXECUTION_PLAN_KIND,
     JSON_DESIGN_KINDS,
+    PUBLISHED_PROMPT_LAB_PACKAGE_KIND,
     PROMOTION_RECORD_KIND,
     PROMPT_BUILD_ARTIFACT_KIND,
     PROMPT_PROFILE_KIND,
     SQLITE_HISTORY_KINDS,
     VALIDATION_SNAPSHOT_KIND,
+    ActivePromptLabState,
     BindingRecord,
     DesignObject,
     EvalRun,
     ExecutionPlan,
+    PublishedPromptLabPackage,
     PromptBuildArtifact,
     PromptLabRecord,
     PromptProfile,
@@ -64,6 +68,8 @@ def _resolve_json_directory(paths: PromptLabPaths, kind: str) -> Path:
         EXECUTION_PLAN_KIND: paths.execution_plans_dir,
         BINDING_RECORD_KIND: paths.bindings_dir,
         PROMPT_BUILD_ARTIFACT_KIND: paths.build_artifacts_dir,
+        PUBLISHED_PROMPT_LAB_PACKAGE_KIND: paths.published_dir,
+        ACTIVE_PROMPT_LAB_STATE_KIND: paths.active_dir,
     }
     try:
         return mapping[kind]
@@ -136,14 +142,20 @@ class PromptLabStorage:
         object_id = getattr(canonical, "id", "").strip()
         if not object_id:
             raise ValueError(f"Cannot save {kind!r} without a non-empty id")
-        path = _resolve_json_directory(self.paths, kind) / f"{object_id}.json"
+        if kind == ACTIVE_PROMPT_LAB_STATE_KIND:
+            path = _resolve_json_directory(self.paths, kind) / "active_prompt_lab_state.json"
+        else:
+            path = _resolve_json_directory(self.paths, kind) / f"{object_id}.json"
         path.write_text(stable_json_dumps(payload) + "\n", encoding="utf-8")
         return canonical
 
     def load_design_object(self, kind: str, object_id: str) -> DesignObject:
         if kind not in JSON_DESIGN_KINDS:
             raise ValueError(f"Record kind {kind!r} is not a JSON design object")
-        path = _resolve_json_directory(self.paths, kind) / f"{object_id}.json"
+        if kind == ACTIVE_PROMPT_LAB_STATE_KIND:
+            path = _resolve_json_directory(self.paths, kind) / "active_prompt_lab_state.json"
+        else:
+            path = _resolve_json_directory(self.paths, kind) / f"{object_id}.json"
         if not path.exists():
             raise FileNotFoundError(path)
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -153,7 +165,8 @@ class PromptLabStorage:
         if kind not in JSON_DESIGN_KINDS:
             raise ValueError(f"Record kind {kind!r} is not a JSON design object")
         summaries: list[dict[str, Any]] = []
-        for path in sorted(_resolve_json_directory(self.paths, kind).glob("*.json")):
+        file_glob = "active_prompt_lab_state.json" if kind == ACTIVE_PROMPT_LAB_STATE_KIND else "*.json"
+        for path in sorted(_resolve_json_directory(self.paths, kind).glob(file_glob)):
             if path.name.startswith("."):
                 continue
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -167,7 +180,13 @@ class PromptLabStorage:
                     "name": data.get("name", data.get("label", "")),
                     "fingerprint": data.get(
                         "version_fingerprint",
-                        data.get("binding_fingerprint", data.get("prompt_fingerprint", "")),
+                        data.get(
+                            "binding_fingerprint",
+                            data.get(
+                                "prompt_fingerprint",
+                                data.get("package_fingerprint", ""),
+                            ),
+                        ),
                     ),
                 }
             )
@@ -280,6 +299,12 @@ class PromptLabStorage:
         return self.save_design_object(record)  # type: ignore[return-value]
 
     def save_build_artifact(self, record: PromptBuildArtifact) -> PromptBuildArtifact:
+        return self.save_design_object(record)  # type: ignore[return-value]
+
+    def save_published_package(self, record: PublishedPromptLabPackage) -> PublishedPromptLabPackage:
+        return self.save_design_object(record)  # type: ignore[return-value]
+
+    def save_active_state(self, record: ActivePromptLabState) -> ActivePromptLabState:
         return self.save_design_object(record)  # type: ignore[return-value]
 
     def save_eval_run(self, record: EvalRun) -> EvalRun:

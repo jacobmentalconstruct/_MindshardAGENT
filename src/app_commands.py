@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from tkinter import filedialog
 from typing import TYPE_CHECKING
@@ -13,6 +14,8 @@ from src.app_model_commands import (
     on_reload_tools as _on_reload_tools,
     on_set_tool_round_limit as _on_set_tool_round_limit,
 )
+from src.app_prompt_lab import open_prompt_lab_surface as _open_prompt_lab_surface
+from src.app_prompt_lab import refresh_prompt_lab_summary as _refresh_prompt_lab_summary
 from src.app_project_edit_commands import (
     on_edit_project_brief as _on_edit_project_brief,
     on_edit_prompt_overrides as _on_edit_prompt_overrides,
@@ -90,6 +93,14 @@ def on_reload_tools(s: AppState) -> None:
 def on_reload_prompt_docs(s: AppState) -> None:
     from src.app_prompt import refresh_prompt_inspector
     refresh_prompt_inspector(s, s.ui_state.last_user_input, announce=True)
+
+
+def on_open_prompt_lab(s: AppState) -> None:
+    _open_prompt_lab_surface(s)
+
+
+def on_reload_prompt_lab_state(s: AppState) -> None:
+    _refresh_prompt_lab_summary(s, announce=True)
 
 
 def on_set_tool_round_limit(s: AppState, value: int) -> None:
