@@ -107,6 +107,16 @@
       "keywords": ["video", "overview", "narration", "shot planning", "explainer"],
       "depends_on": ["overview", "architecture_map", "runtime_lifecycle", "operator_workflows"],
       "see_also": ["subsystem_catalog", "integration_seams", "glossary"]
+    },
+    {
+      "id": "overview_code_sampler",
+      "title": "Overview Code Sampler",
+      "file": "95_OVERVIEW_CODE_SAMPLER.txt",
+      "purpose": "Parsable, size-limited dump of the most important files to accompany media overviews and external agent reasoning.",
+      "audience": ["agents", "technical communicators", "reviewers"],
+      "keywords": ["sampler", "code dump", "parsable", "media", "overview"],
+      "depends_on": ["architecture_map", "runtime_lifecycle", "subsystem_catalog", "file_tree_guide"],
+      "see_also": ["video_overview_prompt", "file_tree_guide", "integration_seams"]
     }
   ],
   "topic_routes": {
@@ -118,6 +128,7 @@
     "where_are_the_riskiest_joins": ["integration_seams", "runtime_lifecycle"],
     "how_do_i_translate_project_jargon": ["glossary"],
     "how_would_i_explain_this_to_others": ["overview", "architecture_map", "operator_workflows", "video_overview_prompt"],
-    "how_do_i_generate_a_video_overview": ["video_overview_prompt", "overview", "architecture_map"]
+    "how_do_i_generate_a_video_overview": ["video_overview_prompt", "overview", "architecture_map", "overview_code_sampler"],
+    "what_code_should_i_review_for_media": ["overview_code_sampler", "file_tree_guide", "architecture_map"]
   }
 }

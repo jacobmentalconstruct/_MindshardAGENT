@@ -30,9 +30,13 @@ Use these for navigation:
 - `70_STORAGE_AND_TRUTH_MODEL.md`
 - `80_OPERATOR_WORKFLOWS.md`
 - `90_VIDEO_OVERVIEW_PROMPT.md`
+- `95_OVERVIEW_CODE_SAMPLER.txt`
 
 Machine-readable navigation lives in:
 - `atlas_registry.json`
+
+Helper tooling for media handoff lives here too:
+- `build_overview_code_sampler.py`
 
 ## Current System Position
 
