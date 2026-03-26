@@ -95,14 +95,25 @@ class AppState:
 
     # ── Timer helpers ─────────────────────────────────
 
+    @property
+    def is_closing(self) -> bool:
+        return bool(self.app_closing["value"])
+
+    def begin_shutdown(self) -> bool:
+        """Mark shutdown start once; return False if already closing."""
+        if self.app_closing["value"]:
+            return False
+        self.app_closing["value"] = True
+        return True
+
     def safe_after(self, name: str, delay_ms: int, callback: Callable) -> Optional[str]:
         """Schedule a callback, protected against shutdown."""
-        if self.app_closing["value"]:
+        if self.is_closing:
             return None
 
         def _wrapped():
             self.scheduled_after.pop(name, None)
-            if self.app_closing["value"]:
+            if self.is_closing:
                 return
             callback()
 
@@ -124,12 +135,64 @@ class AppState:
 
     def safe_ui(self, callback: Callable) -> None:
         """Marshal a callback to the main thread, protected against shutdown."""
-        if self.app_closing["value"]:
+        if self.is_closing:
             return
         try:
-            self.root.after(0, lambda: None if self.app_closing["value"] else callback())
+            self.root.after(0, lambda: None if self.is_closing else callback())
         except tk.TclError:
             pass
+
+    # ── Session helpers ───────────────────────────────
+
+    @property
+    def active_session_id(self) -> Optional[str]:
+        return self.active_session["sid"]
+
+    @property
+    def active_session_node_id(self) -> Optional[str]:
+        return self.active_session["node_id"]
+
+    def set_active_session(self, *, sid: Optional[str], node_id: Optional[str]) -> None:
+        self.active_session["sid"] = sid
+        self.active_session["node_id"] = node_id
+
+    @property
+    def autosave_after_id(self) -> Any:
+        return self.autosave_timer["id"]
+
+    def set_autosave_after_id(self, after_id: Any) -> None:
+        self.autosave_timer["id"] = after_id
+
+    def clear_autosave_after_id(self) -> None:
+        self.autosave_timer["id"] = None
+
+    # ── Stream helpers ────────────────────────────────
+
+    def reset_stream_buffer(self) -> None:
+        self.streaming_content.clear()
+        self.stream_dirty["val"] = False
+
+    def append_stream_token(self, token: str) -> None:
+        self.streaming_content.append(token)
+        self.stream_dirty["val"] = True
+
+    def current_stream_text(self) -> str:
+        return "".join(self.streaming_content)
+
+    def consume_stream_dirty(self) -> bool:
+        dirty = bool(self.stream_dirty["val"])
+        self.stream_dirty["val"] = False
+        return dirty
+
+    @property
+    def stream_flush_after_id(self) -> Any:
+        return self.stream_flush_id["id"]
+
+    def set_stream_flush_after_id(self, after_id: Any) -> None:
+        self.stream_flush_id["id"] = after_id
+
+    def clear_stream_flush_after_id(self) -> None:
+        self.stream_flush_id["id"] = None
 
     # ── Busy-operation helpers ─────────────────────────
 

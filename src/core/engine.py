@@ -22,11 +22,13 @@ from src.core.sandbox.sandbox_runtime_factory import build_sandbox_runtime
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.file_writer import FileWriter
 from src.core.sandbox.docker_manager import DockerManager
+from src.core.sandbox.workspace_layout import ensure_sidecar_dirs
 from src.core.agent.tool_router import ToolRouter
 from src.core.agent.response_loop import ResponseLoop
 from src.core.agent.thought_chain import ThoughtChain
-from src.core.sandbox.tool_discovery import register_discovered_tools
+from src.core.sandbox.tool_discovery import reload_discovered_tool_roots
 from src.core.sessions.knowledge_store import KnowledgeStore
+from src.core.sessions.evidence_adapter import initialize_evidence_bag
 from src.core.runtime.action_journal import ActionJournal
 from src.core.vcs.mindshard_vcs import MindshardVCS
 from src.core.project.project_meta import ProjectMeta
@@ -126,7 +128,7 @@ class Engine:
                                        on_confirm_gui_launch=self._on_confirm_gui_launch)
 
         # Ensure standard workspace dirs exist
-        self._init_workspace_dirs(sandbox_root)
+        ensure_sidecar_dirs(sandbox_root)
 
         # Project metadata
         self.project_meta = ProjectMeta(sandbox_root)
@@ -166,17 +168,11 @@ class Engine:
             python_runner=self.python_runner,
         )
 
-        # Initialize evidence bag adapter if enabled
-        if self.config.evidence_bag_enabled:
-            try:
-                from src.core.sessions.evidence_adapter import EvidenceBagAdapter
-                from pathlib import Path
-                evidence_dir = Path(sandbox_root) / ".mindshard" / "sessions"
-                self.evidence_bag = EvidenceBagAdapter(evidence_dir)
-                self.activity.info("engine", "Evidence bag adapter initialized")
-            except Exception as exc:
-                log.warning("Evidence bag init failed (non-fatal): %s", exc)
-                self.evidence_bag = None
+        self.evidence_bag = initialize_evidence_bag(
+            sandbox_root,
+            enabled=self.config.evidence_bag_enabled,
+            activity=self.activity,
+        )
 
         self.response_loop = ResponseLoop(
             self.config, self.tool_catalog, self.tool_router, self.activity,
@@ -214,14 +210,6 @@ class Engine:
                             {"sandbox_root": sandbox_root, "mode": mode_str,
                              "tools_discovered": len(discovered_names)})
         log.info("Sandbox initialized: %s (mode=%s)", sandbox_root, mode_str)
-
-    def _init_workspace_dirs(self, sandbox_root: str) -> None:
-        """Create .mindshard/ sidecar subdirectories if they don't exist."""
-        from pathlib import Path
-        root = Path(sandbox_root)
-        sidecar = root / ".mindshard"
-        for d in ("vcs", "sessions", "logs", "tools", "parts", "ref", "outputs", "state", "runs"):
-            (sidecar / d).mkdir(parents=True, exist_ok=True)
 
     def set_active_project(self, project_path: str) -> None:
         """Set the focal project path (relative to sandbox root).
@@ -292,6 +280,7 @@ class Engine:
         on_token: Callable[[str], None] | None = None,
         on_complete: Callable[[dict[str, Any]], None] | None = None,
         on_error: Callable[[str], None] | None = None,
+        on_tool_result: Callable[[dict[str, Any]], None] | None = None,
         mode_hint: str | None = None,
     ) -> None:
         """Submit a user prompt through the loop manager.
@@ -320,6 +309,7 @@ class Engine:
             on_token=on_token,
             on_complete=lambda result: self._handle_loop_complete(result, on_complete),
             on_error=on_error,
+            on_tool_result=on_tool_result,
             mode_hint=effective_mode,
         )
         try:
@@ -424,40 +414,10 @@ class Engine:
 
     def reload_discovered_tools(self) -> list[str]:
         """Reload all non-builtin tools from the active sandbox and toolbox root."""
-        from pathlib import Path
-
-        sandbox_root = str(self.config.sandbox_root or "").strip()
-        toolbox_root = str(self.config.toolbox_root or "").strip()
-
-        self.tool_catalog.clear_discovered_tools()
-
-        if sandbox_root:
-            register_discovered_tools(
-                self.tool_catalog,
-                sandbox_root,
-                source="sandbox_local",
-            )
-
-        toolbox_names: list[str] = []
-        if toolbox_root:
-            if Path(toolbox_root).is_dir():
-                before = set(self.tool_catalog.discovered_tool_names())
-                register_discovered_tools(
-                    self.tool_catalog,
-                    toolbox_root,
-                    source="toolbox",
-                )
-                after = self.tool_catalog.discovered_tool_names()
-                toolbox_names = [name for name in after if name not in before]
-            else:
-                self.activity.warn("engine", f"Toolbox root not found: {toolbox_root}")
-
-        names = self.tool_catalog.discovered_tool_names()
-        if self._on_tools_reloaded:
-            self._on_tools_reloaded(len(names), names)
-        log.info(
-            "Reloaded discovered tools: %d sandbox, %d toolbox",
-            len(self.tool_catalog.sandbox_tool_names()),
-            len(toolbox_names),
+        return reload_discovered_tool_roots(
+            self.tool_catalog,
+            sandbox_root=str(self.config.sandbox_root or "").strip(),
+            toolbox_root=str(self.config.toolbox_root or "").strip(),
+            activity=self.activity,
+            on_tools_reloaded=self._on_tools_reloaded,
         )
-        return names

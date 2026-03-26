@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
-from src.core.agent.transcript_formatter import compact_tool_call_transcript
+from src.core.agent.transcript_formatter import strip_tool_call_markup
 from src.core.config.app_config import AppConfig
 from src.core.ollama.ollama_client import chat_stream
 from src.core.runtime.activity_stream import ActivityStream
@@ -112,7 +112,7 @@ def run_evidence_pass(
         activity.info("evidence", "Pass-2 complete")
 
         return {
-            "content": compact_tool_call_transcript(pass2_text),
+            "content": strip_tool_call_markup(pass2_text),
             "result": pass2_result,
             "text": pass2_text,
         }

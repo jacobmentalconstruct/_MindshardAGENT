@@ -4,6 +4,87 @@ Append-only execution ledger.
 
 ---
 
+## 2026-03-25 — ALIGN-002: App Root, Loop Contract, And AppState Boundary Pass
+
+### Summary
+Completed the next builder-contract alignment tranche after the core
+stabilization pass.
+
+This pass stayed intentionally narrow:
+
+- thinned `src/app.py` into a real composition root
+- extracted app assembly and lifecycle ownership into dedicated app-layer modules
+- reduced `Engine` by moving ownership to domain-local helpers only
+- wrote an explicit loop contract and normalized loop result/join behavior
+- reduced `AppState` access sprawl with owned session/stream/lifecycle helpers
+- recorded the deferred `control_pane.py` split seams without breaking up the UI yet
+
+No runtime semantics were intentionally redesigned during this tranche.
+
+### Files Added
+- `src/app_bootstrap.py`
+- `src/app_lifecycle.py`
+- `src/core/sandbox/workspace_layout.py`
+- `src/core/agent/loop_contract.md`
+- `_docs/control_pane_split_plan.md`
+
+### Files Modified
+- `src/app.py`
+- `src/app_state.py`
+- `src/app_session.py`
+- `src/app_streaming.py`
+- `src/app_commands.py`
+- `src/app_docker.py`
+- `src/app_polling.py`
+- `src/app_ui_bridge.py`
+- `src/app_bootstrap.py`
+- `src/core/engine.py`
+- `src/core/sandbox/tool_discovery.py`
+- `src/core/sessions/evidence_adapter.py`
+- `src/core/agent/loop_types.py`
+- `src/core/agent/direct_chat_loop.py`
+- `src/core/agent/planner_only_loop.py`
+- `src/core/agent/thought_chain_loop.py`
+- `src/core/agent/recovery_agent_loop.py`
+- `src/core/agent/review_judge_loop.py`
+- `src/core/agent/turn_pipeline.py`
+- `src/core/agent/thought_chain_command_handler.py`
+- `src/core/project/project_command_handler.py`
+- `tests/test_toolbox_and_stop_behavior.py`
+- `_docs/TODO.md`
+
+### Architectural Notes
+- `src/app.py` now reads as startup entry + mainloop only.
+- `src/app_bootstrap.py` owns assembly/wiring but not shutdown policy.
+- `src/app_lifecycle.py` owns shutdown choreography completely.
+- No generic `core/app_runtime/` layer was introduced.
+- `Engine` was thinned only by moving concerns to natural owners:
+  - workspace sidecar bootstrap -> `core/sandbox`
+  - evidence-bag bootstrap -> `core/sessions`
+  - discovered-tool reload orchestration -> `core/sandbox`
+- The loop family now has an explicit in-project contract document plus shared
+  payload helpers in `loop_types.py`.
+- Wrapper loops (`recovery_agent`, `review_judge`) now forward `join()` and
+  normalize loop metadata/history consistently.
+- `AppState` remains one top-level handoff object, but heavy callers now use
+  owned helpers for:
+  - active session identity
+  - autosave timer ownership
+  - stream buffer / flush state
+  - shutdown state
+
+### Deferred By Design
+- `src/ui/panes/control_pane.py` remains deferred for a later UI-local split.
+- Future seam map is now recorded in `_docs/control_pane_split_plan.md`.
+
+### Verification
+- `python -m py_compile src\\app.py src\\app_bootstrap.py src\\app_lifecycle.py src\\app_state.py src\\app_streaming.py src\\app_session.py src\\app_commands.py src\\app_docker.py src\\app_polling.py src\\app_ui_bridge.py src\\core\\agent\\loop_types.py src\\core\\agent\\direct_chat_loop.py src\\core\\agent\\planner_only_loop.py src\\core\\agent\\thought_chain_loop.py src\\core\\agent\\recovery_agent_loop.py src\\core\\agent\\review_judge_loop.py src\\core\\agent\\turn_pipeline.py src\\core\\agent\\thought_chain_command_handler.py src\\core\\project\\project_command_handler.py src\\core\\engine.py`
+- `python -m pytest tests\\test_toolbox_and_stop_behavior.py -q` -> `11 passed`
+- `python -m pytest -q` -> `44 passed`
+- `python -m tests.test_tool_roundtrip` -> `92/92`
+
+---
+
 ## 2026-03-16T19:20 — INIT-001: Full V1 Build
 
 ### Summary

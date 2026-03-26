@@ -26,7 +26,7 @@ from typing import Any, Callable
 from src.core.agent.context_gatherer import gather_workspace_context
 from src.core.agent.evidence_pass import run_evidence_pass
 from src.core.agent.execution_planner import run_execution_planner
-from src.core.agent.loop_types import TOOL_AGENT_LOOP
+from src.core.agent.loop_types import TOOL_AGENT_LOOP, build_loop_result
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.agent.probe_stage import run_probe_stage
 from src.core.agent.prompt_builder import PromptBuildResult, build_system_prompt_bundle
@@ -38,7 +38,7 @@ from src.core.agent.recovery_planner import (
 )
 from src.core.agent.stage_context import StageContext, format_stage_context
 from src.core.agent.tool_router import ToolRouter
-from src.core.agent.transcript_formatter import compact_tool_call_transcript, format_all_results
+from src.core.agent.transcript_formatter import format_all_results, strip_tool_call_markup
 from src.core.agent.turn_assembler import assemble_turn
 from src.core.config.app_config import AppConfig
 from src.core.ollama.ollama_client import chat_stream
@@ -247,7 +247,9 @@ class TurnPipeline:
             )
 
             assistant_text = result.get("content", "".join(round_tokens))
-            total_content.append(compact_tool_call_transcript(assistant_text))
+            visible_assistant_text = strip_tool_call_markup(assistant_text)
+            if visible_assistant_text:
+                total_content.append(visible_assistant_text)
 
             if result.get("stopped"):
                 self._activity.info("agent", "Response loop interrupted by user request")
@@ -368,15 +370,13 @@ class TurnPipeline:
         }
 
         if on_complete:
-            on_complete({
-                "content": "\n".join(total_content),
-                "metadata": meta,
-                "prompt_build": prompt_build,
-                "history_addition": [
-                    {"role": "user", "content": user_text},
-                    {"role": "assistant", "content": "\n".join(total_content)},
-                ],
-            })
+            on_complete(build_loop_result(
+                user_text=user_text,
+                content="\n".join(total_content),
+                loop_id=TOOL_AGENT_LOOP,
+                metadata=meta,
+                prompt_build=prompt_build,
+            ))
 
     def build_prompt(
         self,

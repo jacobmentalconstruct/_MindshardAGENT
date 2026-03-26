@@ -10,7 +10,7 @@ like "try a different approach" or "that didn't work", or via mode_hint="recover
 
 from __future__ import annotations
 
-from src.core.agent.loop_types import RECOVERY_AGENT_LOOP, LoopRequest, LoopRunner
+from src.core.agent.loop_types import RECOVERY_AGENT_LOOP, LoopRequest, LoopRunner, patch_loop_result
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
 
@@ -59,7 +59,7 @@ class RecoveryAgentLoop:
             user_text=framed_text,
             chat_history=request.chat_history,
             on_token=request.on_token,
-            on_complete=_wrap_on_complete(request.on_complete, self.loop_id),
+            on_complete=_wrap_on_complete(request.on_complete, self.loop_id, request.user_text),
             on_error=request.on_error,
             on_tool_start=request.on_tool_start,
             on_tool_result=request.on_tool_result,
@@ -72,15 +72,17 @@ class RecoveryAgentLoop:
         self._stop_requested = True
         self._tool_agent.request_stop()
 
+    def join(self, timeout: float = 3.0) -> None:
+        if hasattr(self._tool_agent, "join"):
+            self._tool_agent.join(timeout=timeout)
 
-def _wrap_on_complete(original_on_complete, loop_id: str):
+
+def _wrap_on_complete(original_on_complete, loop_id: str, user_text: str):
     """Wrap on_complete to override the loop_mode metadata key."""
     if original_on_complete is None:
         return None
 
     def _wrapped(result: dict) -> None:
-        meta = result.get("metadata", {})
-        meta["loop_mode"] = loop_id
-        original_on_complete(result)
+        original_on_complete(patch_loop_result(result, loop_id=loop_id, user_text=user_text))
 
     return _wrapped

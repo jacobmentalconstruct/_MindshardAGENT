@@ -38,7 +38,7 @@ def run_thought_chain(s: "AppState", goal: str, depth: int = 3) -> None:
     from src.core.registry.session_registry import register_message
 
     def _persist_message(role: str, content: str, *, model_name: str = "", token_out: int = 0) -> None:
-        sid = s.active_session["sid"]
+        sid = s.active_session_id
         if not sid or not content.strip():
             return
         s.session_store.add_message(
@@ -48,8 +48,8 @@ def run_thought_chain(s: "AppState", goal: str, depth: int = 3) -> None:
             model_name=model_name,
             token_out=token_out,
         )
-        if s.active_session["node_id"]:
-            register_message(s.registry, s.active_session["node_id"], role, content[:50])
+        if s.active_session_node_id:
+            register_message(s.registry, s.active_session_node_id, role, content[:50])
 
     if s.ui_facade:
         s.ui_facade.post_user_message(goal)

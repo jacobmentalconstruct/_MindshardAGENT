@@ -53,7 +53,7 @@ def on_model_refresh(s: AppState) -> None:
             models = scan_models(s.config.ollama_base_url)
 
             def _apply():
-                if s.app_closing["value"]:
+                if s.is_closing:
                     return
                 primary_model = resolve_model_for_role(s.config, PRIMARY_CHAT_ROLE)
                 if s.ui_facade:

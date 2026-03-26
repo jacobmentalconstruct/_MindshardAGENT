@@ -38,46 +38,53 @@ def on_submit(s: AppState, text: str) -> None:
     busy_kind, status_text = _busy_status_for_mode(mode_hint)
     busy_token = s.begin_busy(busy_kind, status_text=status_text, disable_input=True)
     s.ui_state.is_streaming = True
-    s.streaming_content.clear()
+    s.reset_stream_buffer()
 
     # Persist user message
-    sid = s.active_session["sid"]
+    sid = s.active_session_id
     if sid:
         s.session_store.add_message(sid, "user", text)
-        if s.active_session["node_id"]:
-            register_message(s.registry, s.active_session["node_id"], "user", text[:50])
+        if s.active_session_node_id:
+            register_message(s.registry, s.active_session_node_id, "user", text[:50])
 
     # Placeholder assistant card for streaming
     s.ui_facade.begin_chat_stream()
-    s.stream_dirty["val"] = False
 
     # ── Chunked streaming ──────────────────────────
     def _on_token(token: str):
-        s.streaming_content.append(token)
-        s.stream_dirty["val"] = True
+        s.append_stream_token(token)
+
+    def _on_tool_result(payload: dict):
+        formatted = str(payload.get("formatted", "") or "").strip()
+        if not formatted:
+            return
+
+        def _show_tool_activity() -> None:
+            s.ui_facade.post_system_message(f"[Tool activity]\n{formatted}")
+
+        s.safe_ui(_show_tool_activity)
 
     def _flush_stream():
         """Called on main thread by a repeating timer."""
-        if s.stream_dirty["val"]:
-            s.stream_dirty["val"] = False
-            content = "".join(s.streaming_content)
+        if s.consume_stream_dirty():
+            content = s.current_stream_text()
             s.ui_facade.update_chat_stream(content)
         if s.ui_state.is_streaming:
-            s.stream_flush_id["id"] = s.root.after(FLUSH_INTERVAL_MS, _flush_stream)
+            s.set_stream_flush_after_id(s.root.after(FLUSH_INTERVAL_MS, _flush_stream))
 
     # Start the flush pump
-    s.stream_flush_id["id"] = s.root.after(FLUSH_INTERVAL_MS, _flush_stream)
+    s.set_stream_flush_after_id(s.root.after(FLUSH_INTERVAL_MS, _flush_stream))
 
     def _on_complete(result: dict):
         s.ui_state.is_streaming = False
-        if s.stream_flush_id["id"] is not None:
-            s.root.after_cancel(s.stream_flush_id["id"])
-            s.stream_flush_id["id"] = None
+        if s.stream_flush_after_id is not None:
+            s.root.after_cancel(s.stream_flush_after_id)
+            s.clear_stream_flush_after_id()
         meta = result.get("metadata", {})
         s.safe_ui(lambda: _finish_stream(meta, result))
 
     def _finish_stream(meta, result):
-        content = result.get("content", "".join(s.streaming_content))
+        content = result.get("content", s.current_stream_text())
 
         # ── UI finalization (best-effort — window may be closing) ──
         try:
@@ -91,15 +98,15 @@ def on_submit(s: AppState, text: str) -> None:
 
         # ── Persistence — errors here are real failures, not UI noise ──
         try:
-            sid = s.active_session["sid"]
+            sid = s.active_session_id
             if sid:
                 s.session_store.add_message(
                     sid, "assistant", content,
                     model_name=s.config.selected_model,
                     token_out=int(str(meta.get("tokens_out", "0")).replace("~", "") or 0),
                 )
-                if s.active_session["node_id"]:
-                    register_message(s.registry, s.active_session["node_id"], "assistant", content[:50])
+                if s.active_session_node_id:
+                    register_message(s.registry, s.active_session_node_id, "assistant", content[:50])
             schedule_autosave(s)
         except Exception:
             log.exception("Stream finalization persistence error — assistant message may not have saved")
@@ -108,9 +115,9 @@ def on_submit(s: AppState, text: str) -> None:
 
     def _on_error(err: str):
         s.ui_state.is_streaming = False
-        if s.stream_flush_id["id"] is not None:
-            s.root.after_cancel(s.stream_flush_id["id"])
-            s.stream_flush_id["id"] = None
+        if s.stream_flush_after_id is not None:
+            s.root.after_cancel(s.stream_flush_after_id)
+            s.clear_stream_flush_after_id()
         s.safe_ui(lambda: _handle_error(err))
 
     def _handle_error(err):
@@ -123,5 +130,6 @@ def on_submit(s: AppState, text: str) -> None:
         on_token=_on_token,
         on_complete=_on_complete,
         on_error=_on_error,
+        on_tool_result=_on_tool_result,
         mode_hint=mode_hint,
     )

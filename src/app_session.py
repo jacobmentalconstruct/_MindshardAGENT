@@ -29,7 +29,7 @@ def log_model_roles(s: AppState) -> None:
 
 def refresh_session_list(s: AppState) -> None:
     sessions = s.session_store.list_sessions()
-    s.ui_facade.refresh_session_list(sessions, s.active_session["sid"])
+    s.ui_facade.refresh_session_list(sessions, s.active_session_id)
 
 
 def load_session(s: AppState, sid: str) -> None:
@@ -41,9 +41,10 @@ def load_session(s: AppState, sid: str) -> None:
         s.activity.error("session", f"Session not found: {sid}")
         return
 
-    s.active_session["sid"] = sid
-    s.active_session["node_id"] = register_session(
-        s.registry, sid, session["title"], session.get("active_model", ""))
+    s.set_active_session(
+        sid=sid,
+        node_id=register_session(s.registry, sid, session["title"], session.get("active_model", "")),
+    )
 
     messages = s.session_store.get_messages(sid)
     history = [{"role": m["role"], "content": m["content"]} for m in messages]
@@ -67,7 +68,7 @@ def load_session(s: AppState, sid: str) -> None:
 
 def save_current_session(s: AppState) -> None:
     """Persist current chat history to the active session."""
-    sid = s.active_session["sid"]
+    sid = s.active_session_id
     if not sid:
         return
     s.session_store.save_session(sid, model=s.config.selected_model)
@@ -77,9 +78,9 @@ def save_current_session(s: AppState) -> None:
 
 def schedule_autosave(s: AppState) -> None:
     """Debounced autosave — saves 3 seconds after last turn completion."""
-    if s.autosave_timer["id"] is not None:
-        s.root.after_cancel(s.autosave_timer["id"])
-    s.autosave_timer["id"] = s.root.after(3000, lambda: save_current_session(s))
+    if s.autosave_after_id is not None:
+        s.root.after_cancel(s.autosave_after_id)
+    s.set_autosave_after_id(s.root.after(3000, lambda: save_current_session(s)))
 
 
 def on_session_new(s: AppState) -> None:
@@ -97,7 +98,7 @@ def on_session_new(s: AppState) -> None:
 
 
 def on_session_select(s: AppState, sid: str) -> None:
-    if sid == s.active_session["sid"]:
+    if sid == s.active_session_id:
         return
     save_current_session(s)
     load_session(s, sid)
@@ -110,7 +111,7 @@ def on_session_select(s: AppState, sid: str) -> None:
 
 def on_session_rename(s: AppState, sid: str, new_title: str) -> None:
     s.session_store.save_session(sid, title=new_title)
-    if sid == s.active_session["sid"]:
+    if sid == s.active_session_id:
         s.window.set_session_title(new_title)
         s.ui_state.session_title = new_title
     refresh_session_list(s)
@@ -119,7 +120,7 @@ def on_session_rename(s: AppState, sid: str, new_title: str) -> None:
 
 def on_session_delete(s: AppState, sid: str) -> None:
     s.session_store.delete_session(sid)
-    if sid == s.active_session["sid"]:
+    if sid == s.active_session_id:
         remaining = s.session_store.list_sessions()
         if remaining:
             load_session(s, remaining[0]["session_id"])
@@ -158,7 +159,7 @@ def on_session_policy(s: AppState, sid: str) -> None:
 
     s.session_store.set_command_policy(sid, policy)
 
-    if sid == s.active_session["sid"] and s.engine.command_policy:
+    if sid == s.active_session_id and s.engine.command_policy:
         if policy:
             s.engine.command_policy.apply_session_overrides(policy)
         else:

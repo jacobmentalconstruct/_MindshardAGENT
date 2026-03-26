@@ -5,7 +5,12 @@ from __future__ import annotations
 import threading
 
 from src.core.agent.execution_planner import run_execution_planner
-from src.core.agent.loop_types import LoopRequest, PLANNER_ONLY_LOOP
+from src.core.agent.loop_types import (
+    LoopRequest,
+    PLANNER_ONLY_LOOP,
+    STOPPED_BY_USER_MESSAGE,
+    build_loop_result,
+)
 from src.core.config.app_config import AppConfig
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
@@ -48,24 +53,21 @@ class PlannerOnlyLoop:
                 )
                 if not planner_result:
                     if self._stop_requested and request.on_complete:
-                        request.on_complete({
-                            "content": "[Stopped by user request.]",
-                            "metadata": {
+                        request.on_complete(build_loop_result(
+                            user_text=request.user_text,
+                            content=STOPPED_BY_USER_MESSAGE,
+                            loop_id=self.loop_id,
+                            metadata={
                                 "model": "",
                                 "tokens_in": "~0",
                                 "tokens_out": "~0",
                                 "time": "0ms",
                                 "rounds": 1,
-                                "loop_mode": self.loop_id,
                                 "planning_used": False,
                                 "planner_model": "",
                                 "stopped": True,
                             },
-                            "history_addition": [
-                                {"role": "user", "content": request.user_text},
-                                {"role": "assistant", "content": "[Stopped by user request.]"},
-                            ],
-                        })
+                        ))
                     elif request.on_error:
                         request.on_error("Planner did not produce a plan")
                     return
@@ -73,28 +75,25 @@ class PlannerOnlyLoop:
                     if request.on_error:
                         request.on_error("Planner did not produce a plan")
                     return
-                content = planner_result.plan_text or "[Stopped by user request.]"
+                content = planner_result.plan_text or STOPPED_BY_USER_MESSAGE
                 if planner_result.stopped and planner_result.plan_text:
-                    content = f"{planner_result.plan_text}\n\n[Stopped by user request.]"
+                    content = f"{planner_result.plan_text}\n\n{STOPPED_BY_USER_MESSAGE}"
                 if request.on_complete:
-                    request.on_complete({
-                        "content": content,
-                        "metadata": {
+                    request.on_complete(build_loop_result(
+                        user_text=request.user_text,
+                        content=content,
+                        loop_id=self.loop_id,
+                        metadata={
                             "model": planner_result.model_name,
                             "tokens_in": f"~{planner_result.tokens_in}",
                             "tokens_out": f"~{planner_result.tokens_out}",
                             "time": f"{planner_result.wall_ms:.0f}ms",
                             "rounds": 1,
-                            "loop_mode": self.loop_id,
                             "planning_used": True,
                             "planner_model": planner_result.model_name,
                             "stopped": planner_result.stopped,
                         },
-                        "history_addition": [
-                            {"role": "user", "content": request.user_text},
-                            {"role": "assistant", "content": content},
-                        ],
-                    })
+                    ))
             except Exception as exc:
                 log.exception("Planner-only loop failed")
                 if request.on_error:

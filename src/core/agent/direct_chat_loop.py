@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import threading
-from typing import Any
 
-from src.core.agent.loop_types import DIRECT_CHAT_LOOP, LoopRequest
+from src.core.agent.loop_types import DIRECT_CHAT_LOOP, LoopRequest, build_loop_result
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.config.app_config import AppConfig
 from src.core.ollama.ollama_client import chat_stream
@@ -59,22 +58,19 @@ class DirectChatLoop:
             num_ctx=self._config.max_context_tokens,
         )
         content = result.get("content", "".join(round_tokens))
-        payload: dict[str, Any] = {
-            "content": content,
-            "metadata": {
+        payload = build_loop_result(
+            user_text=request.user_text,
+            content=content,
+            loop_id=self.loop_id,
+            metadata={
                 "model": result.get("model", model),
                 "tokens_in": f"~{result.get('prompt_eval_count', '?')}",
                 "tokens_out": f"~{result.get('eval_count', '?')}",
                 "time": f"{result.get('wall_ms', 0):.0f}ms",
                 "rounds": 1,
-                "loop_mode": self.loop_id,
                 "stopped": bool(result.get("stopped", False) or self._stop_requested),
             },
-            "history_addition": [
-                {"role": "user", "content": request.user_text},
-                {"role": "assistant", "content": content},
-            ],
-        }
+        )
         if request.on_complete:
             request.on_complete(payload)
 

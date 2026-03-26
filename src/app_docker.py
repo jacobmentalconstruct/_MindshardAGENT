@@ -21,7 +21,7 @@ def do_docker_probe(s: AppState) -> None:
     def _bg():
         try:
             info = s.engine.docker_manager.get_info()
-            if not s.app_closing["value"]:
+            if not s.is_closing:
                 def _apply():
                     if s.ui_facade:
                         s.ui_facade.set_docker_status(
@@ -126,7 +126,7 @@ def on_docker_destroy(s: AppState) -> None:
 
 def poll_docker(s: AppState) -> None:
     """Periodic Docker status polling."""
-    if s.app_closing["value"]:
+    if s.is_closing:
         return
     if s.config.docker_enabled:
         do_docker_probe(s)

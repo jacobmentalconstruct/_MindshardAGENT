@@ -141,3 +141,23 @@ class EvidenceBagAdapter:
             log.info("Evidence bag adapter closed")
         except Exception:
             log.exception("Error closing evidence bag adapter")
+
+
+def initialize_evidence_bag(
+    sandbox_root: str | Path,
+    *,
+    enabled: bool,
+    activity=None,
+) -> EvidenceBagAdapter | None:
+    """Initialize the evidence bag adapter for a sandbox, if enabled."""
+    if not enabled:
+        return None
+    try:
+        evidence_dir = Path(sandbox_root) / ".mindshard" / "sessions"
+        bag = EvidenceBagAdapter(evidence_dir)
+        if activity is not None:
+            activity.info("engine", "Evidence bag adapter initialized")
+        return bag
+    except Exception as exc:
+        log.warning("Evidence bag init failed (non-fatal): %s", exc)
+        return None

@@ -255,7 +255,7 @@ class UIControlBridgeServer:
         return {"idle": False, "state": self.snapshot_state(max_messages=20)}
 
     def _call_on_ui(self, fn, timeout: float = 30.0):
-        if self._s.app_closing["value"]:
+        if self._s.is_closing:
             raise RuntimeError("App is closing")
 
         done = threading.Event()
@@ -288,7 +288,7 @@ class UIControlBridgeServer:
                 "stop_requested": bool(self._s.ui_state.stop_requested),
                 "sandbox_root": str(self._s.config.sandbox_root or ""),
                 "toolbox_root": str(self._s.config.toolbox_root or ""),
-                "active_session_id": self._s.active_session.get("sid"),
+                "active_session_id": self._s.active_session_id,
                 "engine_running": bool(self._s.engine.is_running),
                 "tool_names": self._s.engine.tool_catalog.discovered_tool_names(),
                 "tool_count": len(self._s.engine.tool_catalog.discovered_tool_names()),

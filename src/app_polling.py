@@ -43,7 +43,8 @@ def startup_bootstrap(s: AppState) -> None:
             except Exception as exc:
                 s.activity.error("startup", f"Startup bootstrap (ui) failed: {exc}")
             finally:
-                s.window.control_pane.input_pane.set_enabled(True)
+                if s.ui_facade:
+                    s.ui_facade.set_input_enabled(True)
                 s.window.set_status("Ready — refresh models to begin")
 
         s.root.after(0, _ui_work)
@@ -58,14 +59,14 @@ def check_embeddings(s: AppState) -> None:
 
 
 def poll_resources(s: AppState) -> None:
-    if s.app_closing["value"]:
+    if s.is_closing:
         return
 
     def _bg():
         try:
             from src.core.runtime.resource_monitor import poll_resources as _poll
             snap = _poll()
-            if not s.app_closing["value"]:
+            if not s.is_closing:
                 s.root.after(0, lambda: s.window.control_pane.resources.update_stats(
                     snap.cpu_percent, snap.ram_used_gb, snap.ram_total_gb,
                     snap.gpu_available, snap.vram_used_gb, snap.vram_total_gb))

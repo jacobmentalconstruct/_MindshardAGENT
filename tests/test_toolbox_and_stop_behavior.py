@@ -6,10 +6,13 @@ from types import SimpleNamespace
 
 from src.app_ui_bridge import UIControlBridgeServer
 from src.core.agent.execution_planner import PlannerStageResult, run_execution_planner
-from src.core.agent.loop_types import LoopRequest
+from src.core.agent.loop_types import LoopRequest, REVIEW_JUDGE_LOOP, RECOVERY_AGENT_LOOP
 from src.core.agent.planner_only_loop import PlannerOnlyLoop
+from src.core.agent.recovery_agent_loop import RecoveryAgentLoop
+from src.core.agent.review_judge_loop import ReviewJudgeLoop
 from src.core.agent.thought_chain import ThoughtChain
 from src.core.agent.thought_chain_command_handler import run_thought_chain
+from src.core.agent.transcript_formatter import strip_tool_call_markup
 from src.core.config.app_config import AppConfig
 from src.core.engine import Engine
 from src.core.ollama.ollama_client import chat_stream
@@ -205,6 +208,93 @@ def test_thought_chain_stop_halts_after_current_round(monkeypatch):
     assert result["final_text"] == "Brainstormed first round"
 
 
+def test_recovery_agent_loop_wraps_loop_mode_and_forwards_join():
+    joined: list[float] = []
+    holder: dict[str, object] = {}
+
+    class DummyToolLoop:
+        loop_id = "tool_agent"
+
+        def run(self, request: LoopRequest) -> None:
+            request.on_complete(
+                {
+                    "content": "Recovered answer",
+                    "metadata": {"loop_mode": "tool_agent", "stopped": False, "rounds": 1},
+                    "history_addition": [
+                        {"role": "user", "content": request.user_text},
+                        {"role": "assistant", "content": "Recovered answer"},
+                    ],
+                }
+            )
+
+        def request_stop(self) -> None:
+            return None
+
+        def join(self, timeout: float = 3.0) -> None:
+            joined.append(timeout)
+
+    loop = RecoveryAgentLoop(ActivityStream(), DummyToolLoop())
+    loop.run(
+        LoopRequest(
+            user_text="Please try again differently",
+            chat_history=[],
+            on_complete=lambda result: holder.setdefault("result", result),
+        )
+    )
+    loop.join(timeout=1.25)
+
+    result = holder["result"]
+    assert result["metadata"]["loop_mode"] == RECOVERY_AGENT_LOOP
+    assert result["history_addition"][0]["content"] == "Please try again differently"
+    assert joined == [1.25]
+
+
+def test_review_judge_loop_stop_path_keeps_wrapper_metadata():
+    holder: dict[str, object] = {}
+    loop_ref: dict[str, object] = {}
+
+    class DummyToolLoop:
+        loop_id = "tool_agent"
+
+        def run(self, request: LoopRequest) -> None:
+            loop_ref["loop"].request_stop()
+            request.on_complete(
+                {
+                    "content": "Base answer",
+                    "metadata": {"loop_mode": "tool_agent", "stopped": False, "rounds": 1},
+                    "history_addition": [
+                        {"role": "user", "content": request.user_text},
+                        {"role": "assistant", "content": "Base answer"},
+                    ],
+                }
+            )
+
+        def request_stop(self) -> None:
+            return None
+
+        def join(self, timeout: float = 3.0) -> None:
+            return None
+
+    loop = ReviewJudgeLoop(
+        config=AppConfig(selected_model="test-model", planner_model="test-model"),
+        activity=ActivityStream(),
+        tool_agent_loop=DummyToolLoop(),
+    )
+    loop_ref["loop"] = loop
+    loop.run(
+        LoopRequest(
+            user_text="Review this",
+            chat_history=[],
+            on_complete=lambda result: holder.setdefault("result", result),
+        )
+    )
+
+    result = holder["result"]
+    assert result["metadata"]["loop_mode"] == REVIEW_JUDGE_LOOP
+    assert result["metadata"]["review_generated"] is False
+    assert result["metadata"]["stopped"] is True
+
+
 def test_ui_bridge_wait_until_idle_uses_busy_state():
     server = object.__new__(UIControlBridgeServer)
     states = iter(
@@ -259,6 +349,14 @@ def test_run_thought_chain_tracks_busy_state_until_completion():
             self.active_session = {"sid": "sess-test", "node_id": None}
             self.registry = SimpleNamespace()
             self._busy_token = 0
+
+        @property
+        def active_session_id(self):
+            return self.active_session["sid"]
+
+        @property
+        def active_session_node_id(self):
+            return self.active_session["node_id"]
 
         def begin_busy(self, kind: str, *, status_text: str | None = None, disable_input: bool = True) -> int:
             self._busy_token += 1
@@ -425,6 +523,40 @@ def test_on_submit_discards_stream_placeholder_on_immediate_error():
             self.stream_flush_id = {"id": None}
             self._busy_token = 0
 
+        @property
+        def active_session_id(self):
+            return self.active_session["sid"]
+
+        @property
+        def active_session_node_id(self):
+            return self.active_session["node_id"]
+
+        def reset_stream_buffer(self):
+            self.streaming_content.clear()
+            self.stream_dirty["val"] = False
+
+        def append_stream_token(self, token: str):
+            self.streaming_content.append(token)
+            self.stream_dirty["val"] = True
+
+        def current_stream_text(self):
+            return "".join(self.streaming_content)
+
+        def consume_stream_dirty(self):
+            dirty = bool(self.stream_dirty["val"])
+            self.stream_dirty["val"] = False
+            return dirty
+
+        @property
+        def stream_flush_after_id(self):
+            return self.stream_flush_id["id"]
+
+        def set_stream_flush_after_id(self, after_id):
+            self.stream_flush_id["id"] = after_id
+
+        def clear_stream_flush_after_id(self):
+            self.stream_flush_id["id"] = None
+
         def begin_busy(self, kind: str, *, status_text: str | None = None, disable_input: bool = True) -> int:
             self._busy_token += 1
             self.ui_state.is_busy = True
@@ -460,3 +592,29 @@ def test_on_submit_discards_stream_placeholder_on_immediate_error():
     assert "system::Error: No model selected" in events
     assert ("sess-1", "user", "Hello") in persisted_messages
     monkeypatch.undo()
+
+
+def test_strip_tool_call_markup_removes_executable_syntax_but_keeps_prose():
+    raw = (
+        "I will inspect the project structure first.\n\n"
+        "```tool_call\n"
+        '{"tool": "list_files", "path": "", "depth": 2}\n'
+        "```\n\n"
+        "Then I will draft the blueprint."
+    )
+
+    cleaned = strip_tool_call_markup(raw)
+
+    assert "tool_call" not in cleaned
+    assert "list_files" not in cleaned
+    assert "I will inspect the project structure first." in cleaned
+    assert "Then I will draft the blueprint." in cleaned
+
+
+def test_strip_tool_call_markup_removes_tool_calls_summary_lines():
+    raw = "Done.\n\nTOOL_CALLS: list_files(path:\"\", depth:2)\n\nNext step."
+
+    cleaned = strip_tool_call_markup(raw)
+
+    assert "TOOL_CALLS:" not in cleaned
+    assert cleaned == "Done.\n\nNext step."

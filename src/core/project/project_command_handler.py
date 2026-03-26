@@ -49,7 +49,7 @@ def _reinit_stores(s: AppState, sandbox_root: str) -> None:
     s.knowledge_store = KnowledgeStore(new_db)
     s.engine.set_knowledge_store(
         s.knowledge_store,
-        session_id_fn=lambda: s.active_session["sid"],
+        session_id_fn=lambda: s.active_session_id,
     )
 
 

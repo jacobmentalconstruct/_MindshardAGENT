@@ -48,6 +48,7 @@ def _compact_tool_block(tool_defs: list[dict[str, Any]]) -> str:
     lines.append("")
     lines.append("## How to Call Tools")
     lines.append("Wrap JSON in triple-backtick `tool_call` fences. One call per block.")
+    lines.append("Never write `TOOL_CALLS:` in chat. That summary format is not executable.")
     lines.append('```tool_call\n{"tool": "list_files", "path": "", "depth": 2}\n```')
     lines.append('```tool_call\n{"tool": "read_file", "path": "src/main.py"}\n```')
     lines.append('```tool_call\n{"tool": "write_file", "path": "hello.py", "content": "print(\'hello\')\\n"}\n```')
@@ -396,6 +397,7 @@ Wrap a JSON object in triple-backtick `tool_call` fences. One tool call per bloc
 ## Tool Call Rules
 - In `write_file` content: use `\\n` for newlines, `\\t` for tabs, `\\\\` for backslash, `\\"` for quotes.
 - Only one tool call per `tool_call` block.
+- Never write `TOOL_CALLS:` in chat. Only fenced `tool_call` JSON blocks are executable.
 - You may include explanation text before and after tool call blocks.
 - Wait for tool results before making your next tool call.
 - To create and run a Python script: FIRST use `write_file`, THEN use `run_python_file`.

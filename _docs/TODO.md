@@ -97,6 +97,11 @@
 - [x] Extract TurnPipeline — owns full stage sequencing algorithm (~270 lines)
 - [x] ResponseLoop stripped to threading wrapper + state (~130 lines, -1 domain)
 - [x] Audit after 1C: 454 violations (-111 from baseline, -19.6%)
+- [x] Thin `src/app.py` into composition root + app bootstrap/lifecycle owners
+- [x] Rebound `src/core/engine.py` with domain-local helper ownership only
+- [x] Write explicit loop contract and normalize wrapper loop result/join behavior
+- [x] Reduce `AppState` access sprawl with owned session/stream/lifecycle helpers
+- [x] Record deferred `control_pane.py` split seams in `_docs/control_pane_split_plan.md`
 
 ## Tiered Memory / Evidence Bag
 

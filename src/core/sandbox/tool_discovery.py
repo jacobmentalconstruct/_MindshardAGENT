@@ -147,3 +147,39 @@ def register_discovered_tools(
     if tools:
         log.info("Registered %d %s tool(s)", len(tools), source)
     return len(tools)
+
+
+def reload_discovered_tool_roots(
+    catalog: ToolCatalog,
+    *,
+    sandbox_root: str = "",
+    toolbox_root: str = "",
+    activity=None,
+    on_tools_reloaded=None,
+) -> list[str]:
+    """Reload all non-builtin tools from sandbox and toolbox roots."""
+    catalog.clear_discovered_tools()
+
+    if sandbox_root:
+        register_discovered_tools(catalog, sandbox_root, source="sandbox_local")
+
+    toolbox_names: list[str] = []
+    if toolbox_root:
+        toolbox_path = Path(toolbox_root)
+        if toolbox_path.is_dir():
+            before = set(catalog.discovered_tool_names())
+            register_discovered_tools(catalog, toolbox_path, source="toolbox")
+            after = catalog.discovered_tool_names()
+            toolbox_names = [name for name in after if name not in before]
+        elif activity is not None:
+            activity.warn("engine", f"Toolbox root not found: {toolbox_root}")
+
+    names = catalog.discovered_tool_names()
+    if on_tools_reloaded:
+        on_tools_reloaded(len(names), names)
+    log.info(
+        "Reloaded discovered tools: %d sandbox, %d toolbox",
+        len(catalog.sandbox_tool_names()),
+        len(toolbox_names),
+    )
+    return names

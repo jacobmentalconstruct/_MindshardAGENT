@@ -110,6 +110,22 @@ def format_all_results(results: list[dict[str, Any]]) -> str:
     return "\n\n".join(format_tool_result(r) for r in results)
 
 
+def strip_tool_call_markup(text: str) -> str:
+    """Remove executable tool-call syntax from assistant-visible text.
+
+    This keeps raw tool JSON and `TOOL_CALLS:` summary strings out of user-facing
+    chat/history while preserving any surrounding prose the model wrote.
+    """
+    cleaned = _TOOL_CALL_RE.sub("", text or "")
+    cleaned_lines = [
+        line for line in cleaned.splitlines()
+        if not line.strip().startswith("TOOL_CALLS:")
+    ]
+    compact = "\n".join(cleaned_lines)
+    compact = re.sub(r"\n{3,}", "\n\n", compact)
+    return compact.strip()
+
+
 def compact_tool_call_transcript(text: str) -> str:
     """Replace verbose fenced tool-call JSON with a compact summary line."""
 

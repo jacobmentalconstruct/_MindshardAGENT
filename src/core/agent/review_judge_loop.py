@@ -10,10 +10,12 @@ Selected when user text signals review/critique intent (e.g. "review this",
 
 from __future__ import annotations
 
-import threading
-from typing import Any
-
-from src.core.agent.loop_types import LoopRequest, LoopRunner
+from src.core.agent.loop_types import (
+    LoopRequest,
+    LoopRunner,
+    REVIEW_JUDGE_LOOP,
+    patch_loop_result,
+)
 from src.core.agent.model_roles import REVIEW_ROLE, resolve_model_for_role
 from src.core.config.app_config import AppConfig
 from src.core.ollama.ollama_client import chat_stream
@@ -21,8 +23,6 @@ from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
 
 log = get_logger("review_judge_loop")
-
-REVIEW_JUDGE_LOOP = "review_judge"
 
 _REVIEW_PROMPT_TEMPLATE = (
     "You are a review judge. An AI agent has produced the following response to a user request.\n"
@@ -66,7 +66,13 @@ class ReviewJudgeLoop:
         def _on_agent_complete(result: dict) -> None:
             if self._stop_requested:
                 if request.on_complete:
-                    request.on_complete(result)
+                    request.on_complete(
+                        patch_loop_result(
+                            result,
+                            loop_id=self.loop_id,
+                            metadata_updates={"review_generated": False, "stopped": True},
+                        )
+                    )
                 return
 
             agent_content = result.get("content", "")
@@ -77,18 +83,13 @@ class ReviewJudgeLoop:
             else:
                 combined = agent_content
 
-            final_result = dict(result)
-            final_result["content"] = combined
-            meta = dict(final_result.get("metadata", {}))
-            meta["loop_mode"] = self.loop_id
-            meta["review_generated"] = bool(review)
-            final_result["metadata"] = meta
-
-            # Update history_addition to use combined content
-            final_result["history_addition"] = [
-                {"role": "user", "content": request.user_text},
-                {"role": "assistant", "content": combined},
-            ]
+            final_result = patch_loop_result(
+                result,
+                loop_id=self.loop_id,
+                user_text=request.user_text,
+                content=combined,
+                metadata_updates={"review_generated": bool(review)},
+            )
 
             if request.on_complete:
                 request.on_complete(final_result)
@@ -138,3 +139,7 @@ class ReviewJudgeLoop:
     def request_stop(self) -> None:
         self._stop_requested = True
         self._tool_agent.request_stop()
+
+    def join(self, timeout: float = 3.0) -> None:
+        if hasattr(self._tool_agent, "join"):
+            self._tool_agent.join(timeout=timeout)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.core.agent.loop_types import LoopRequest, THOUGHT_CHAIN_LOOP
+from src.core.agent.loop_types import LoopRequest, THOUGHT_CHAIN_LOOP, build_loop_result
 from src.core.agent.model_roles import PLANNER_ROLE, resolve_model_for_role
 from src.core.agent.thought_chain import ThoughtChain
 from src.core.config.app_config import AppConfig
@@ -40,24 +40,21 @@ class ThoughtChainLoop:
 
             if request.on_complete:
                 completed_rounds = int(result.get("completed_rounds", 0) or 0)
-                request.on_complete({
-                    "content": content,
-                    "metadata": {
+                request.on_complete(build_loop_result(
+                    user_text=request.user_text,
+                    content=content,
+                    loop_id=self.loop_id,
+                    metadata={
                         "model": resolve_model_for_role(self._config, PLANNER_ROLE),
                         "tokens_in": "?",
                         "tokens_out": "?",
                         "time": "?",
                         "rounds": completed_rounds or result.get("depth", self._depth),
-                        "loop_mode": self.loop_id,
                         "thought_chain_rounds": completed_rounds or result.get("depth", self._depth),
                         "task_count": len(tasks),
                         "stopped": stopped,
                     },
-                    "history_addition": [
-                        {"role": "user", "content": request.user_text},
-                        {"role": "assistant", "content": content},
-                    ],
-                })
+                ))
 
         chain.run(
             goal=request.user_text,
