@@ -295,6 +295,60 @@ def test_review_judge_loop_stop_path_keeps_wrapper_metadata():
     assert result["metadata"]["stopped"] is True
 
 
+def test_review_judge_loop_stop_during_review_marks_result_stopped(monkeypatch):
+    holder: dict[str, object] = {}
+
+    class DummyToolLoop:
+        loop_id = "tool_agent"
+
+        def run(self, request: LoopRequest) -> None:
+            request.on_complete(
+                {
+                    "content": "Base answer",
+                    "metadata": {"loop_mode": "tool_agent", "stopped": False, "rounds": 1},
+                    "history_addition": [
+                        {"role": "user", "content": request.user_text},
+                        {"role": "assistant", "content": "Base answer"},
+                    ],
+                }
+            )
+
+        def request_stop(self) -> None:
+            return None
+
+        def join(self, timeout: float = 3.0) -> None:
+            return None
+
+    def fake_chat_stream(**kwargs):
+        assert callable(kwargs["should_stop"])
+        return {
+            "content": "Partial review",
+            "stopped": True,
+        }
+
+    monkeypatch.setattr("src.core.agent.review_judge_loop.chat_stream", fake_chat_stream)
+
+    loop = ReviewJudgeLoop(
+        config=AppConfig(selected_model="test-model", planner_model="test-model", review_model="review-test"),
+        activity=ActivityStream(),
+        tool_agent_loop=DummyToolLoop(),
+    )
+    loop.run(
+        LoopRequest(
+            user_text="Review this",
+            chat_history=[],
+            on_complete=lambda result: holder.setdefault("result", result),
+        )
+    )
+
+    result = holder["result"]
+    assert result["metadata"]["loop_mode"] == REVIEW_JUDGE_LOOP
+    assert result["metadata"]["review_generated"] is True
+    assert result["metadata"]["stopped"] is True
+    assert "Partial review" in result["content"]
+    assert "[Stopped by user request.]" in result["content"]
+
+
 def test_ui_bridge_wait_until_idle_uses_busy_state():
     server = object.__new__(UIControlBridgeServer)
     states = iter(

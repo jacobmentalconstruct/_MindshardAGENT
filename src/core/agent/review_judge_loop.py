@@ -14,6 +14,7 @@ from src.core.agent.loop_types import (
     LoopRequest,
     LoopRunner,
     REVIEW_JUDGE_LOOP,
+    STOPPED_BY_USER_MESSAGE,
     patch_loop_result,
 )
 from src.core.agent.model_roles import REVIEW_ROLE, resolve_model_for_role
@@ -76,19 +77,24 @@ class ReviewJudgeLoop:
                 return
 
             agent_content = result.get("content", "")
-            review = self._run_review(request.user_text, agent_content)
+            review, review_stopped = self._run_review(request.user_text, agent_content)
 
             if review:
                 combined = f"{agent_content}\n\n---\n**Review:**\n{review}"
             else:
                 combined = agent_content
+            if review_stopped:
+                combined = f"{combined}\n\n{STOPPED_BY_USER_MESSAGE}".strip()
 
             final_result = patch_loop_result(
                 result,
                 loop_id=self.loop_id,
                 user_text=request.user_text,
                 content=combined,
-                metadata_updates={"review_generated": bool(review)},
+                metadata_updates={
+                    "review_generated": bool(review),
+                    "stopped": bool(result.get("metadata", {}).get("stopped", False) or review_stopped),
+                },
             )
 
             if request.on_complete:
@@ -107,12 +113,16 @@ class ReviewJudgeLoop:
 
         self._tool_agent.run(review_request)
 
-    def _run_review(self, user_text: str, agent_response: str) -> str:
-        """Call the review model on the agent's output. Returns review text or empty string."""
+    def _run_review(self, user_text: str, agent_response: str) -> tuple[str, bool]:
+        """Call the review model on the agent's output.
+
+        Returns `(review_text, stopped)` so wrapper metadata can reflect a stop
+        that lands during the review-model pass itself.
+        """
         model = resolve_model_for_role(self._config, REVIEW_ROLE)
         if not model:
             log.warning("No review model configured; skipping review pass")
-            return ""
+            return "", False
 
         review_prompt = _REVIEW_PROMPT_TEMPLATE.format(
             user_text=user_text[:600],
@@ -130,11 +140,11 @@ class ReviewJudgeLoop:
                 num_ctx=min(getattr(self._config, "max_context_tokens", 4096), 4096),
                 should_stop=lambda: self._stop_requested,
             )
-            return result.get("content", "").strip()
+            return result.get("content", "").strip(), bool(result.get("stopped", False) or self._stop_requested)
         except Exception as exc:
             log.warning("Review pass failed: %s", exc)
             self._activity.warn("loop", f"Review pass failed: {exc}")
-            return ""
+            return "", False
 
     def request_stop(self) -> None:
         self._stop_requested = True

@@ -175,8 +175,8 @@ _MindshardAGENT/
 │   ├── builder_constraint_contract.md
 │   ├── prototype_registry_state_graph.md
 │   ├── ARCHITECTURE.md
-│   ├── DEV_LOG.md
-│   └── TODO.md
+│   ├── _AppJOURNAL/
+│   └── _journalDB/
 ├── _sandbox/
 │   ├── README.md
 │   ├── _tools/

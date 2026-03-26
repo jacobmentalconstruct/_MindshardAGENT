@@ -101,11 +101,11 @@ Required documentation should include, when applicable to the project state:
   - the application blueprint and structural design reference
   - contains the app-specific architecture, subsystem design, and implementation intent
 
-- `DEV_LOG.md`
-  - the append-only execution ledger for meaningful completed work phases
-
-- `TODO.md`
-  - the operational backlog for unresolved items, deferred cleanup, pending next steps, follow-up risks, and blocked work
+- `_AppJOURNAL/` + `_journalDB/app_journal.sqlite3`
+  - the canonical project journal surface for meaningful completed work phases,
+    backlog state, onboarding notes, and continuity across sessions
+  - markdown exports or mirror files may exist temporarily, but the journal is
+    the authoritative operational memory surface
 
 Recommended / conditionally required documentation includes:
 
@@ -193,7 +193,7 @@ The canonical root structure is:
 
 - `/_ProjectRootFOLDER/_docs/`
   - contains all project documents other than `README.md` and `LICENSE.md`
-  - includes manifests, contracts, TODOs, DEV_LOG, design docs, plans, notes, and related project documentation
+  - includes manifests, contracts, journal assets, design docs, plans, notes, and related project documentation
 
 ### 2.2 Documentation boundary
 
@@ -205,15 +205,20 @@ The builder shall treat the contents of these documents as part of the active pr
 
 The builder shall not place junk, scratch debris, throwaway files, or undocumented clutter into the `_docs/` folder.
 
-### 2.3 DEV_LOG rules
+### 2.3 App journal rules
 
-The builder shall maintain `DEV_LOG.md` as an append-only development record.
+The builder shall maintain the project app journal as the append-only
+development record and continuation surface.
 
-After each meaningful set of updates, section completion, or project phase, the builder shall append a new entry to `DEV_LOG.md` describing what changed, why it changed, and any notable implementation or design decisions.
+After each meaningful set of updates, section completion, or project phase, the
+builder shall record what changed, why it changed, and any notable
+implementation or design decisions in the journal.
 
-The builder shall not delete prior log entries.
+The builder shall not delete prior journal entries.
 
-The builder may overwrite or rewrite an existing log entry only when the user explicitly instructs it to do so, including cases where intentional redaction, correction, or privacy-related replacement is required.
+The builder may overwrite or rewrite an existing journal entry only when the
+user explicitly instructs it to do so, including cases where intentional
+redaction, correction, or privacy-related replacement is required.
 
 ### 2.4 External boundary restrictions
 
@@ -570,7 +575,9 @@ The builder may use the following sandbox sources for reference, analysis, and b
   - local development tools already approved for consultation or bounded incorporation according to this contract and related project rules
 
 - approved documents inside the current project's `_docs/` folder
-  - these are part of the active project reference surface and may define design manifests, contracts, TODOs, DEV_LOG history, and other project-specific constraints
+  - these are part of the active project reference surface and may define design
+    manifests, contracts, journal-backed history/backlog expectations, and
+    other project-specific constraints
 
 The builder shall treat these as reference sources, not as implicit runtime dependencies.
 
@@ -583,8 +590,8 @@ All project documents other than `README.md` and `LICENSE.md` shall live inside:
 Examples include but are not limited to:
 - `ARCHITECTURE.md`
 - `CONTRACT.md`
-- `TODO.md`
-- `DEV_LOG.md`
+- `_AppJOURNAL/`
+- `_journalDB/app_journal.sqlite3`
 - manifests
 - design notes
 - implementation plans
@@ -655,7 +662,10 @@ The builder shall not copy external code verbatim into the project and leave it 
 
 ### 6.9 Provenance recording rule
 
-When logic is extracted, transplanted, or materially informed by sandbox reference sources, the builder shall record provenance in project documentation under `/_ProjectRootFOLDER/_docs/` and shall append an implementation note to `DEV_LOG.md` when the change is meaningful.
+When logic is extracted, transplanted, or materially informed by sandbox
+reference sources, the builder shall record provenance in project
+documentation under `/_ProjectRootFOLDER/_docs/` and shall append an
+implementation note to the app journal when the change is meaningful.
 
 The provenance record should identify, as appropriate:
 - source location,
@@ -737,7 +747,9 @@ The builder shall not design helper workflows that assume unrealistic compute, c
 
 ### 7.8 Documentation rule for project tools
 
-When the builder creates or materially incorporates a development tool for the project, it shall document the tool under the project documentation area and append a meaningful entry to `DEV_LOG.md`.
+When the builder creates or materially incorporates a development tool for the
+project, it shall document the tool under the project documentation area and
+append a meaningful entry to the app journal.
 
 This documentation should identify:
 - the tool’s purpose,
@@ -762,7 +774,12 @@ If the tool is multifile, the builder shall place it in an appropriate isolating
 
 Entry points and usage of tools must always be clear.
 
-If existing tools in `_dev_tools/` are not clearly marked, the builder should, when appropriate, improve tool metadata, usage discoverability, or instructions. If immediate rectification is not appropriate, the builder should record the issue in a `TODO.md` inside `_dev_tools/`.
+If existing tools in `_dev_tools/` are not clearly marked, the builder should,
+when appropriate, improve tool metadata, usage discoverability, or
+instructions. If immediate rectification is not appropriate, the builder should
+record the issue in the project backlog inside the app journal or, if that
+tooling area maintains its own local backlog document, in that tool-local
+continuation surface.
 
 ### 7.10 Same-core-rules principle
 
@@ -858,7 +875,9 @@ If that basis does not exist, the builder shall not delete the item.
 
 ### 8.7 Cleanup documentation rule
 
-Meaningful cleanup actions, especially pruning of unused files or structural reorganization, should be recorded in `DEV_LOG.md` and, when warranted, in supporting project documentation under `_docs/`.
+Meaningful cleanup actions, especially pruning of unused files or structural
+reorganization, should be recorded in the app journal and, when warranted, in
+supporting project documentation under `_docs/`.
 
 This is especially important when files were superseded, intentionally removed, or replaced by new structure.
 
@@ -967,11 +986,14 @@ The builder shall treat the following as part of code quality:
 
 ## 10. Reporting / Phase Output Rules
 
-The builder shall maintain clear phase-level reporting through project documentation, primarily using `DEV_LOG.md` and `TODO.md` under the project `_docs/` folder.
+The builder shall maintain clear phase-level reporting through project
+documentation, primarily using the app journal under the project `_docs/`
+folder.
 
-### 10.1 DEV_LOG format rule
+### 10.1 Journal entry format rule
 
-`DEV_LOG.md` shall function as the append-only execution ledger for meaningful work phases.
+The app journal shall function as the append-only execution ledger for
+meaningful work phases.
 
 Each new entry should be:
 - date stamped,
@@ -1013,13 +1035,14 @@ This includes, as appropriate:
 
 Tool usage should be recorded compactly but clearly enough to understand how work was performed.
 
-### 10.5 TODO ownership rule
+### 10.5 Backlog ownership rule
 
-Unresolved issues, deferred work, next steps, and deferred cleanup items belong in `TODO.md`.
+Unresolved issues, deferred work, next steps, and deferred cleanup items belong
+in the app journal backlog surface.
 
-`TODO.md` is the operational backlog / continuation surface.
+The app journal is the operational backlog / continuation surface.
 
-The builder should place into `TODO.md`, as appropriate:
+The builder should place into the app journal backlog, as appropriate:
 - unresolved issues,
 - blocked items,
 - deferred cleanup,
@@ -1029,9 +1052,11 @@ The builder should place into `TODO.md`, as appropriate:
 
 ### 10.6 Cleanup reporting rule
 
-If cleanup was performed and is materially relevant, the builder should note it in `DEV_LOG.md`.
+If cleanup was performed and is materially relevant, the builder should note it
+in the app journal.
 
-If cleanup remains needed and was not performed, that deferred cleanup should be recorded in `TODO.md`.
+If cleanup remains needed and was not performed, that deferred cleanup should
+be recorded in the app journal backlog.
 
 ### 10.7 Reporting principle
 
@@ -1039,7 +1064,8 @@ The reporting system should preserve:
 - continuity across interrupted work,
 - clear traceability of changes,
 - concise but non-truncated summaries,
-- and a clean separation between completed history (`DEV_LOG.md`) and pending work (`TODO.md`).
+- and a clean separation between completed history and pending work through
+  journal entry kinds, titles, tags, and status.
 
 ## 10.8 Decision Priority and Pushback Rule
 
@@ -1107,4 +1133,3 @@ Without limiting the broader rules already established, prohibited behavior incl
 - or silently bypassing the declared hierarchy and routing model.
 
 These examples do not replace the contract; they illustrate it.
-
