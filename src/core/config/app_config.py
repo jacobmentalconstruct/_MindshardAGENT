@@ -70,6 +70,11 @@ class AppConfig:
     probe_enabled: bool = True
     probe_max_questions: int = 3
     probe_models: dict = field(default_factory=dict)  # per-probe model overrides e.g. {"intent": "qwen3.5:0.5b"}
+    planning_round_timeout_sec: int = 150
+    planning_stream_idle_timeout_sec: float = 5.0
+    planning_heartbeat_sec: float = 10.0
+    planning_first_token_warn_sec: float = 20.0
+    planning_max_output_chars: int = 2200
 
     # Agent self-awareness
     self_awareness_enabled: bool = False   # loads 55_self_architecture.md into prompt

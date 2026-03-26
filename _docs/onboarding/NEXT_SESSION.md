@@ -1,7 +1,7 @@
 # Next Session — Start Here
 
 **Last updated:** 2026-03-25
-**Current phase:** core stabilization and live-test hardening before returning to builder-contract alignment
+**Current phase:** core stabilization re-check after live-test hardening, before returning to builder-contract alignment
 
 ---
 
@@ -13,40 +13,43 @@
 
 ---
 
-## What To Do First
+## Current Proven State
 
-### 1. Re-open the app and verify session preservation
-Confirm these two saved sessions still appear:
+The live-test hardening bundle is complete and re-verified:
+- visible `STOP` control restored in the compose area
+- stop-requested thought-chain runs unwind back to `Ready`
+- thought-chain prompts are anchored to software/codebase context
+- small-model planning guardrails are in place
+- thought-chain runs now persist to session history
+- automated tests are green:
+  - `python -m pytest -q` -> `42 passed`
+  - `python -m tests.test_tool_roundtrip` -> `92 passed`
+
+Three named bridge-lab smoke sessions are intentionally preserved:
 - `Bridge UI Smoke — BRIDGE_OK round-trip`
 - `Bridge UI Smoke — Planner stop verification`
+- `Bridge UI Smoke — Thought-chain stop unwind`
 
-### 2. Fix the visible stop/unwind path
-The last live `Plan` run accepted a real stop request but never returned to
-`Ready`. Solve this before running more long thought-chain tests.
+## What To Do First
 
-### 3. Add Plan/thought-chain prompt anchoring
-The planner interpreted "bridge lab workspace" as a physical bridge inspection
-problem because the thought-chain prompt is not grounded in the attached
-software project context.
+### 1. Re-open the app and verify preserved sessions
+Confirm the three named bridge-lab smoke sessions still appear.
 
-### 4. Add small-model Plan guardrails
-At minimum:
-- per-round timeout
-- first-token latency logging
-- heartbeat/progress telemetry
-- output caps for long planning rounds
+### 2. Reassess core stabilization
+Run a fresh bug/frailty pass against the current code and decide whether any
+non-contract runtime defects still block a return to builder-contract alignment.
 
-### 5. Persist Plan/thought-chain results into session history
-Live UI messages were visible, but the later Plan runs were not recoverable from
-the session DB. Fix that before the next visible long-form test pass.
+### 3. If no new core defects appear, resume boundary work
+Continue builder-contract alignment only after the fresh stabilization review is
+clean enough to trust.
 
 ---
 
 ## What Not To Do Yet
 
-- Don’t resume builder-contract cleanup yet.
 - Don’t delete prep docs for TODO or north-star work.
-- Don’t run more long `Plan` tests on `qwen3.5:4b` until stop/unwind and guardrails are improved.
+- Don’t treat preserved bridge-lab smoke sessions as disposable junk.
+- Don’t resume builder-contract cleanup until the fresh stabilization re-check is complete.
 
 ---
 

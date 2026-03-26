@@ -218,10 +218,19 @@ def main() -> None:
         s.session_store.close()
         engine.stop()
 
+    def _request_active_stop() -> bool:
+        if not ui_state.is_busy:
+            return False
+        engine.request_stop()
+        s.mark_stop_requested(status_text="Stop requested")
+        activity.info("ui", f"Stop requested ({ui_state.busy_kind or 'busy'})")
+        return True
+
     # ── Build window ──────────────────────────────────
     window = MainWindow(
         root, ui_state, activity,
         on_submit=lambda text: on_submit(s, text),
+        on_stop=_request_active_stop,
         on_model_select=lambda model: on_model_select(s, model),
         on_model_refresh=lambda: on_model_refresh(s),
         on_close=on_close,
@@ -326,9 +335,7 @@ def main() -> None:
 
     # ── Global keyboard shortcuts ─────────────────────
     def _on_escape(event=None):
-        if ui_state.is_busy:
-            engine.request_stop()
-            s.mark_stop_requested(status_text="Stopping...")
+        if _request_active_stop():
             activity.info("ui", f"Stop requested via Escape ({ui_state.busy_kind or 'busy'})")
         return "break"
 

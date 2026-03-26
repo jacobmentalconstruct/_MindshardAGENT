@@ -29,6 +29,7 @@ class MainWindow:
         ui_state: UIState,
         activity: ActivityStream,
         on_submit=None,
+        on_stop=None,
         on_model_select=None,
         on_model_refresh=None,
         on_close=None,
@@ -165,6 +166,7 @@ class MainWindow:
         self.control_pane = ControlPane(
             self._main_vertical_split,
             on_submit=on_submit,
+            on_stop=on_stop,
             on_model_select=on_model_select,
             on_model_refresh=on_model_refresh,
             on_faux_click=on_faux_click or self._handle_faux_click,

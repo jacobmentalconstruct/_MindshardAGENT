@@ -117,6 +117,12 @@ def run_execution_planner(
         should_stop=should_stop,
         temperature=min(config.temperature, 0.3),
         num_ctx=min(config.max_context_tokens, 4096),
+        timeout=max(30, int(config.planning_round_timeout_sec or 150)),
+        read_idle_timeout=max(1.0, float(config.planning_stream_idle_timeout_sec or 5.0)),
+        heartbeat_sec=max(1.0, float(config.planning_heartbeat_sec or 10.0)),
+        first_token_warn_sec=max(1.0, float(config.planning_first_token_warn_sec or 20.0)),
+        max_output_chars=max(400, int(config.planning_max_output_chars or 2200)),
+        progress_label="planner_stage",
     )
     plan_text = _sanitize_plan_text(result.get("content", ""))
     activity.info(

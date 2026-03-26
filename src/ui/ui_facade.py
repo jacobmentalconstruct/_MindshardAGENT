@@ -107,6 +107,14 @@ class UIFacade:
         """Submit the current compose input if it is non-empty and enabled."""
         return self._win.control_pane.input_pane.submit()
 
+    def set_stop_enabled(self, enabled: bool) -> None:
+        """Enable or disable the visible stop control for the current turn."""
+        self._win.control_pane.set_stop_enabled(enabled)
+
+    def set_stop_requested(self, requested: bool) -> None:
+        """Update the stop control to reflect an in-flight stop request."""
+        self._win.control_pane.set_stop_requested(requested)
+
     # ── Context menus ──────────────────────────────────────────────────────────
 
     def attach_context_menus(
@@ -188,6 +196,10 @@ class UIFacade:
     def end_chat_stream(self, content: str) -> None:
         """Finalize the streaming card with the complete response text."""
         self._win.chat_pane.end_stream(content)
+
+    def cancel_chat_stream(self) -> None:
+        """Discard the active streaming placeholder when no assistant reply exists."""
+        self._win.chat_pane.cancel_stream()
 
     # ── Prompt / response tracking ────────────────────────────────────────────
 

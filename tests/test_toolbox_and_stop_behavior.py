@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,10 +12,12 @@ from src.core.agent.thought_chain import ThoughtChain
 from src.core.agent.thought_chain_command_handler import run_thought_chain
 from src.core.config.app_config import AppConfig
 from src.core.engine import Engine
+from src.core.ollama.ollama_client import chat_stream
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.event_bus import EventBus
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sandbox.tool_discovery import discover_tools
+from src.app_streaming import on_submit
 
 
 def _write_tool(root: Path, filename: str, tool_name: str) -> Path:
@@ -224,20 +227,37 @@ def test_run_thought_chain_tracks_busy_state_until_completion():
     input_enabled_calls: list[bool] = []
     status_updates: list[str] = []
     journal_rows: list[tuple] = []
+    persisted_messages: list[tuple[str, str, str, int]] = []
+    autosave_calls: list[str] = []
+
+    monkeypatch = __import__("pytest").MonkeyPatch()
+    monkeypatch.setattr("src.app_session.schedule_autosave", lambda s: autosave_calls.append("autosave"))
 
     class DummyState:
         def __init__(self):
-            self.ui_state = SimpleNamespace(is_busy=False, busy_kind="", stop_requested=False)
+            self.ui_state = SimpleNamespace(is_busy=False, busy_kind="", stop_requested=False, last_user_input="")
             self.ui_facade = SimpleNamespace(
+                post_user_message=lambda text: messages.append(f"USER::{text}"),
                 post_system_message=lambda text: messages.append(text),
                 set_input_enabled=lambda enabled: input_enabled_calls.append(enabled),
+                set_last_prompt=lambda text: messages.append(f"LAST_PROMPT::{text}"),
+                set_last_response=lambda text: messages.append(f"LAST_RESPONSE::{text}"),
             )
             self.window = SimpleNamespace(
                 set_status=lambda text: status_updates.append(text),
             )
             self.engine = SimpleNamespace(
                 journal=SimpleNamespace(record=lambda *args: journal_rows.append(args)),
+                project_meta=None,
             )
+            self.config = SimpleNamespace(sandbox_root="")
+            self.session_store = SimpleNamespace(
+                add_message=lambda sid, role, content, model_name="", token_out=0, **kwargs: persisted_messages.append(
+                    (sid, role, content, token_out)
+                )
+            )
+            self.active_session = {"sid": "sess-test", "node_id": None}
+            self.registry = SimpleNamespace()
             self._busy_token = 0
 
         def begin_busy(self, kind: str, *, status_text: str | None = None, disable_input: bool = True) -> int:
@@ -278,6 +298,8 @@ def test_run_thought_chain_tracks_busy_state_until_completion():
                 ],
                 "final_text": "1. [small] Create tests\n2. [medium] Wire handlers",
                 "completed_rounds": 3,
+                "model": "planner-test",
+                "tokens_out_total": 42,
                 "stopped": False,
             }
         )
@@ -290,7 +312,151 @@ def test_run_thought_chain_tracks_busy_state_until_completion():
     assert state.ui_state.busy_kind == ""
     assert input_enabled_calls == [False, True]
     assert status_updates == ["Planning...", "Ready"]
-    assert messages[0] == "Starting thought chain for: Ship the UI bridge"
-    assert "[Plan round 1]\nFirst pass" in messages[1]
-    assert "Task list (2 tasks):" in messages[2]
+    assert messages[0] == "USER::Ship the UI bridge"
+    assert messages[1] == "LAST_PROMPT::Ship the UI bridge"
+    assert messages[2] == "Starting thought chain for: Ship the UI bridge"
+    assert "[Plan round 1]\nFirst pass" in messages[3]
+    assert "Task list (2 tasks):" in messages[4]
+    assert messages[5].startswith("LAST_RESPONSE::Task list (2 tasks):")
     assert journal_rows, "expected thought-chain completion to be journaled"
+    assert persisted_messages[0] == ("sess-test", "user", "Ship the UI bridge", 0)
+    assert persisted_messages[1][0:2] == ("sess-test", "assistant")
+    assert "Task list (2 tasks):" in persisted_messages[1][2]
+    assert autosave_calls == ["autosave"]
+    monkeypatch.undo()
+
+
+def test_chat_stream_can_stop_while_waiting_for_next_chunk(monkeypatch):
+    checks = {"count": 0}
+
+    class FakeSock:
+        def __init__(self):
+            self.timeout = None
+
+        def settimeout(self, value):
+            self.timeout = value
+
+    class FakeResponse:
+        def __init__(self):
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=FakeSock()))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def readline(self):
+            raise socket.timeout()
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=0: FakeResponse())
+
+    def should_stop():
+        checks["count"] += 1
+        return checks["count"] >= 2
+
+    result = chat_stream(
+        base_url="http://example.invalid",
+        model="test-model",
+        messages=[{"role": "user", "content": "Hello"}],
+        should_stop=should_stop,
+        timeout=30,
+        read_idle_timeout=0.01,
+        heartbeat_sec=0.01,
+    )
+
+    assert result["stopped"] is True
+    assert result["done_reason"] == "stopped"
+
+
+def test_on_submit_discards_stream_placeholder_on_immediate_error():
+    events: list[str] = []
+    persisted_messages: list[tuple[str, str, str]] = []
+
+    class DummyFacade:
+        def post_user_message(self, text: str) -> None:
+            events.append(f"user::{text}")
+
+        def set_last_prompt(self, text: str) -> None:
+            events.append(f"last_prompt::{text}")
+
+        def begin_chat_stream(self) -> None:
+            events.append("begin_stream")
+
+        def cancel_chat_stream(self) -> None:
+            events.append("cancel_stream")
+
+        def post_system_message(self, text: str) -> None:
+            events.append(f"system::{text}")
+
+        def get_loop_mode(self):
+            return "direct_chat"
+
+    class DummyState:
+        def __init__(self):
+            self.activity = SimpleNamespace(info=lambda *args, **kwargs: None)
+            self.ui_state = SimpleNamespace(
+                last_user_input="",
+                is_streaming=False,
+                is_busy=False,
+                busy_kind="",
+                stop_requested=False,
+            )
+            self.ui_facade = DummyFacade()
+            self.window = SimpleNamespace(
+                set_save_dirty=lambda val: events.append(f"save_dirty::{val}"),
+                set_status=lambda text: events.append(f"status::{text}"),
+            )
+            self.registry = SimpleNamespace()
+            self.root = SimpleNamespace(
+                after=lambda delay, fn: "after-id",
+                after_cancel=lambda after_id: events.append(f"after_cancel::{after_id}"),
+            )
+            self.active_session = {"sid": "sess-1", "node_id": None}
+            self.session_store = SimpleNamespace(
+                add_message=lambda sid, role, content, **kwargs: persisted_messages.append((sid, role, content))
+            )
+            self.config = SimpleNamespace(selected_model="test-model")
+            self.engine = SimpleNamespace(
+                submit_prompt=lambda **kwargs: kwargs["on_error"]("No model selected")
+            )
+            self.streaming_content = []
+            self.stream_dirty = {"val": False}
+            self.stream_flush_id = {"id": None}
+            self._busy_token = 0
+
+        def begin_busy(self, kind: str, *, status_text: str | None = None, disable_input: bool = True) -> int:
+            self._busy_token += 1
+            self.ui_state.is_busy = True
+            self.ui_state.busy_kind = kind
+            if status_text:
+                self.window.set_status(status_text)
+            return self._busy_token
+
+        def end_busy(self, token: int | None = None, *, status_text: str | None = "Ready", enable_input: bool = True) -> bool:
+            self.ui_state.is_busy = False
+            self.ui_state.busy_kind = ""
+            self.ui_state.stop_requested = False
+            if status_text:
+                self.window.set_status(status_text)
+            return True
+
+        def safe_ui(self, callback):
+            callback()
+
+    import src.app_prompt as app_prompt
+
+    monkeypatch = __import__("pytest").MonkeyPatch()
+    monkeypatch.setattr(app_prompt, "refresh_prompt_inspector", lambda s, text: events.append(f"refresh::{text}"))
+    monkeypatch.setattr(app_prompt, "set_prompt_inspector", lambda s, prompt_build: events.append("set_prompt"))
+
+    state = DummyState()
+    on_submit(state, "Hello")
+
+    assert state.ui_state.is_busy is False
+    assert state.ui_state.is_streaming is False
+    assert "begin_stream" in events
+    assert "cancel_stream" in events
+    assert "system::Error: No model selected" in events
+    assert ("sess-1", "user", "Hello") in persisted_messages
+    monkeypatch.undo()

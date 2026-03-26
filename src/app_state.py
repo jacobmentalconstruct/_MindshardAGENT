@@ -155,6 +155,9 @@ class AppState:
             self.window.set_status(status_text)
         if disable_input and self.ui_facade is not None:
             self.ui_facade.set_input_enabled(False)
+        if self.ui_facade is not None:
+            self.ui_facade.set_stop_requested(False)
+            self.ui_facade.set_stop_enabled(True)
         return token
 
     def end_busy(
@@ -179,15 +182,20 @@ class AppState:
 
         if status_text and self.window is not None:
             self.window.set_status(status_text)
-        if enable_input and self.ui_facade is not None:
-            self.ui_facade.set_input_enabled(True)
+        if self.ui_facade is not None:
+            self.ui_facade.set_stop_requested(False)
+            self.ui_facade.set_stop_enabled(False)
+            if enable_input:
+                self.ui_facade.set_input_enabled(True)
         return True
 
-    def mark_stop_requested(self, *, status_text: str | None = "Stopping...") -> bool:
+    def mark_stop_requested(self, *, status_text: str | None = "Stop requested") -> bool:
         """Mark that the current busy operation has been asked to stop."""
         if not self.ui_state.is_busy:
             return False
         self.ui_state.stop_requested = True
         if status_text and self.window is not None:
             self.window.set_status(status_text)
+        if self.ui_facade is not None:
+            self.ui_facade.set_stop_requested(True)
         return True

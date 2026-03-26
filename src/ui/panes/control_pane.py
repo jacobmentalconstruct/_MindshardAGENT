@@ -447,6 +447,7 @@ class ControlPane(tk.Frame):
         self,
         parent,
         on_submit=None,
+        on_stop=None,
         on_model_select=None,
         on_model_refresh=None,
         on_faux_click=None,
@@ -541,6 +542,7 @@ class ControlPane(tk.Frame):
         )
         self._build_center_area(
             on_submit=on_submit,
+            on_stop=on_stop,
             on_faux_click=on_faux_click,
             on_cli_command=on_cli_command,
         )
@@ -756,7 +758,7 @@ class ControlPane(tk.Frame):
         self.vcs_panel = VCSPanel(git_tab, on_snapshot=on_vcs_snapshot)
         self.vcs_panel.pack(fill="both", expand=True)
 
-    def _build_center_area(self, on_submit, on_faux_click, on_cli_command) -> None:
+    def _build_center_area(self, on_submit, on_stop, on_faux_click, on_cli_command) -> None:
         tk.Label(
             self._center_interaction_area,
             text="INTERACTION",
@@ -816,7 +818,7 @@ class ControlPane(tk.Frame):
         )
         _loop_combo.pack(side="right", padx=(0, 4))
 
-        self.input_pane = InputPane(compose_tab, on_submit=on_submit)
+        self.input_pane = InputPane(compose_tab, on_submit=on_submit, on_stop=on_stop)
         self.input_pane.pack(fill="both", expand=True, padx=4, pady=(2, 0))
 
         self.faux_buttons = FauxButtonPanel(compose_tab, on_click=on_faux_click)
@@ -1133,7 +1135,7 @@ class ControlPane(tk.Frame):
 
         self._tool_round_status = tk.Label(
             tool_settings,
-            text="Escape stops the current turn as soon as the stream yields.",
+            text="Use STOP or Escape to request a real stop for the active turn.",
             font=T.FONT_SMALL,
             fg=T.TEXT_DIM,
             bg=T.BG_MID,
@@ -1235,7 +1237,7 @@ class ControlPane(tk.Frame):
         if self._on_set_tool_round_limit:
             self._on_set_tool_round_limit(value)
         self._tool_round_status.config(
-            text=f"Max tool rounds set to {value}. Escape stops the active turn.",
+            text=f"Max tool rounds set to {value}. Use STOP or Escape to request a real stop.",
             fg=T.TEXT_DIM,
         )
 
@@ -1461,7 +1463,7 @@ class ControlPane(tk.Frame):
     def set_tool_round_limit(self, value: int) -> None:
         self._tool_round_limit_var.set(max(1, int(value)))
         self._tool_round_status.config(
-            text=f"Max tool rounds set to {max(1, int(value))}. Escape stops the active turn.",
+            text=f"Max tool rounds set to {max(1, int(value))}. Use STOP or Escape to request a real stop.",
             fg=T.TEXT_DIM,
         )
 
@@ -1562,6 +1564,12 @@ class ControlPane(tk.Frame):
             raise ValueError(f"Unsupported loop mode: {value}")
         self._loop_mode_var.set(value)
         return value
+
+    def set_stop_enabled(self, enabled: bool) -> None:
+        self.input_pane.set_stop_enabled(enabled)
+
+    def set_stop_requested(self, requested: bool) -> None:
+        self.input_pane.set_stop_requested(requested)
 
     # ── Evidence Bag Tab ──────────────────────────────────────────────────────
 

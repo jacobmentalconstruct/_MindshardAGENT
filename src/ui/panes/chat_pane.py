@@ -142,3 +142,16 @@ class ChatPane(tk.Frame):
         self.update_stream(content)
         self._stream_card = None
         self._stream_index = None
+
+    def cancel_stream(self) -> None:
+        """Discard the active streaming placeholder without leaving a blank card."""
+        if self._stream_card is None:
+            return
+        try:
+            self._stream_card.destroy()
+        except Exception:
+            pass
+        if self._stream_index is not None and 0 <= self._stream_index < len(self._messages):
+            self._messages.pop(self._stream_index)
+        self._stream_card = None
+        self._stream_index = None

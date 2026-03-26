@@ -2,7 +2,7 @@
 
 ## High Priority
 
-- [ ] Finish stabilization follow-ups from the live UI bridge pass
+- [x] Finish stabilization follow-ups from the live UI bridge pass
   - restore a visible Stop control in the UI that triggers the real engine stop path
   - make stop-requested planner/thought-chain runs unwind back to `Ready` promptly
   - ground Plan/thought-chain prompts in the attached software project to avoid ontology drift

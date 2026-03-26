@@ -333,6 +333,7 @@ class Engine:
     def run_thought_chain(
         self,
         goal: str,
+        goal_context: str = "",
         depth: int = 3,
         on_round: Callable[[int, str], None] | None = None,
         on_complete: Callable[[dict[str, Any]], None] | None = None,
@@ -358,6 +359,7 @@ class Engine:
 
         chain.run(
             goal,
+            goal_context=goal_context,
             depth=depth,
             on_round=on_round,
             on_complete=_wrapped_complete,

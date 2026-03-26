@@ -390,6 +390,7 @@ class UIControlBridgeServer:
 
     def _request_stop_ui(self) -> dict:
         self._s.engine.request_stop()
+        self._s.mark_stop_requested(status_text="Stop requested")
         return {"stop_requested": True}
 
     def _clear_chat_ui(self) -> dict:

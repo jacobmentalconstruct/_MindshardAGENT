@@ -31,20 +31,22 @@ MAX_DEPTH = 5
 
 # ── System prompts for each spiral round ─────────────────
 
-_SYSTEM_ROUND_1 = """You are a planning assistant. The user has a goal.
+_SYSTEM_ROUND_1 = """You are a planning assistant for a software engineering workspace. The user has a goal.
 Your job in THIS round: brainstorm the approach.
 
 Rules:
+- Assume this is a software/codebase planning task unless the user explicitly says it is about a physical system.
 - List the major components or steps needed
 - Identify what you don't know yet or need to figure out
 - Think about dependencies — what must happen first?
 - Be concise. Bullet points preferred.
 - Do NOT write any code. Just plan."""
 
-_SYSTEM_ROUND_MID = """You are a planning assistant refining a plan.
+_SYSTEM_ROUND_MID = """You are a planning assistant refining a software project plan.
 Below is your previous analysis. Your job in THIS round: GET MORE SPECIFIC.
 
 Rules:
+- Stay grounded in the attached software/codebase context unless the user explicitly says otherwise
 - You MUST be more concrete than your previous output
 - You MUST NOT repeat what was already said — only ADD new detail
 - Break vague items into exact sub-steps
@@ -52,10 +54,11 @@ Rules:
 - Estimate relative complexity (trivial / small / medium) per item
 - Do NOT write any code. Just plan."""
 
-_SYSTEM_ROUND_FINAL = """You are a planning assistant producing a FINAL task list.
+_SYSTEM_ROUND_FINAL = """You are a planning assistant producing a FINAL software task list.
 Below is your refined analysis. Your job: produce a numbered task list.
 
 Rules:
+- Stay grounded in the attached software/codebase context unless the user explicitly says otherwise
 - Output a NUMBERED list of concrete, actionable tasks
 - Each task must be completable in one sitting
 - Each task must start with a verb (Create, Add, Wire, Fix, Test, etc.)
@@ -78,6 +81,7 @@ class ThoughtChain:
     def run(
         self,
         goal: str,
+        goal_context: str = "",
         depth: int = DEFAULT_DEPTH,
         on_round: Callable[[int, str], None] | None = None,
         on_complete: Callable[[dict[str, Any]], None] | None = None,
@@ -97,7 +101,7 @@ class ThoughtChain:
 
         def _worker():
             try:
-                self._run_sync(goal, depth, on_round, on_complete, on_error)
+                self._run_sync(goal, goal_context, depth, on_round, on_complete, on_error)
             except Exception as e:
                 log.exception("Thought chain error")
                 if on_error:
@@ -114,7 +118,7 @@ class ThoughtChain:
     def request_stop(self) -> None:
         self._stop_requested = True
 
-    def _run_sync(self, goal, depth, on_round, on_complete, on_error):
+    def _run_sync(self, goal, goal_context, depth, on_round, on_complete, on_error):
         model = resolve_model_for_role(self._config, PLANNER_ROLE)
         if not model:
             if on_error:
@@ -123,11 +127,15 @@ class ThoughtChain:
 
         self._activity.info("ctc", f"Starting thought chain: {depth} rounds with planner {model}")
         rounds_output: list[str] = []
+        round_stats: list[dict[str, Any]] = []
         stopped = False
+        stopped_reason = ""
+        planning_num_ctx = min(self._config.max_context_tokens, 4096)
 
         for round_num in range(1, depth + 1):
             if self._stop_requested:
                 stopped = True
+                stopped_reason = "stopped"
                 break
             # Pick the right system prompt for this round
             if round_num == 1:
@@ -141,9 +149,13 @@ class ThoughtChain:
             messages = [{"role": "system", "content": system}]
 
             if round_num == 1:
+                context_bits = []
+                if goal_context:
+                    context_bits.append(goal_context.strip())
+                context_bits.append(f"Goal: {goal}")
                 messages.append({
                     "role": "user",
-                    "content": f"Goal: {goal}",
+                    "content": "\n\n".join(bit for bit in context_bits if bit),
                 })
             else:
                 # Feed previous round's output as context
@@ -152,6 +164,7 @@ class ThoughtChain:
                     "role": "user",
                     "content": (
                         f"Original goal: {goal}\n\n"
+                        f"Software project context:\n{goal_context.strip() or '(no extra context provided)'}\n\n"
                         f"Your previous analysis (round {round_num - 1}):\n"
                         f"{prev}\n\n"
                         f"Now go deeper. Be MORE specific than above."
@@ -166,14 +179,35 @@ class ThoughtChain:
                 messages=messages,
                 should_stop=lambda: self._stop_requested,
                 temperature=self._config.temperature,
-                num_ctx=self._config.max_context_tokens,
+                num_ctx=planning_num_ctx,
+                timeout=max(30, int(self._config.planning_round_timeout_sec or 150)),
+                read_idle_timeout=max(1.0, float(self._config.planning_stream_idle_timeout_sec or 5.0)),
+                heartbeat_sec=max(1.0, float(self._config.planning_heartbeat_sec or 10.0)),
+                first_token_warn_sec=max(1.0, float(self._config.planning_first_token_warn_sec or 20.0)),
+                max_output_chars=max(400, int(self._config.planning_max_output_chars or 2200)),
+                progress_label=f"ctc_round_{round_num}_of_{depth}",
             )
 
             text = result.get("content", "")
             rounds_output.append(text)
+            round_stats.append(
+                {
+                    "round_num": round_num,
+                    "wall_ms": float(result.get("wall_ms", 0.0) or 0.0),
+                    "chars": len(text),
+                    "tokens_out": int(result.get("eval_count", 0) or 0),
+                    "tokens_in": int(result.get("prompt_eval_count", 0) or 0),
+                    "first_token_ms": float(result.get("first_token_ms", 0.0) or 0.0),
+                    "done_reason": str(result.get("done_reason", "") or ""),
+                    "stopped": bool(result.get("stopped", False)),
+                    "timed_out": bool(result.get("timed_out", False)),
+                    "output_capped": bool(result.get("output_capped", False)),
+                }
+            )
 
             if result.get("stopped"):
                 stopped = True
+                stopped_reason = str(result.get("done_reason", "") or "stopped")
                 self._activity.info("ctc", f"Thought chain stopped during round {round_num}/{depth}")
                 break
 
@@ -197,8 +231,12 @@ class ThoughtChain:
                 "tasks": tasks,
                 "final_text": final_text,
                 "depth": depth,
+                "model": model,
                 "stopped": stopped,
+                "stopped_reason": stopped_reason,
                 "completed_rounds": len(rounds_output),
+                "round_stats": round_stats,
+                "tokens_out_total": sum(stat["tokens_out"] for stat in round_stats),
             })
 
 

@@ -1444,3 +1444,46 @@ hard-closed after preserving records. Session cleanup afterward kept only the
 two meaningful saved sessions:
 - `Bridge UI Smoke — BRIDGE_OK round-trip`
 - `Bridge UI Smoke — Planner stop verification`
+
+### Follow-Up Stabilization Pass
+Returned to the app and closed the remaining live-testing gaps:
+- restored a visible `STOP` control in the compose area
+- made stop requests propagate through the live UI bridge and app state
+- made streamed Ollama planning calls interruptible while waiting for the next
+  chunk by adding read-idle timeouts and repeated stop checks
+- added planning guardrails: round timeout, heartbeat logging, first-token
+  latency logging, and output caps
+- anchored thought-chain planning to the attached software workspace
+- persisted thought-chain runs as a recoverable user/assistant exchange in the
+  session store
+
+### Live Re-Verification
+- `python -m pytest -q` -> 41 passed
+- `python -m tests.test_tool_roundtrip` -> 92 passed
+- live bridge stop/unwind test now succeeds:
+  - Plan started
+  - stop requested after ~1 second
+  - app returned to `Ready`
+  - session persisted with assistant message `Plan stopped after 1 round(s).`
+
+### Preserved Sessions
+Bridge-lab workspace now keeps three named smoke-test sessions:
+- `Bridge UI Smoke — BRIDGE_OK round-trip`
+- `Bridge UI Smoke — Planner stop verification`
+- `Bridge UI Smoke — Thought-chain stop unwind`
+
+### Final Fresh Re-Check
+A last stabilization review found one more runtime defect: if a submit failed
+immediately before any assistant tokens arrived, the UI created a streaming
+placeholder card and never finalized or removed it, leaving a dangling blank
+assistant entry in chat.
+
+Fixes:
+- added `cancel_stream()` to `ChatPane`
+- exposed `cancel_chat_stream()` via `UIFacade`
+- `app_streaming` now discards the active stream placeholder on immediate error
+- added regression coverage for this startup-error path
+
+Verification:
+- `python -m pytest tests\\test_toolbox_and_stop_behavior.py -q` -> 9 passed
+- `python -m pytest -q` -> 42 passed

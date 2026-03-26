@@ -114,6 +114,7 @@ def on_submit(s: AppState, text: str) -> None:
         s.safe_ui(lambda: _handle_error(err))
 
     def _handle_error(err):
+        s.ui_facade.cancel_chat_stream()
         s.ui_facade.post_system_message(f"Error: {err}")
         s.end_busy(busy_token, status_text="Error — check model connection", enable_input=True)
 
