@@ -5,36 +5,30 @@ model/tool/session subsystems, and pushes structured activity events
 back to the UI via the activity stream and event bus.
 """
 
-from typing import Any, Callable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable
 
 from src.core.config.app_config import AppConfig
-from src.core.agent.loop_manager import LoopManager
-from src.core.agent.loop_registry import build_loop_manager
 from src.core.agent.loop_types import LoopRequest
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
+from src.core.agent.response_runtime_builder import build_agent_loop_manager, build_response_runtime
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.event_bus import EventBus
 from src.core.runtime.runtime_logger import get_logger
 from src.core.ollama.embedding_service import EmbeddingService
 from src.core.ollama.tokenizer_adapter import TokenizerAdapter
-from src.core.sandbox.sandbox_manager import SandboxManager
-from src.core.sandbox.sandbox_runtime_factory import build_sandbox_runtime
+from src.core.project.workspace_context import initialize_workspace_context
+from src.core.sandbox.sandbox_context_builder import build_sandbox_context
 from src.core.sandbox.tool_catalog import ToolCatalog
-from src.core.sandbox.file_writer import FileWriter
-from src.core.sandbox.docker_manager import DockerManager
-from src.core.sandbox.workspace_layout import ensure_sidecar_dirs
-from src.core.agent.tool_router import ToolRouter
-from src.core.agent.response_loop import ResponseLoop
-from src.core.agent.thought_chain import ThoughtChain
 from src.core.sandbox.tool_discovery import reload_discovered_tool_roots
-from src.core.sessions.knowledge_store import KnowledgeStore
 from src.core.sessions.evidence_adapter import initialize_evidence_bag
-from src.core.runtime.action_journal import ActionJournal
-from src.core.vcs.mindshard_vcs import MindshardVCS
-from src.core.project.project_meta import ProjectMeta
-from src.core.vault.memory_vault import MemoryVault
-from src.core.agent.prompt_builder import PromptBuildResult
 import src.core.runtime.action_journal as aj
+
+if TYPE_CHECKING:
+    from src.core.agent.prompt_builder import PromptBuildResult
+    from src.core.agent.thought_chain import ThoughtChain
+    from src.core.sessions.knowledge_store import KnowledgeStore
 
 log = get_logger("engine")
 
@@ -63,20 +57,24 @@ class Engine:
         self.project_meta: ProjectMeta | None = None
 
         # Sandbox + tools (initialized when sandbox is set)
-        self.sandbox: SandboxManager | None = None
+        from src.core.sandbox.docker_manager import DockerManager
+        from src.core.vault.memory_vault import MemoryVault
+        from src.core.vcs.mindshard_vcs import MindshardVCS
+
+        self.sandbox = None
         self.docker_manager = DockerManager(activity, sandbox_root=config.sandbox_root or "")
         self.docker_runner = None        # set by build_sandbox_runtime
         self.tool_catalog = ToolCatalog()
-        self.tool_router: ToolRouter | None = None
-        self.response_loop: ResponseLoop | None = None
+        self.tool_router = None
+        self.response_loop = None
         self.python_runner = None        # set by build_sandbox_runtime
-        self.loop_manager = LoopManager(activity)
+        self.loop_manager = None
 
         # Embedding (availability check + embed function — owned by EmbeddingService)
         self.embedding_service = EmbeddingService(config, activity)
 
         # RAG
-        self.knowledge: KnowledgeStore | None = None
+        self.knowledge = None
         self._session_id_fn = None  # set by app.py
 
         # Evidence bag (tiered memory — STM falloff destination)
@@ -86,7 +84,7 @@ class Engine:
         self.journal: ActionJournal | None = None
 
         # Standalone thought chain (Plan button path — tracked for shutdown drain)
-        self._active_thought_chain: ThoughtChain | None = None
+        self._active_thought_chain = None
 
         # Local VCS — .mindshard/ git repo inside sandbox root
         self.vcs = MindshardVCS()
@@ -121,52 +119,23 @@ class Engine:
         # Update Docker container name for this sandbox path
         self.docker_manager.set_sandbox_root(sandbox_root)
 
-        # Always create the local sandbox manager (for PathGuard, AuditLog, structure)
-        self.sandbox = SandboxManager(sandbox_root, self.activity,
-                                       on_confirm_destructive=self._on_confirm_destructive,
-                                       gui_policy_getter=lambda: self.config.gui_launch_policy,
-                                       on_confirm_gui_launch=self._on_confirm_gui_launch)
-
-        # Ensure standard workspace dirs exist
-        ensure_sidecar_dirs(sandbox_root)
-
-        # Project metadata
-        self.project_meta = ProjectMeta(sandbox_root)
-
-        # Action journal
-        self.journal = ActionJournal(sandbox_root)
-
-        # VCS — attach to sandbox root (creates .mindshard/ if new)
-        try:
-            self.vcs.attach(sandbox_root)
-        except Exception as e:
-            log.warning("VCS attach failed: %s", e)
-
-        # File writer always operates host-side (volume mount keeps files in sync)
-        self.file_writer = FileWriter(
-            self.sandbox.guard, self.activity,
-            audit_log=self.sandbox.audit,
-        )
-
-        # Select execution backend (Docker container or local subprocess)
-        runtime = build_sandbox_runtime(
-            self.config, self.sandbox, self.docker_manager,
+        sandbox_context = build_sandbox_context(
+            self.config,
             activity=self.activity,
+            docker_manager=self.docker_manager,
+            sandbox_root=sandbox_root,
             on_confirm_destructive=self._on_confirm_destructive,
             on_confirm_gui_launch=self._on_confirm_gui_launch,
         )
-        self.docker_runner = runtime.docker_runner
-        self.python_runner = runtime.python_runner
-        self.command_policy = runtime.command_policy
+        self.sandbox = sandbox_context.sandbox
+        self.file_writer = sandbox_context.file_writer
+        self.docker_runner = sandbox_context.docker_runner
+        self.python_runner = sandbox_context.python_runner
+        self.command_policy = sandbox_context.command_policy
 
-        self.tool_router = ToolRouter(
-            self.tool_catalog, runtime.cli_runner, self.activity,
-            file_writer=self.file_writer,
-            sandbox_root=sandbox_root,
-            on_tools_reloaded=self._on_tools_reloaded,
-            reload_tools_fn=self.reload_discovered_tools,
-            python_runner=self.python_runner,
-        )
+        workspace_context = initialize_workspace_context(sandbox_root, vcs=self.vcs)
+        self.project_meta = workspace_context.project_meta
+        self.journal = workspace_context.journal
 
         self.evidence_bag = initialize_evidence_bag(
             sandbox_root,
@@ -174,23 +143,29 @@ class Engine:
             activity=self.activity,
         )
 
-        self.response_loop = ResponseLoop(
-            self.config, self.tool_catalog, self.tool_router, self.activity,
+        response_runtime = build_response_runtime(
+            config=self.config,
+            tool_catalog=self.tool_catalog,
+            cli_runner=sandbox_context.cli_runner,
+            activity=self.activity,
+            file_writer=self.file_writer,
+            sandbox_root=sandbox_root,
+            python_runner=self.python_runner,
             command_policy=self.command_policy if not self.docker_runner else None,
             knowledge_store=self.knowledge,
             embed_fn=self.embedding_service.get_fn(),
             session_id_fn=self._session_id_fn,
-            docker_mode=bool(self.docker_runner),
             journal=self.journal,
-            file_writer=self.file_writer,
             evidence_bag=self.evidence_bag,
-        )
-        self.response_loop.set_workspace(
             vcs=self.vcs,
             active_project=self.active_project,
             project_meta=self.project_meta,
+            on_tools_reloaded=self._on_tools_reloaded,
+            reload_tools_fn=self.reload_discovered_tools,
         )
-        self._rebuild_loops()
+        self.tool_router = response_runtime.tool_router
+        self.response_loop = response_runtime.response_loop
+        self.loop_manager = response_runtime.loop_manager
         self.config.sandbox_root = sandbox_root
 
         discovered_names = self.reload_discovered_tools()
@@ -224,7 +199,14 @@ class Engine:
                 active_project=project_path,
                 project_meta=self.project_meta,
             )
-        self._rebuild_loops()
+        self.loop_manager = build_agent_loop_manager(
+            config=self.config,
+            activity=self.activity,
+            tool_catalog=self.tool_catalog,
+            response_loop=self.response_loop,
+            sandbox_root_getter=lambda: self.config.sandbox_root,
+            active_project_getter=lambda: self.active_project,
+        )
         log.info("Active project: %s", project_path or "(sandbox root)")
 
     def set_knowledge_store(self, knowledge: KnowledgeStore,
@@ -239,17 +221,7 @@ class Engine:
                 session_id_fn=self._session_id_fn,
                 embed_fn=self.embedding_service.get_fn(),
             )
-        self._rebuild_loops()
-
-    def set_evidence_bag(self, evidence_bag) -> None:
-        """Attach an evidence bag adapter. Called if bag is initialized after engine setup."""
-        self.evidence_bag = evidence_bag
-        if self.response_loop:
-            self.response_loop.set_evidence_bag(evidence_bag)
-
-    def _rebuild_loops(self) -> None:
-        """Rebuild the loop manager from current runtime state via loop_registry."""
-        self.loop_manager = build_loop_manager(
+        self.loop_manager = build_agent_loop_manager(
             config=self.config,
             activity=self.activity,
             tool_catalog=self.tool_catalog,
@@ -257,6 +229,12 @@ class Engine:
             sandbox_root_getter=lambda: self.config.sandbox_root,
             active_project_getter=lambda: self.active_project,
         )
+
+    def set_evidence_bag(self, evidence_bag) -> None:
+        """Attach an evidence bag adapter. Called if bag is initialized after engine setup."""
+        self.evidence_bag = evidence_bag
+        if self.response_loop:
+            self.response_loop.set_evidence_bag(evidence_bag)
 
     def check_embeddings(self) -> bool:
         """Check if the embedding model is available. Call on startup."""
@@ -330,6 +308,8 @@ class Engine:
         on_error: Callable[[str], None] | None = None,
     ) -> None:
         """Run a Cannibalistic Thought Chain to decompose a goal into tasks."""
+        from src.core.agent.thought_chain import ThoughtChain
+
         chain = ThoughtChain(self.config, self.activity)
         self._active_thought_chain = chain
 

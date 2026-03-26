@@ -60,6 +60,18 @@ A runtime control graph is an approved coordination/state-topology model rooted 
 ### 0.18 Contract compliance
 Contract compliance means acting in a way that satisfies not only the literal wording of this document but also its structural intent: bounded ownership, clear hierarchy, clean dependency flow, safe sourcing, local vendorable build behavior, robust documentation, and conservative cleanup.
 
+### 0.19 Constraint field
+A constraint field is the stable set of project laws, records, boundaries, phase goals, and explicit non-goals that focus builder behavior across many inference cycles so the project is not treated as a fresh unconstrained task each turn.
+
+### 0.20 Tranche
+A tranche is a bounded work slice with a defined scope, explicit non-goals, and a clean stopping point such that scaffold work, implementation work, integration work, or cleanup work are not accidentally collapsed together.
+
+### 0.21 Explicit non-goal
+An explicit non-goal is a concretely stated thing that the builder shall not implement, redesign, or expand within the current tranche even if doing so appears tempting or locally convenient.
+
+### 0.22 Builder memory
+Builder memory is the project-side operational memory used to preserve doctrine, work history, TODO state, onboarding notes, and other builder-facing continuity records across sessions and contract resets. Under this project, builder memory belongs in the app journal rather than in runtime application data stores.
+
 ---
 
 This document defines the operational constraints, architectural boundaries, sourcing rules, and build discipline for the builder agent working inside the target project root.
@@ -86,6 +98,107 @@ The builder shall treat this contract as both:
 - a quality floor.
 
 Anything not clearly authorized here but materially affecting structure, dependency, sourcing, tooling scope, cleanup, or long-term maintainability requires explicit user approval.
+
+---
+
+## Builder Workflow Discipline Amendment
+
+The builder shall operate under stable project laws rather than treating each
+prompt as a new unconstrained universe.
+
+This amendment formalizes the workflow discipline that has proven effective for
+long-running architecture work in this project.
+
+### A. Stable constraint-field rule
+
+The builder shall preserve and work within the active constraint field for the
+project.
+
+The constraint field includes:
+- the contract,
+- active architecture doctrine,
+- app journal builder-memory records,
+- tranche boundaries,
+- explicit non-goals,
+- and any durable subsystem doctrines that have already been recorded.
+
+The builder shall not discard these merely because a new prompt begins.
+
+### B. Tranche-boundary rule
+
+Meaningful work should be executed in bounded tranches rather than broad
+unfenced rewrites.
+
+Before substantial implementation, the builder should identify:
+- the current tranche,
+- what is in scope,
+- what is explicitly out of scope,
+- and what constitutes a clean completion point.
+
+If these are not clear, the builder should clarify or infer them conservatively
+before proceeding.
+
+### C. Phase-separation rule
+
+The builder shall preserve a distinction between:
+- scaffold work,
+- implementation work,
+- integration work,
+- cleanup work,
+- and later polish or expansion work.
+
+The builder shall not silently collapse these phases together merely because it
+is technically possible to do so in one pass.
+
+### D. Explicit non-goal rule
+
+Each tranche should carry explicit non-goals when practical.
+
+When non-goals are known, the builder shall treat them as active constraints
+rather than optional suggestions. The builder should prefer leaving a deferred
+area untouched over partially expanding it in ways that blur the tranche
+boundary.
+
+### E. Owner-first decomposition rule
+
+When refactoring or decomposing code, the builder shall move behavior to the
+most natural owner if one clearly exists.
+
+If no natural owner exists yet, the builder should prefer leaving the behavior
+in place temporarily over inventing a vague new layer, junk-drawer package, or
+premature abstraction.
+
+### F. Truth-layer separation rule
+
+The builder shall preserve the distinction between:
+- builder-memory truth,
+- design/configuration truth,
+- and runtime-consumed truth.
+
+The builder should not blur these layers in storage or implementation.
+
+In particular:
+- builder/project doctrine belongs in builder memory,
+- app design/runtime data belongs in the application's own storage,
+- and runtime behavior should consume only the approved active truth for that
+  subsystem.
+
+### G. Review-loop sharpening rule
+
+Review is not only for catching bugs.
+
+The builder shall use review findings and successful workflow patterns to
+sharpen doctrine, constraints, and future tranche discipline when doing so
+improves continuity and reduces repeat drift.
+
+### H. Continuity rule
+
+The builder shall prefer continuity across sessions and contract resets.
+
+When a workflow, guardrail, or architectural discipline proves repeatedly
+useful, the builder should help record it into durable builder-memory or
+contract surfaces so later work inherits the method rather than rediscovering
+it from scratch.
 
 ---
 

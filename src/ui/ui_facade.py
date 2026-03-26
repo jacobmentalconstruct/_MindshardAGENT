@@ -130,11 +130,7 @@ class UIFacade:
         from src.ui.widgets.text_context_menu import attach_context_menu
 
         try:
-            preview_widgets = [
-                self._win.control_pane.response_preview._text,
-                self._win.control_pane.inspect_response_preview._text,
-                self._win.control_pane.inspect_prompt_preview._text,
-            ]
+            preview_widgets = self._win.control_pane.get_context_menu_targets()
             for tw in preview_widgets:
                 if tw is not None:
                     attach_context_menu(tw, on_ask=on_ask, on_inject=on_inject)
@@ -257,11 +253,11 @@ class UIFacade:
             "source_label": str(self._win._source_label.cget("text")),
             "input_enabled": self.is_input_enabled(),
             "input_text": self.get_input_text(),
-            "loop_mode": cp._loop_mode_var.get() if hasattr(cp, "_loop_mode_var") else "auto",
-            "project_name": getattr(cp, "_current_project_name", ""),
-            "current_model_name": getattr(cp, "_current_model_name", "(none)"),
-            "current_session_title": getattr(cp, "_current_session_title", "New Session"),
-            "last_prompt": getattr(cp, "_last_prompt_text", ""),
-            "last_response": getattr(cp, "_last_response_text", ""),
+            "loop_mode": cp.get_loop_mode() or "auto",
+            "project_name": cp.current_project_name,
+            "current_model_name": cp.current_model_name,
+            "current_session_title": cp.current_session_title,
+            "last_prompt": cp.last_prompt_text,
+            "last_response": cp.last_response_text,
             "chat_messages": chat_messages,
         }

@@ -30,24 +30,23 @@ from src.core.agent.loop_types import TOOL_AGENT_LOOP, build_loop_result
 from src.core.agent.model_roles import PRIMARY_CHAT_ROLE, resolve_model_for_role
 from src.core.agent.probe_stage import run_probe_stage
 from src.core.agent.prompt_builder import PromptBuildResult, build_system_prompt_bundle
-from src.core.agent.recovery_planner import (
-    detect_failure_pattern,
-    format_recovery_injection,
-    record_round,
-    run_recovery_planner,
-)
 from src.core.agent.stage_context import StageContext, format_stage_context
 from src.core.agent.tool_router import ToolRouter
-from src.core.agent.transcript_formatter import format_all_results, strip_tool_call_markup
+from src.core.agent.tool_agent_turn_runner import run_tool_agent_turn
+from src.core.agent.turn_prompt_context import (
+    build_journal_context,
+    build_rag_context,
+    build_vcs_context,
+)
 from src.core.agent.turn_assembler import assemble_turn
 from src.core.config.app_config import AppConfig
-from src.core.ollama.ollama_client import chat_stream
 from src.core.runtime.activity_stream import ActivityStream
 from src.core.runtime.runtime_logger import get_logger
 from src.core.sandbox.command_policy import CommandPolicy
 from src.core.sandbox.file_writer import FileWriter
 from src.core.sandbox.tool_catalog import ToolCatalog
 from src.core.sessions.knowledge_store import KnowledgeStore
+from src.core.sessions.turn_knowledge_writer import store_turn_knowledge
 
 log = get_logger("turn_pipeline")
 
@@ -222,101 +221,21 @@ class TurnPipeline:
                 on_error(msg)
             return
 
-        # ── Streaming + tool loop ──
-        total_content = []
-        rounds = 0
-        result: dict[str, Any] = {}
-        assistant_text = ""
-        _round_history = []   # RoundRecord list for failure pattern detection
-        _recovery_used = False
-
-        while rounds < self._config.max_tool_rounds and not self._should_stop():
-            rounds += 1
-            round_tokens: list[str] = []
-            model_name = resolve_model_for_role(self._config, PRIMARY_CHAT_ROLE)
-
-            self._activity.model("agent", f"Round {rounds}: requesting model response from {model_name}")
-            result = chat_stream(
-                base_url=self._config.ollama_base_url,
-                model=model_name,
-                messages=messages,
-                on_token=lambda t: (round_tokens.append(t), on_token(t) if on_token else None),
-                should_stop=self._should_stop,
-                temperature=self._config.temperature,
-                num_ctx=self._config.max_context_tokens,
-            )
-
-            assistant_text = result.get("content", "".join(round_tokens))
-            visible_assistant_text = strip_tool_call_markup(assistant_text)
-            if visible_assistant_text:
-                total_content.append(visible_assistant_text)
-
-            if result.get("stopped"):
-                self._activity.info("agent", "Response loop interrupted by user request")
-                break
-
-            if self._router.has_tool_calls(assistant_text):
-                self._activity.tool("agent", "Tool call detected in response")
-                if on_tool_start:
-                    on_tool_start(assistant_text)
-
-                tool_results = self._router.execute_all(assistant_text)
-                tool_output = format_all_results(tool_results)
-
-                if on_tool_result:
-                    on_tool_result({"results": tool_results, "formatted": tool_output})
-
-                messages.append({"role": "assistant", "content": assistant_text})
-                tool_results_body = tool_output or "[No tool output returned. Check your tool call format and retry.]"
-                messages.append({"role": "user", "content": f"[Tool Results]\n{tool_results_body}"})
-
-                # ── Failure pattern detection + recovery replanning ──
-                _round_history.append(record_round(rounds, tool_results, tool_output))
-                if not _recovery_used:
-                    _pattern = detect_failure_pattern(
-                        _round_history, self._config.max_tool_rounds
-                    )
-                    if _pattern:
-                        _recovery_used = True  # only replan once per turn
-                        _plan = run_recovery_planner(
-                            config=self._config,
-                            activity=self._activity,
-                            user_text=user_text,
-                            pattern=_pattern,
-                            round_history=_round_history,
-                        )
-                        _injection = (
-                            format_recovery_injection(_plan)
-                            if _plan else
-                            (
-                                f"[RECOVERY HINT — {_pattern.kind}]\n"
-                                f"{_pattern.suggested_action}"
-                            )
-                        )
-                        messages.append({"role": "system", "content": _injection})
-                        self._activity.warn(
-                            "recovery",
-                            f"Pattern '{_pattern.kind}' detected at round {rounds}; "
-                            "recovery guidance injected",
-                        )
-
-                self._activity.tool("agent", f"Tool round {rounds} complete, continuing...")
-                continue
-            else:
-                break
-
-        if (
-            not self._should_stop()
-            and rounds >= self._config.max_tool_rounds
-            and assistant_text
-            and self._router.has_tool_calls(assistant_text)
-        ):
-            total_content.append(
-                f"[Stopped after {self._config.max_tool_rounds} tool rounds. "
-                "Increase Tools > Max Tool Rounds to allow deeper exploration.]"
-            )
-        elif self._should_stop() or result.get("stopped"):
-            total_content.append("[Stopped by user request.]")
+        turn_outcome = run_tool_agent_turn(
+            config=self._config,
+            tool_router=self._router,
+            activity=self._activity,
+            user_text=user_text,
+            messages=messages,
+            on_token=on_token,
+            on_tool_start=on_tool_start,
+            on_tool_result=on_tool_result,
+            should_stop=self._should_stop,
+        )
+        total_content = list(turn_outcome.total_content)
+        result = turn_outcome.result
+        assistant_text = turn_outcome.assistant_text
+        rounds = turn_outcome.rounds
 
         # ── Evidence pass-2 (if model signals uncertainty) ──
         pass2 = run_evidence_pass(
@@ -337,7 +256,15 @@ class TurnPipeline:
 
         # ── RAG: store user query and assistant response ──
         final_text = "\n".join(total_content)
-        self._store_rag(user_text, final_text, bag_summary=assembled.bag_summary)
+        store_turn_knowledge(
+            config=self._config,
+            knowledge_store=self._knowledge,
+            embed_fn=self._embed_fn,
+            session_id_fn=self._session_id_fn,
+            user_text=user_text,
+            final_text=final_text,
+            bag_summary=assembled.bag_summary,
+        )
 
         # ── Final result ──
         meta = {
@@ -366,7 +293,7 @@ class TurnPipeline:
             "budget_available": assembled.budget_report.available_tokens,
             "budget_trimmed": assembled.budget_report.over_budget,
             "budget_multipass_recommended": assembled.budget_report.would_benefit_from_multipass,
-            "recovery_triggered": _recovery_used,
+            "recovery_triggered": turn_outcome.recovery_triggered,
         }
 
         if on_complete:
@@ -388,9 +315,16 @@ class TurnPipeline:
         Called both from run() (start of each turn) and from
         ResponseLoop.preview_prompt() for inspector display.
         """
-        rag_context = self._build_rag_context(user_text)
-        journal_context = self._build_journal_context()
-        vcs_context = self._build_vcs_context()
+        rag_context = build_rag_context(
+            config=self._config,
+            knowledge_store=self._knowledge,
+            embed_fn=self._embed_fn,
+            session_id_fn=self._session_id_fn,
+            activity=self._activity,
+            user_text=user_text,
+        )
+        journal_context = build_journal_context(self._journal)
+        vcs_context = build_vcs_context(self._vcs)
         project_brief = ""
         project_meta_path = ""
         if self._project_meta is not None:
@@ -420,95 +354,3 @@ class TurnPipeline:
             log.warning("Prompt source warning: %s", warning)
 
         return prompt_build
-
-    # ── Private helpers ───────────────────────────────────────────────────────
-
-    def _store_rag(
-        self,
-        user_text: str,
-        final_text: str,
-        bag_summary: str = "",
-    ) -> None:
-        """Store user query, assistant response, and evidence bag summary into
-        the knowledge store.
-
-        When a bag_summary is provided (i.e. the evidence bag is active this
-        turn) we first delete any previously-embedded bag summary rows so that
-        only the current summary is retrievable via RAG.  This prevents stale
-        CIS (Context Injection Summary) chunks from polluting retrieval as the
-        bag grows over a long session.
-        """
-        if not (self._config.rag_enabled and self._knowledge
-                and self._embed_fn and self._session_id_fn):
-            return
-        sid = self._session_id_fn()
-        if not sid:
-            return
-        try:
-            # ── Bag summary: invalidate stale CIS, embed fresh one ──
-            if bag_summary:
-                deleted = self._knowledge.delete_by_source(sid, "evidence_bag")
-                if deleted:
-                    log.debug("Invalidated %d stale evidence_bag RAG chunk(s)", deleted)
-                self._knowledge.add_text(
-                    sid, bag_summary, self._embed_fn,
-                    source="evidence_bag", source_role="system",
-                    max_chunk_chars=self._config.rag_chunk_max_chars,
-                )
-
-            # ── Chat turn storage ──
-            if len(final_text.strip()) > 20:
-                self._knowledge.add_text(
-                    sid, final_text, self._embed_fn,
-                    source="chat", source_role="assistant",
-                    max_chunk_chars=self._config.rag_chunk_max_chars,
-                )
-            if len(user_text.strip()) > 20:
-                self._knowledge.add_text(
-                    sid, user_text, self._embed_fn,
-                    source="chat", source_role="user",
-                    max_chunk_chars=self._config.rag_chunk_max_chars,
-                )
-        except Exception as e:
-            log.warning("RAG storage failed: %s", e)
-
-    def _build_rag_context(self, user_text: str) -> str:
-        rag_context = ""
-        if (self._config.rag_enabled and self._knowledge
-                and self._embed_fn and self._session_id_fn):
-            try:
-                sid = self._session_id_fn()
-                if sid and self._knowledge.count(sid) > 0:
-                    query_vec = self._embed_fn(user_text)
-                    hits = self._knowledge.query(
-                        sid, query_vec,
-                        top_k=self._config.rag_top_k,
-                        min_score=self._config.rag_min_score,
-                    )
-                    if hits:
-                        rag_context = "\n---\n".join(
-                            f"[{h['source_role']}/{h['source']}] {h['content']}"
-                            for h in hits
-                        )
-                        self._activity.info(
-                            "rag", f"Retrieved {len(hits)} chunks (best={hits[0]['score']:.3f})"
-                        )
-            except Exception as exc:
-                log.warning("RAG retrieval failed: %s", exc)
-        return rag_context
-
-    def _build_journal_context(self) -> str:
-        if self._journal:
-            try:
-                return self._journal.summary_since(10)
-            except Exception:
-                return ""
-        return ""
-
-    def _build_vcs_context(self) -> str:
-        if self._vcs and self._vcs.is_attached:
-            try:
-                return self._vcs.onboarding_context(limit=5)
-            except Exception:
-                return ""
-        return ""
