@@ -1,9 +1,0 @@
-{
-  "prompts": [
-    {
-      "prompt_variant_id": "intent-classify",
-      "case_id": "test",
-      "prompt_text": "Classify: fix the bug"
-    }
-  ]
-}

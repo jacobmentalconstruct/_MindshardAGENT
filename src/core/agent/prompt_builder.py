@@ -50,15 +50,22 @@ def _compact_tool_block(tool_defs: list[dict[str, Any]]) -> str:
     lines.append("Wrap JSON in triple-backtick `tool_call` fences. One call per block.")
     lines.append("Never write `TOOL_CALLS:` in chat. That summary format is not executable.")
     lines.append('```tool_call\n{"tool": "list_files", "path": "", "depth": 2}\n```')
-    lines.append('```tool_call\n{"tool": "read_file", "path": "src/main.py"}\n```')
+    lines.append('```tool_call\n{"tool": "read_file", "path": "src/main.py", "start_line": 10, "end_line": 20, "line_numbers": true}\n```')
     lines.append('```tool_call\n{"tool": "write_file", "path": "hello.py", "content": "print(\'hello\')\\n"}\n```')
+    lines.append('```tool_call\n{"tool": "replace_in_file", "path": "src/main.py", "old_text": "print(\'old\')\\n", "new_text": "print(\'new\')\\n"}\n```')
+    lines.append('```tool_call\n{"tool": "replace_lines", "path": "src/main.py", "start_line": 12, "end_line": 14, "new_text": "    return value\\n"}\n```')
     lines.append("")
-    lines.append("Use write_file to create files (not echo/cat). Use read_file to read (not type/cat).")
+    lines.append("Use write_file for new files or intentional full rewrites.")
+    lines.append("Use read_file with line_numbers=true before editing an existing file.")
+    lines.append("Use replace_in_file when you know the exact target snippet.")
+    lines.append("Use replace_lines when indentation or repeated text makes exact replacement brittle.")
     lines.append("Use list_files to explore (not dir/ls). Use run_python_file to run scripts.")
     lines.append("")
     lines.append("## Error Handling")
+    lines.append("If a file edit fails, read the target region again before retrying.")
+    lines.append("Do not claim an existing-file edit succeeded unless the tool result confirms the change.")
     lines.append("If a tool call fails (e.g. file not found), do NOT retry the same call.")
-    lines.append("Instead: use list_files to find the correct path, then retry with the corrected path.")
+    lines.append("Instead: use list_files or read_file to discover the current path/content, then retry.")
     lines.append("Always explore with list_files FIRST when you are unsure about file paths.")
     return "\n".join(lines)
 
@@ -289,7 +296,9 @@ def _tool_rules_block() -> str:
 | Task | Correct Tool | WRONG (never do this) |
 |------|-------------|----------------------|
 | Create/write a file | write_file | ~~echo ... > file~~ |
-| Read a file | read_file | ~~type file~~ ~~cat file~~ |
+| Read a file or inspect lines | read_file | ~~type file~~ ~~cat file~~ |
+| Replace exact existing text | replace_in_file | ~~rewrite whole file from stale memory~~ |
+| Replace a known line span | replace_lines | ~~guess indentation and hope~~ |
 | Run a Python script | run_python_file | ~~cli_in_sandbox with python ...~~ |
 | Run a shell-native command | cli_in_sandbox | ~~use shell for file creation or file reading~~ |
 | List/explore files | list_files | ~~dir~~ ~~ls~~ |
@@ -299,7 +308,12 @@ def _tool_rules_block() -> str:
 
 NEVER use echo, python -c, or any CLI command to create files.
 NEVER use type, cat, or any CLI command to read files.
-ALWAYS use write_file to create files. ALWAYS use read_file to read files.
+ALWAYS use write_file to create files.
+ALWAYS use read_file to inspect existing files before editing them.
+Use replace_in_file for exact surgical replacements.
+Use replace_lines for whitespace-sensitive line-range edits.
+Do not claim an existing-file edit succeeded unless the tool result confirms it.
+If a file edit fails, read the target region again instead of narrating success.
 Use run_python_file to test Python code. Reserve cli_in_sandbox for shell-native tasks that do not have a better structured tool.
 By default, run_python_file uses a disposable copied workspace under `.mindshard/runs/` so experiments do not mutate the live project.
 Use `workspace: "sandbox"` only when the user clearly wants to run directly against the real working tree.
@@ -374,6 +388,21 @@ Wrap a JSON object in triple-backtick `tool_call` fences. One tool call per bloc
 {"tool": "read_file", "path": "hello_app/src/hello.py"}
 ```
 
+### Example: Inspect a numbered region before editing
+```tool_call
+{"tool": "read_file", "path": "hello_app/src/hello.py", "start_line": 5, "end_line": 12, "line_numbers": true}
+```
+
+### Example: Exact replacement inside an existing file
+```tool_call
+{"tool": "replace_in_file", "path": "hello_app/src/hello.py", "old_text": "root.title('Hello')\\n", "new_text": "root.title('Hello World')\\n"}
+```
+
+### Example: Line-range replacement when indentation matters
+```tool_call
+{"tool": "replace_lines", "path": "hello_app/src/hello.py", "start_line": 4, "end_line": 6, "new_text": "def render():\\n    print('updated')\\n"}
+```
+
 ### Example: Run a Python script in a disposable copy
 ```tool_call
 {"tool": "run_python_file", "path": "hello_app/src/hello.py", "workspace": "run_copy"}
@@ -401,6 +430,10 @@ Wrap a JSON object in triple-backtick `tool_call` fences. One tool call per bloc
 - You may include explanation text before and after tool call blocks.
 - Wait for tool results before making your next tool call.
 - To create and run a Python script: FIRST use `write_file`, THEN use `run_python_file`.
+- To edit an existing file: FIRST use `read_file` with `line_numbers: true`, THEN use `replace_in_file` or `replace_lines`.
+- Use `replace_in_file` when the exact target snippet is known.
+- Use `replace_lines` when repeated text or indentation make exact replacement brittle.
+- If an edit tool fails, do not pretend it worked. Read the file again and retry from the current content.
 - `run_python_file` defaults to a disposable run copy under `.mindshard/runs/`.
 - Use `workspace: "sandbox"` only when direct execution against the live project is intentional.
 - Local GUI / Tkinter scripts may trigger a human approval dialog before they open a window.

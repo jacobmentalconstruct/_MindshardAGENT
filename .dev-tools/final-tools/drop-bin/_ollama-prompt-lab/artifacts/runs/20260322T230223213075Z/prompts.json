@@ -1,9 +1,0 @@
-{
-  "prompts": [
-    {
-      "prompt_variant_id": "strict-pass",
-      "case_id": "exact-pass",
-      "prompt_text": "You are being evaluated for instruction following. Reply with exactly PASS and nothing else."
-    }
-  ]
-}

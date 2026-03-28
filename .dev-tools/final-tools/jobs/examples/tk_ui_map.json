@@ -1,7 +1,0 @@
-{
-  "root": ".",
-  "top_n": 50,
-  "include_files": [
-    ".py"
-  ]
-}

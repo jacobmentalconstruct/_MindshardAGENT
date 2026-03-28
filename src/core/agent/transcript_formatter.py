@@ -21,7 +21,7 @@ def format_tool_result(tool_result: dict[str, Any]) -> str:
 
     result = tool_result.get("result", {})
 
-    # Handle file tool results (write_file, read_file) — different shape than CLI
+    # Handle file tool results — different shape than CLI
     if name == "write_file":
         path = result.get("path", "?")
         bw = result.get("bytes_written", 0)
@@ -33,10 +33,29 @@ def format_tool_result(tool_result: dict[str, Any]) -> str:
         path = result.get("path", "?")
         content = result.get("content", "")
         size = result.get("size", 0)
+        start_line = result.get("start_line")
+        end_line = result.get("end_line")
         # Truncate very long file content
         if len(content) > 3000:
             content = content[:3000] + "\n... (truncated)"
+        if start_line and end_line:
+            return f"[Tool '{name}' completed] {path} ({size} bytes, lines {start_line}-{end_line}):\n{content}"
         return f"[Tool '{name}' completed] {path} ({size} bytes):\n{content}"
+
+    if name in {"replace_in_file", "replace_lines"}:
+        path = result.get("path", "?")
+        before_excerpt = result.get("before_excerpt", "")
+        after_excerpt = result.get("after_excerpt", "")
+        parts = [f"[Tool '{name}' completed] {path}"]
+        if "replaced_count" in result:
+            parts.append(f"replaced_count: {result.get('replaced_count')} (matched {result.get('match_count', '?')})")
+        if "start_line" in result and "end_line" in result:
+            parts.append(f"line_range: {result.get('start_line')}-{result.get('end_line')}")
+        if before_excerpt:
+            parts.append(f"before_excerpt:\n{before_excerpt}")
+        if after_excerpt:
+            parts.append(f"after_excerpt:\n{after_excerpt}")
+        return "\n".join(parts)
 
     if name == "run_python_file":
         path = result.get("path", "?")

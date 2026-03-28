@@ -68,8 +68,14 @@ Prefer the `list_files` tool. Use cli_in_sandbox with `tree /f` only if you spec
 **Create a file (ALWAYS use the write_file tool for this!):**
 Use the write_file tool — NOT echo, NOT python -c. The write_file tool handles multi-line content, special characters, and quoting automatically.
 
-**Read a file (ALWAYS use the read_file tool for this!):**
-Use the read_file tool — NOT type, NOT cat. The read_file tool works reliably on all platforms.
+**Read or inspect a file (ALWAYS use the read_file tool for this!):**
+Use the read_file tool — NOT type, NOT cat. For existing-file edits, read the target region with line numbers first.
+
+**Edit exact existing text:**
+Use `replace_in_file` when you know the exact snippet that must change.
+
+**Edit a specific line span:**
+Use `replace_lines` when indentation or repeated text makes exact snippet replacement brittle.
 
 **Create a directory:**
 Use cli_in_sandbox with: `mkdir my_new_folder`
@@ -135,8 +141,14 @@ Prefer the `list_files` tool. Use cli_in_sandbox with `tree` only if you specifi
 **Create a file (ALWAYS use the write_file tool for this!):**
 Use the write_file tool — NOT echo, NOT cat, NOT python -c. The write_file tool handles multi-line content, special characters, and quoting automatically.
 
-**Read a file (ALWAYS use the read_file tool for this!):**
-Use the read_file tool — NOT cat, NOT less, NOT head. The read_file tool works reliably.
+**Read or inspect a file (ALWAYS use the read_file tool for this!):**
+Use the read_file tool — NOT cat, NOT less, NOT head. For existing-file edits, read the target region with line numbers first.
+
+**Edit exact existing text:**
+Use `replace_in_file` when you know the exact snippet that must change.
+
+**Edit a specific line span:**
+Use `replace_lines` when indentation or repeated text makes exact snippet replacement brittle.
 
 **Create a directory:**
 Use cli_in_sandbox with: `mkdir -p my_new_folder`

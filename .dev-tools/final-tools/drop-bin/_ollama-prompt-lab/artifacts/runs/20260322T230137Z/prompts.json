@@ -1,9 +1,0 @@
-{
-  "prompts": [
-    {
-      "prompt_variant_id": "dry-run",
-      "case_id": "case-1",
-      "prompt_text": "Reply with PASS."
-    }
-  ]
-}

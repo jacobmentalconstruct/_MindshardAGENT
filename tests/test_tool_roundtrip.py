@@ -202,6 +202,8 @@ def test_prompt_builder():
     _check("Contains tool instructions", "tool_call" in system)
     _check("Contains cli_in_sandbox", "cli_in_sandbox" in system)
     _check("Contains run_python_file", "run_python_file" in system)
+    _check("Contains replace_in_file", "replace_in_file" in system)
+    _check("Contains replace_lines", "replace_lines" in system)
     _check("Mentions disposable runs", ".mindshard/runs/" in system or ".mindshard\\runs\\" in system)
     _check("Contains MindshardAGENT", "MindshardAGENT" in system)
     _check("Contains externalized workspace semantics", "Workspace Semantics" in system)
@@ -289,6 +291,58 @@ def test_file_tools():
     _check("Read content correct", "print('hello')" in result.get("content", ""))
     _check("Read size reported", result.get("size", 0) > 0)
 
+    # Read a numbered excerpt
+    result = fw.read_file("test.py", start_line=2, end_line=2, line_numbers=True)
+    _check("Numbered read succeeds", result["success"])
+    _check("Numbered read includes line prefix", "   2|" in result.get("content", ""))
+    _check("Numbered read includes selected line", "print('world')" in result.get("content", ""))
+
+    # Whitespace-aware read
+    fw.write_file("indent.py", "def demo():\n    value = 1\t \n")
+    result = fw.read_file("indent.py", start_line=2, end_line=2, line_numbers=True, show_whitespace=True)
+    _check("Whitespace-aware read succeeds", result["success"])
+    _check("Whitespace view shows indent", "indent_spaces=4" in result.get("content", ""))
+    _check("Whitespace view shows trailing spaces", "trailing_spaces=1" in result.get("content", ""))
+    _check("Whitespace view shows tab marker", "\\t" in result.get("content", ""))
+
+    # Exact replace succeeds
+    result = fw.replace_in_file("test.py", "print('world')\n", "print('updated')\n")
+    _check("Exact replace succeeds", result["success"])
+    _check("Exact replace returns before excerpt", "before_excerpt" in result)
+    _check("Exact replace returns after excerpt", "after_excerpt" in result)
+    _check("Exact replace changed disk content", "print('updated')" in written_path.read_text())
+
+    # Exact replace fails on zero match
+    result = fw.replace_in_file("test.py", "print('missing')\n", "print('nope')\n")
+    _check("Exact replace no-match fails", not result["success"])
+    _check("Exact replace no-match explains issue", "not found" in result.get("error", "").lower())
+
+    # Exact replace fails on ambiguity
+    fw.write_file("ambiguous.txt", "slot\nslot\n")
+    result = fw.replace_in_file("ambiguous.txt", "slot\n", "changed\n")
+    _check("Exact replace ambiguity fails", not result["success"])
+    _check("Exact replace ambiguity mentions replace_all or narrowing", "replace_all" in result.get("error", ""))
+
+    # Line-range replacement succeeds
+    fw.write_file("lines.py", "alpha\nbeta\ngamma\ndelta\n")
+    result = fw.replace_lines("lines.py", 2, 3, "BETA\nGAMMA\n")
+    _check("replace_lines succeeds", result["success"])
+    _check("replace_lines preserves surrounding content", (Path(sandbox) / "lines.py").read_text() == "alpha\nBETA\nGAMMA\ndelta\n")
+
+    # Regression: create placeholder file, inspect region, replace only target section
+    fw.write_file(
+        "plan.md",
+        "# Plan\n\n## Step One\nTODO\n\n## Step Two\nTODO\n",
+    )
+    result = fw.read_file("plan.md", start_line=3, end_line=7, line_numbers=True)
+    _check("Regression read region succeeds", result["success"])
+    _check("Regression read region includes numbered step", "   6|" in result.get("content", ""))
+    result = fw.replace_lines("plan.md", 6, 7, "## Step Two\n- implemented\n")
+    _check("Regression replace_lines succeeds", result["success"])
+    plan_text = (Path(sandbox) / "plan.md").read_text()
+    _check("Regression replacement present on disk", "- implemented" in plan_text)
+    _check("Regression replacement preserved first section", "## Step One\nTODO" in plan_text)
+
     # Read nonexistent file
     result = fw.read_file("does_not_exist.txt")
     _check("Read missing file fails", not result["success"])
@@ -363,10 +417,37 @@ def test_file_tools_via_router():
     _check("Read via router succeeded", results[0]["success"])
     _check("Read content has tkinter", "import tkinter" in results[0]["result"]["content"])
 
+    replace_response = '''Update only the title line.
+
+```tool_call
+{"tool": "replace_in_file", "path": "hello_world.py", "old_text": "        self.window.title(\\"Hello World\\")\\n", "new_text": "        self.window.title(\\"Hello Universe\\")\\n"}
+```'''
+    results = router.execute_all(replace_response)
+    _check("replace_in_file via router succeeded", results[0]["success"])
+    _check("replace_in_file via router returned after excerpt", "Hello Universe" in results[0]["result"].get("after_excerpt", ""))
+
+    numbered_read = '''Read the constructor with line numbers.
+
+```tool_call
+{"tool": "read_file", "path": "hello_world.py", "start_line": 3, "end_line": 8, "line_numbers": true}
+```'''
+    results = router.execute_all(numbered_read)
+    _check("Numbered read via router succeeded", results[0]["success"])
+    _check("Numbered read via router includes line numbers", "|" in results[0]["result"].get("content", ""))
+
+    line_replace = '''Replace the class footer by line span.
+
+```tool_call
+{"tool": "replace_lines", "path": "hello_world.py", "start_line": 10, "end_line": 11, "new_text": "if __name__ == \\"__main__\\":\\n    print(\\"boot\\")\\n"}
+```'''
+    results = router.execute_all(line_replace)
+    _check("replace_lines via router succeeded", results[0]["success"])
+    _check("replace_lines via router after excerpt updated", "boot" in results[0]["result"].get("after_excerpt", ""))
+
     # Format the results
     formatted = format_tool_result(results[0])
-    _check("Read format includes path", "hello_world.py" in formatted)
-    _check("Read format includes content", "import tkinter" in formatted)
+    _check("replace_lines format includes path", "hello_world.py" in formatted)
+    _check("replace_lines format includes excerpt", "after_excerpt" in formatted)
 
     # Test write_file transcript formatting
     write_result = {
@@ -395,10 +476,14 @@ def test_prompt_builder_file_tools():
 
     _check("Prompt includes write_file", "write_file" in system)
     _check("Prompt includes read_file", "read_file" in system)
+    _check("Prompt includes replace_in_file", "replace_in_file" in system)
+    _check("Prompt includes replace_lines", "replace_lines" in system)
     _check("Prompt includes run_python_file", "run_python_file" in system)
     _check("Prompt discourages echo for files", "never use echo" in system.lower())
     _check("Prompt shows write_file example", '"tool": "write_file"' in system)
     _check("Prompt shows read_file example", '"tool": "read_file"' in system)
+    _check("Prompt teaches numbered reads before editing", "line_numbers" in system)
+    _check("Prompt teaches verification after failed edits", "do not pretend it worked" in system.lower())
 
 
 # ── Test 9: Structured Python Runner ─────────────────

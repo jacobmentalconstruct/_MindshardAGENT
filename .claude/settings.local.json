@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(wmic process:*)",
-      "Bash(tasklist)",
-      "Bash(python -m py_compile src/core/sandbox/sandbox_runtime_factory.py src/core/ollama/embedding_service.py src/core/agent/response_loop.py src/core/engine.py)"
-    ]
-  }
-}

@@ -142,7 +142,59 @@ class ToolRouter:
             if not path:
                 return {"tool_name": tool_name, "success": False, "error": "No path provided"}
 
-            result = self._file_writer.read_file(path)
+            result = self._file_writer.read_file(
+                path,
+                start_line=tool_call.get("start_line"),
+                end_line=tool_call.get("end_line"),
+                line_numbers=bool(tool_call.get("line_numbers", False)),
+                show_whitespace=bool(tool_call.get("show_whitespace", False)),
+            )
+            return {
+                "tool_name": tool_name,
+                "success": result["success"],
+                "result": result,
+            }
+
+        if tool_name == "replace_in_file":
+            if not self._file_writer:
+                return {"tool_name": tool_name, "success": False, "error": "File writer not initialized"}
+            path = tool_call.get("path", "")
+            old_text = tool_call.get("old_text", "")
+            if not path:
+                return {"tool_name": tool_name, "success": False, "error": "No path provided"}
+            if old_text == "":
+                return {"tool_name": tool_name, "success": False, "error": "No old_text provided"}
+
+            result = self._file_writer.replace_in_file(
+                path=path,
+                old_text=old_text,
+                new_text=tool_call.get("new_text", ""),
+                expected_count=tool_call.get("expected_count"),
+                replace_all=bool(tool_call.get("replace_all", False)),
+                context_lines=int(tool_call.get("context_lines", 2)),
+            )
+            return {
+                "tool_name": tool_name,
+                "success": result["success"],
+                "result": result,
+            }
+
+        if tool_name == "replace_lines":
+            if not self._file_writer:
+                return {"tool_name": tool_name, "success": False, "error": "File writer not initialized"}
+            path = tool_call.get("path", "")
+            if not path:
+                return {"tool_name": tool_name, "success": False, "error": "No path provided"}
+            if "start_line" not in tool_call or "end_line" not in tool_call:
+                return {"tool_name": tool_name, "success": False, "error": "start_line and end_line are required"}
+
+            result = self._file_writer.replace_lines(
+                path=path,
+                start_line=int(tool_call.get("start_line")),
+                end_line=int(tool_call.get("end_line")),
+                new_text=tool_call.get("new_text", ""),
+                context_lines=int(tool_call.get("context_lines", 2)),
+            )
             return {
                 "tool_name": tool_name,
                 "success": result["success"],

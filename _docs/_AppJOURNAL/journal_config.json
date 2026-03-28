@@ -1,7 +1,0 @@
-{
-  "project_root": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT",
-  "db_path": "C:\\Users\\jacob\\Documents\\_UsefulAgenticBuilderSANDBOX\\Claude-Code\\_MindshardAGENT\\_docs\\_journalDB\\app_journal.sqlite3",
-  "ui_hint": "python .dev-tools/_app-journal/launch_ui.py --project-root <project>",
-  "mcp_hint": "python .dev-tools/_app-journal/mcp_server.py",
-  "manifest_hint": "python .dev-tools/_app-journal/tools/journal_manifest.py run --input-json '{\"project_root\":\"...\"}'"
-}

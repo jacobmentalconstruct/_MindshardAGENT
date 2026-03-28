@@ -1,7 +1,7 @@
 """Tool catalog — registry of built-in, official, sandbox-local, and toolbox tools.
 
-Built-in tools: cli_in_sandbox, write_file, read_file, list_files,
-run_python_file, reload_tools
+Built-in tools: cli_in_sandbox, write_file, read_file, replace_in_file,
+replace_lines, list_files, run_python_file, reload_tools
 """
 
 from dataclasses import dataclass, field
@@ -53,12 +53,50 @@ WRITE_FILE = ToolEntry(
 
 READ_FILE = ToolEntry(
     name="read_file",
-    description="Read the contents of a file within the sandbox. Returns the full text content. "
-                "Works reliably on all operating systems (use this instead of cat/type).",
+    description="Read the contents of a file within the sandbox. Can return the full file "
+                "or a numbered/whitespace-aware line window for precise editing work. "
+                "Use this instead of cat/type.",
     source="builtin",
     callable_name="read_file",
     parameters={
         "path": {"type": "string", "description": "File path relative to sandbox root", "required": True},
+        "start_line": {"type": "integer", "description": "Optional first line to read (1-based, inclusive)"},
+        "end_line": {"type": "integer", "description": "Optional last line to read (1-based, inclusive)"},
+        "line_numbers": {"type": "boolean", "description": "Include stable line-number prefixes (default: false)"},
+        "show_whitespace": {"type": "boolean", "description": "Visualize indentation/tabs/trailing spaces (default: false)"},
+    },
+)
+
+REPLACE_IN_FILE = ToolEntry(
+    name="replace_in_file",
+    description="Replace exact literal text inside an existing file. "
+                "Use this when you know the exact target snippet and want a surgical edit "
+                "with before/after verification excerpts.",
+    source="builtin",
+    callable_name="replace_in_file",
+    parameters={
+        "path": {"type": "string", "description": "File path relative to sandbox root", "required": True},
+        "old_text": {"type": "string", "description": "Exact existing text to replace", "required": True},
+        "new_text": {"type": "string", "description": "Replacement text", "required": True},
+        "expected_count": {"type": "integer", "description": "Expected number of literal matches (default: 1)"},
+        "replace_all": {"type": "boolean", "description": "Replace all exact matches instead of only one (default: false)"},
+        "context_lines": {"type": "integer", "description": "How many surrounding lines to include in before/after excerpts (default: 2)"},
+    },
+)
+
+REPLACE_LINES = ToolEntry(
+    name="replace_lines",
+    description="Replace an inclusive line range inside an existing file. "
+                "Use this when exact text matching is brittle because of indentation, repeated snippets, "
+                "or whitespace-sensitive formatting.",
+    source="builtin",
+    callable_name="replace_lines",
+    parameters={
+        "path": {"type": "string", "description": "File path relative to sandbox root", "required": True},
+        "start_line": {"type": "integer", "description": "First line to replace (1-based, inclusive)", "required": True},
+        "end_line": {"type": "integer", "description": "Last line to replace (1-based, inclusive)", "required": True},
+        "new_text": {"type": "string", "description": "Replacement text for the requested line span", "required": True},
+        "context_lines": {"type": "integer", "description": "How many surrounding lines to include in before/after excerpts (default: 2)"},
     },
 )
 
@@ -110,6 +148,8 @@ class ToolCatalog:
         self.register(CLI_IN_SANDBOX)
         self.register(WRITE_FILE)
         self.register(READ_FILE)
+        self.register(REPLACE_IN_FILE)
+        self.register(REPLACE_LINES)
         self.register(LIST_FILES)
         self.register(RUN_PYTHON_FILE)
         self.register(RELOAD_TOOLS)

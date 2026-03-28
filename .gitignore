@@ -125,3 +125,15 @@ private/
 _randomDOCS/
 _sanbox-area/
 _db/
+_docs/
+_docs
+.claude/
+.claude
+.dev-tools/
+.dev-tools
+.mindshard/
+.mindshard
+.venv/
+.venv
+.pytest_cache/
+.pytest_cache
