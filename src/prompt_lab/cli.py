@@ -19,9 +19,20 @@ from src.core.prompt_lab.contracts import (
     PROMOTION_RECORD_KIND,
     PROMPT_BUILD_ARTIFACT_KIND,
     PROMPT_PROFILE_KIND,
+    TRAINING_RUN_KIND,
+    TRAINING_SUITE_KIND,
     VALIDATION_SNAPSHOT_KIND,
     BINDING_RECORD_KIND,
     serialize_record,
+)
+from src.core.prompt_lab.training_service import (
+    DEFAULT_GENERATOR_MODEL,
+    DEFAULT_GENERATOR_NUM_CTX,
+    DEFAULT_JUDGE_MODEL,
+    DEFAULT_JUDGE_NUM_CTX,
+    DEFAULT_TARGET_MODEL,
+    DEFAULT_TARGET_NUM_CTX,
+    DEFAULT_TRAINING_SUITE_ID,
 )
 from src.prompt_lab.entrypoints import build_prompt_lab_entrypoints
 
@@ -36,6 +47,8 @@ CLI_KIND_ALIASES = {
     "published-packages": PUBLISHED_PROMPT_LAB_PACKAGE_KIND,
     "active-state": ACTIVE_PROMPT_LAB_STATE_KIND,
     "eval-runs": EVAL_RUN_KIND,
+    "training-runs": TRAINING_RUN_KIND,
+    "training-suites": TRAINING_SUITE_KIND,
     "promotions": PROMOTION_RECORD_KIND,
     "promotion-records": PROMOTION_RECORD_KIND,
     "validation": VALIDATION_SNAPSHOT_KIND,
@@ -106,6 +119,25 @@ def build_parser() -> argparse.ArgumentParser:
     activate_parser.add_argument("--notes", default="")
 
     subparsers.add_parser("active", help="Show the current active Prompt Lab package state")
+
+    train_parser = subparsers.add_parser("train", help="Run or inspect Prompt Lab training")
+    train_subparsers = train_parser.add_subparsers(dest="train_command", required=True)
+
+    train_run = train_subparsers.add_parser("run", help="Run a manual batch training job")
+    train_run.add_argument("--package", required=True, dest="package_id")
+    train_run.add_argument("--profile", required=True, dest="profile_id")
+    train_run.add_argument("--suite", default=DEFAULT_TRAINING_SUITE_ID, dest="suite_id")
+    train_run.add_argument("--target-model", default=DEFAULT_TARGET_MODEL, dest="target_model")
+    train_run.add_argument("--generator-model", default=DEFAULT_GENERATOR_MODEL, dest="generator_model")
+    train_run.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL, dest="judge_model")
+    train_run.add_argument("--candidates", type=int, default=3, dest="candidate_count")
+    train_run.add_argument("--target-num-ctx", type=int, default=DEFAULT_TARGET_NUM_CTX, dest="target_num_ctx")
+    train_run.add_argument("--generator-num-ctx", type=int, default=DEFAULT_GENERATOR_NUM_CTX, dest="generator_num_ctx")
+    train_run.add_argument("--judge-num-ctx", type=int, default=DEFAULT_JUDGE_NUM_CTX, dest="judge_num_ctx")
+
+    train_subparsers.add_parser("list", help="List recorded Prompt Lab training runs")
+    train_show = train_subparsers.add_parser("show", help="Show one Prompt Lab training run")
+    train_show.add_argument("run_id")
     return parser
 
 
@@ -139,7 +171,7 @@ def main(argv: list[str] | None = None, project_root: str | Path | None = None) 
 
     if args.command == "list":
         kind = _resolve_kind(args.kind)
-        if kind in {EVAL_RUN_KIND, PROMOTION_RECORD_KIND, VALIDATION_SNAPSHOT_KIND}:
+        if kind in {EVAL_RUN_KIND, TRAINING_RUN_KIND, PROMOTION_RECORD_KIND, VALIDATION_SNAPSHOT_KIND}:
             records = services.storage.list_history_records(kind)
         else:
             records = services.storage.list_design_objects(kind)
@@ -161,7 +193,7 @@ def main(argv: list[str] | None = None, project_root: str | Path | None = None) 
 
     if args.command == "show":
         kind = _resolve_kind(args.kind)
-        if kind in {EVAL_RUN_KIND, PROMOTION_RECORD_KIND, VALIDATION_SNAPSHOT_KIND}:
+        if kind in {EVAL_RUN_KIND, TRAINING_RUN_KIND, PROMOTION_RECORD_KIND, VALIDATION_SNAPSHOT_KIND}:
             record = services.storage.load_history_record(kind, args.record_id)
         else:
             record = services.storage.load_design_object(kind, args.record_id)
@@ -283,6 +315,58 @@ def main(argv: list[str] | None = None, project_root: str | Path | None = None) 
                 }
             )
         return 0
+
+    if args.command == "train":
+        if args.train_command == "run":
+            result = services.training_service.run_training(
+                package_id=args.package_id,
+                profile_id=args.profile_id,
+                suite_id=args.suite_id,
+                target_model=args.target_model,
+                generator_model=args.generator_model,
+                judge_model=args.judge_model,
+                candidate_count=args.candidate_count,
+                target_num_ctx=args.target_num_ctx,
+                generator_num_ctx=args.generator_num_ctx,
+                judge_num_ctx=args.judge_num_ctx,
+            )
+            operation_log.record(
+                channel="cli",
+                action="train_run",
+                status="ok",
+                details={"run_id": result.training_run.id},
+            )
+            _dump(
+                {
+                    "status": "ok",
+                    "training_run": serialize_record(result.training_run),
+                    "baseline_profile_id": result.baseline_profile_id,
+                    "recommended_profile_id": result.recommended_profile_id,
+                }
+            )
+            return 0
+
+        if args.train_command == "list":
+            records = services.training_service.list_training_runs()
+            operation_log.record(
+                channel="cli",
+                action="train_list",
+                status="ok",
+                details={"count": len(records)},
+            )
+            _dump({"status": "ok", "count": len(records), "records": records})
+            return 0
+
+        if args.train_command == "show":
+            record = services.training_service.get_training_run(args.run_id)
+            operation_log.record(
+                channel="cli",
+                action="train_show",
+                status="ok",
+                details={"run_id": args.run_id},
+            )
+            _dump({"status": "ok", "record": serialize_record(record)})
+            return 0
 
     parser.error(f"Unsupported command: {args.command}")
     return 2

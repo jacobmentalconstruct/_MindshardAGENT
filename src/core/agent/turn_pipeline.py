@@ -294,6 +294,10 @@ class TurnPipeline:
             "budget_trimmed": assembled.budget_report.over_budget,
             "budget_multipass_recommended": assembled.budget_report.would_benefit_from_multipass,
             "recovery_triggered": turn_outcome.recovery_triggered,
+            "filesystem_guardrail_triggered": turn_outcome.filesystem_guardrail_triggered,
+            "filesystem_guardrail_repaired": turn_outcome.filesystem_guardrail_repaired,
+            "filesystem_guardrail_failed": turn_outcome.filesystem_guardrail_failed,
+            "filesystem_evidence_summary": turn_outcome.filesystem_evidence_summary,
         }
 
         if on_complete:

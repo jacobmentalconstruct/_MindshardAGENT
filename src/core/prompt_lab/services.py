@@ -13,6 +13,7 @@ from .package_service import PackageService
 from .profile_service import ProfileService
 from .source_service import SourceService
 from .storage import PromptLabStorage, build_prompt_lab_storage
+from .training_service import TrainingService
 from .validation import validate_active_state, validate_package_selection, validate_prompt_lab_state
 
 
@@ -27,6 +28,7 @@ class PromptLabServiceBundle:
     execution_plan_service: ExecutionPlanService
     binding_service: BindingService
     package_service: PackageService
+    training_service: TrainingService
     validate_state: Callable[[str | Path | PromptLabStorage], Any]
     validate_package_selection: Callable[..., list[dict[str, Any]]]
     validate_active_state: Callable[..., list[dict[str, Any]]]
@@ -37,14 +39,24 @@ def build_prompt_lab_services(project_root: str | Path) -> PromptLabServiceBundl
     root = Path(project_root).resolve()
     storage = build_prompt_lab_storage(root)
     operation_log = PromptLabOperationLog(storage.paths.operations_log_path)
+    package_service = PackageService(storage, operation_log=operation_log)
+    profile_service = ProfileService(storage, operation_log=operation_log)
+    source_service = SourceService(root, operation_log=operation_log)
     return PromptLabServiceBundle(
         storage=storage,
         operation_log=operation_log,
-        source_service=SourceService(root, operation_log=operation_log),
-        profile_service=ProfileService(storage, operation_log=operation_log),
+        source_service=source_service,
+        profile_service=profile_service,
         execution_plan_service=ExecutionPlanService(storage, operation_log=operation_log),
         binding_service=BindingService(storage, operation_log=operation_log),
-        package_service=PackageService(storage, operation_log=operation_log),
+        package_service=package_service,
+        training_service=TrainingService(
+            storage,
+            package_service=package_service,
+            profile_service=profile_service,
+            source_service=source_service,
+            operation_log=operation_log,
+        ),
         validate_state=validate_prompt_lab_state,
         validate_package_selection=validate_package_selection,
         validate_active_state=validate_active_state,
@@ -66,6 +78,10 @@ def build_prompt_lab_services(project_root: str | Path) -> PromptLabServiceBundl
                 "published_state": "json_canonical",
                 "active_state": "json_canonical",
                 "activation_requires_published_package": True,
+            },
+            "training": {
+                "mode": "manual_batch_v0",
+                "target_scope": "single_profile_fixed_plan_bindings",
             },
         },
     )

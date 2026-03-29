@@ -80,3 +80,24 @@ These records belong to the subsystem itself:
   the main-app bridge
 - evaluation and promotion history should deepen through inspect-first surfaces
   before any broader editing power is introduced
+
+## Prompt Training Regimen V0 doctrine
+
+- training suites are Prompt Lab design objects and are JSON-canonical under
+  `.mindshard/prompt_lab/training_suites/`
+- training-generated overlay prompt text belongs under
+  `.mindshard/prompt_lab/source_overlays/`
+- training runs are indexed SQLite history objects and are canonical as
+  `training_run` records
+- V0 training operates on one prompt profile at a time against a published
+  baseline package while keeping execution plans and bindings fixed
+- training outputs are draft recommendations only:
+  - candidate draft profiles
+  - overlay source files
+  - recorded scorecards and deltas
+  - recommended winner, if any
+- V0 training must not publish or activate anything automatically
+- deterministic checks remain the primary scoring layer; tiny-model judging is
+  optional and additive, never authoritative over deterministic failures
+- `_docs/benchmark_suite.json` is only a seed source; runtime training suites
+  must be owned by Prompt Lab after import

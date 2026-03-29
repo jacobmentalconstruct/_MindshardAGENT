@@ -21,6 +21,8 @@ class PromptLabPaths:
     published_dir: Path
     active_dir: Path
     build_artifacts_dir: Path
+    training_suites_dir: Path
+    source_overlays_dir: Path
     eval_runs_dir: Path
     promotion_dir: Path
 
@@ -42,6 +44,8 @@ def resolve_prompt_lab_paths(project_root: str | Path) -> PromptLabPaths:
         published_dir=state_root / "published",
         active_dir=state_root / "active",
         build_artifacts_dir=state_root / "build_artifacts",
+        training_suites_dir=state_root / "training_suites",
+        source_overlays_dir=state_root / "source_overlays",
         eval_runs_dir=state_root / "eval_runs",
         promotion_dir=state_root / "promotion",
     )

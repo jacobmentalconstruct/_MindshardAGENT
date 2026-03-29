@@ -14,6 +14,8 @@ from .contracts import (
     PROMOTION_RECORD_KIND,
     PROMPT_BUILD_ARTIFACT_KIND,
     PROMPT_PROFILE_KIND,
+    TRAINING_RUN_KIND,
+    TRAINING_SUITE_KIND,
     VALIDATION_SNAPSHOT_KIND,
     ActivePromptLabState,
     BindingRecord,
@@ -25,6 +27,8 @@ from .contracts import (
     PromptProfile,
     PromptSourceRef,
     PromotionRecord,
+    TrainingRun,
+    TrainingSuite,
     ValidationSnapshot,
 )
 from .paths import PromptLabPaths, resolve_prompt_lab_paths
@@ -37,6 +41,14 @@ from .runtime_loader import (
 )
 from .services import PromptLabServiceBundle, build_prompt_lab_services
 from .storage import PromptLabStorage, build_prompt_lab_storage, ensure_prompt_lab_directories
+from .training_service import (
+    DEFAULT_GENERATOR_MODEL,
+    DEFAULT_JUDGE_MODEL,
+    DEFAULT_TARGET_MODEL,
+    DEFAULT_TRAINING_SUITE_ID,
+    TrainingRunResult,
+    TrainingService,
+)
 from .validation import (
     validate_active_state,
     validate_package_selection,
@@ -56,6 +68,8 @@ __all__ = [
     "PROMOTION_RECORD_KIND",
     "PROMPT_BUILD_ARTIFACT_KIND",
     "PROMPT_PROFILE_KIND",
+    "TRAINING_RUN_KIND",
+    "TRAINING_SUITE_KIND",
     "ActivePromptLabState",
     "PromptBuildArtifact",
     "PromptLabPaths",
@@ -68,8 +82,16 @@ __all__ = [
     "PublishedPromptLabPackage",
     "PromotionStatus",
     "PromotionRecord",
+    "TrainingRun",
+    "TrainingRunResult",
+    "TrainingService",
+    "TrainingSuite",
     "VALIDATION_SNAPSHOT_KIND",
     "ValidationSnapshot",
+    "DEFAULT_GENERATOR_MODEL",
+    "DEFAULT_JUDGE_MODEL",
+    "DEFAULT_TARGET_MODEL",
+    "DEFAULT_TRAINING_SUITE_ID",
     "build_prompt_lab_services",
     "build_prompt_lab_storage",
     "ensure_prompt_lab_directories",

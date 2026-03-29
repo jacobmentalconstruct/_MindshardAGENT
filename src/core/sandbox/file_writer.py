@@ -420,12 +420,14 @@ class FileWriter:
                 start_line = 1
             if end_line is None:
                 end_line = total_lines
-            if start_line < 1 or end_line < start_line:
-                raise ValueError("Invalid line range")
             if total_lines == 0:
                 raise ValueError("File is empty")
-            if end_line > total_lines:
-                raise ValueError(f"Requested line range {start_line}-{end_line} is outside file length {total_lines}")
+            start_line = max(1, start_line)
+            if end_line < start_line:
+                end_line = start_line
+            if start_line > total_lines:
+                raise ValueError(f"Requested line range starts beyond file length {total_lines}")
+            end_line = min(end_line, total_lines)
             resolved_start = start_line
             resolved_end = end_line
             selected = lines[start_line - 1:end_line]

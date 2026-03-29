@@ -22,9 +22,11 @@ PROMPT_PROFILE_KIND = "prompt_profile"
 EXECUTION_PLAN_KIND = "execution_plan"
 BINDING_RECORD_KIND = "binding_record"
 PROMPT_BUILD_ARTIFACT_KIND = "prompt_build_artifact"
+TRAINING_SUITE_KIND = "training_suite"
 PUBLISHED_PROMPT_LAB_PACKAGE_KIND = "published_prompt_lab_package"
 ACTIVE_PROMPT_LAB_STATE_KIND = "active_prompt_lab_state"
 EVAL_RUN_KIND = "eval_run"
+TRAINING_RUN_KIND = "training_run"
 PROMOTION_RECORD_KIND = "promotion_record"
 VALIDATION_SNAPSHOT_KIND = "validation_snapshot"
 
@@ -113,6 +115,30 @@ class PromptBuildArtifact:
 
 
 @dataclass(frozen=True)
+class TrainingCase:
+    id: str
+    label: str
+    probe_type: str
+    prompt: str
+    deterministic_checks: list[dict[str, Any]] = field(default_factory=list)
+    judge_prompt: str = ""
+    weight: float = 1.0
+    target_path: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class TrainingSuite:
+    id: str
+    name: str
+    description: str = ""
+    cases: list[TrainingCase] = field(default_factory=list)
+    seeded_from: str = ""
+    version_fingerprint: str = ""
+    notes: str = ""
+
+
+@dataclass(frozen=True)
 class PublishedPromptLabPackage:
     id: str
     package_name: str
@@ -159,6 +185,25 @@ class EvalRun:
 
 
 @dataclass(frozen=True)
+class TrainingRun:
+    id: str
+    package_id: str
+    profile_id: str
+    suite_id: str
+    target_model: str
+    generator_model: str
+    judge_model: str = ""
+    candidate_count: int = 0
+    status: str = "draft"
+    baseline_score: dict[str, Any] = field(default_factory=dict)
+    candidates: list[dict[str, Any]] = field(default_factory=list)
+    winner_candidate_id: str = ""
+    recommended_profile_id: str = ""
+    delta_summary: dict[str, Any] = field(default_factory=dict)
+    created_at: str = ""
+
+
+@dataclass(frozen=True)
 class ValidationSnapshot:
     id: str
     status: str = "unknown"
@@ -191,6 +236,7 @@ DesignObject: TypeAlias = (
     | ExecutionPlan
     | BindingRecord
     | PromptBuildArtifact
+    | TrainingSuite
     | PublishedPromptLabPackage
     | ActivePromptLabState
 )
@@ -199,9 +245,11 @@ PromptLabRecord: TypeAlias = (
     | ExecutionPlan
     | BindingRecord
     | PromptBuildArtifact
+    | TrainingSuite
     | PublishedPromptLabPackage
     | ActivePromptLabState
     | EvalRun
+    | TrainingRun
     | PromotionRecord
     | ValidationSnapshot
 )
@@ -212,9 +260,11 @@ RECORD_KIND_TO_TYPE: dict[str, type[PromptLabRecord]] = {
     EXECUTION_PLAN_KIND: ExecutionPlan,
     BINDING_RECORD_KIND: BindingRecord,
     PROMPT_BUILD_ARTIFACT_KIND: PromptBuildArtifact,
+    TRAINING_SUITE_KIND: TrainingSuite,
     PUBLISHED_PROMPT_LAB_PACKAGE_KIND: PublishedPromptLabPackage,
     ACTIVE_PROMPT_LAB_STATE_KIND: ActivePromptLabState,
     EVAL_RUN_KIND: EvalRun,
+    TRAINING_RUN_KIND: TrainingRun,
     PROMOTION_RECORD_KIND: PromotionRecord,
     VALIDATION_SNAPSHOT_KIND: ValidationSnapshot,
 }
@@ -228,11 +278,13 @@ JSON_DESIGN_KINDS = {
     EXECUTION_PLAN_KIND,
     BINDING_RECORD_KIND,
     PROMPT_BUILD_ARTIFACT_KIND,
+    TRAINING_SUITE_KIND,
     PUBLISHED_PROMPT_LAB_PACKAGE_KIND,
     ACTIVE_PROMPT_LAB_STATE_KIND,
 }
 SQLITE_HISTORY_KINDS = {
     EVAL_RUN_KIND,
+    TRAINING_RUN_KIND,
     PROMOTION_RECORD_KIND,
     VALIDATION_SNAPSHOT_KIND,
 }
@@ -271,6 +323,20 @@ def _execution_node_from_dict(data: dict[str, Any]) -> ExecutionNode:
     )
 
 
+def _training_case_from_dict(data: dict[str, Any]) -> TrainingCase:
+    return TrainingCase(
+        id=str(data.get("id", "")),
+        label=str(data.get("label", "")),
+        probe_type=str(data.get("probe_type", "")),
+        prompt=str(data.get("prompt", "")),
+        deterministic_checks=list(data.get("deterministic_checks", [])),
+        judge_prompt=str(data.get("judge_prompt", "")),
+        weight=float(data.get("weight", 1.0)),
+        target_path=str(data.get("target_path", "")),
+        metadata=dict(data.get("metadata", {})),
+    )
+
+
 def _record_from_dict(kind: str, data: dict[str, Any]) -> PromptLabRecord:
     if kind == EXECUTION_PLAN_KIND:
         return ExecutionPlan(
@@ -280,6 +346,16 @@ def _record_from_dict(kind: str, data: dict[str, Any]) -> PromptLabRecord:
             nodes=[_execution_node_from_dict(node) for node in data.get("nodes", [])],
             version_fingerprint=str(data.get("version_fingerprint", "")),
             graph_capabilities=dict(data.get("graph_capabilities", {})),
+            notes=str(data.get("notes", "")),
+        )
+    if kind == TRAINING_SUITE_KIND:
+        return TrainingSuite(
+            id=str(data.get("id", "")),
+            name=str(data.get("name", "")),
+            description=str(data.get("description", "")),
+            cases=[_training_case_from_dict(case) for case in data.get("cases", [])],
+            seeded_from=str(data.get("seeded_from", "")),
+            version_fingerprint=str(data.get("version_fingerprint", "")),
             notes=str(data.get("notes", "")),
         )
     record_type = RECORD_KIND_TO_TYPE[kind]
@@ -343,6 +419,18 @@ def canonicalize_record(record: PromptLabRecord) -> PromptLabRecord:
             source_fingerprint=source_fingerprint,
             prompt_fingerprint=prompt_fingerprint,
         )
+    if isinstance(record, TrainingSuite):
+        fingerprint = compute_fingerprint(
+            {
+                "id": record.id,
+                "name": record.name,
+                "description": record.description,
+                "cases": [asdict(case) for case in record.cases],
+                "seeded_from": record.seeded_from,
+                "notes": record.notes,
+            }
+        )
+        return replace(record, version_fingerprint=fingerprint)
     if isinstance(record, PublishedPromptLabPackage):
         created_at = record.created_at or utc_iso()
         published_at = record.published_at or created_at
@@ -371,6 +459,8 @@ def canonicalize_record(record: PromptLabRecord) -> PromptLabRecord:
     if isinstance(record, ActivePromptLabState):
         return replace(record, activated_at=record.activated_at or utc_iso())
     if isinstance(record, EvalRun):
+        return replace(record, created_at=record.created_at or utc_iso())
+    if isinstance(record, TrainingRun):
         return replace(record, created_at=record.created_at or utc_iso())
     if isinstance(record, ValidationSnapshot):
         created_at = record.created_at or utc_iso()

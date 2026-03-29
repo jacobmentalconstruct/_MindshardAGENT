@@ -23,6 +23,8 @@ from .contracts import (
     PROMPT_BUILD_ARTIFACT_KIND,
     PROMPT_PROFILE_KIND,
     SQLITE_HISTORY_KINDS,
+    TRAINING_RUN_KIND,
+    TRAINING_SUITE_KIND,
     VALIDATION_SNAPSHOT_KIND,
     ActivePromptLabState,
     BindingRecord,
@@ -34,6 +36,8 @@ from .contracts import (
     PromptLabRecord,
     PromptProfile,
     PromotionRecord,
+    TrainingRun,
+    TrainingSuite,
     ValidationSnapshot,
     deserialize_record,
     get_record_kind,
@@ -55,6 +59,8 @@ def ensure_prompt_lab_directories(project_root: str | Path) -> PromptLabPaths:
         paths.published_dir,
         paths.active_dir,
         paths.build_artifacts_dir,
+        paths.training_suites_dir,
+        paths.source_overlays_dir,
         paths.eval_runs_dir,
         paths.promotion_dir,
     ):
@@ -68,6 +74,7 @@ def _resolve_json_directory(paths: PromptLabPaths, kind: str) -> Path:
         EXECUTION_PLAN_KIND: paths.execution_plans_dir,
         BINDING_RECORD_KIND: paths.bindings_dir,
         PROMPT_BUILD_ARTIFACT_KIND: paths.build_artifacts_dir,
+        TRAINING_SUITE_KIND: paths.training_suites_dir,
         PUBLISHED_PROMPT_LAB_PACKAGE_KIND: paths.published_dir,
         ACTIVE_PROMPT_LAB_STATE_KIND: paths.active_dir,
     }
@@ -107,6 +114,19 @@ def initialize_prompt_lab_db(project_root: str | Path) -> PromptLabPaths:
                 validation_snapshot_id TEXT NOT NULL,
                 active INTEGER NOT NULL,
                 promoted_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS training_runs (
+                id TEXT PRIMARY KEY,
+                package_id TEXT NOT NULL,
+                profile_id TEXT NOT NULL,
+                suite_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
                 payload_json TEXT NOT NULL
             )
             """
@@ -192,7 +212,7 @@ class PromptLabStorage:
             )
         return summaries
 
-    def save_history_record(self, record: EvalRun | PromotionRecord | ValidationSnapshot) -> PromptLabRecord:
+    def save_history_record(self, record: EvalRun | TrainingRun | PromotionRecord | ValidationSnapshot) -> PromptLabRecord:
         payload = serialize_record(record)
         canonical = deserialize_record(payload)
         kind = get_record_kind(canonical)
@@ -211,6 +231,23 @@ class PromptLabStorage:
                         canonical.id,
                         canonical.execution_plan_id,
                         canonical.suite_name,
+                        canonical.status,
+                        canonical.created_at,
+                        json_blob,
+                    ),
+                )
+            elif kind == TRAINING_RUN_KIND:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO training_runs (
+                        id, package_id, profile_id, suite_id, status, created_at, payload_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        canonical.id,
+                        canonical.package_id,
+                        canonical.profile_id,
+                        canonical.suite_id,
                         canonical.status,
                         canonical.created_at,
                         json_blob,
@@ -250,11 +287,12 @@ class PromptLabStorage:
                 )
         return canonical
 
-    def load_history_record(self, kind: str, object_id: str) -> EvalRun | PromotionRecord | ValidationSnapshot:
+    def load_history_record(self, kind: str, object_id: str) -> EvalRun | TrainingRun | PromotionRecord | ValidationSnapshot:
         if kind not in SQLITE_HISTORY_KINDS:
             raise ValueError(f"Record kind {kind!r} is not a SQLite history record")
         table_name = {
             EVAL_RUN_KIND: "eval_runs",
+            TRAINING_RUN_KIND: "training_runs",
             PROMOTION_RECORD_KIND: "promotion_records",
             VALIDATION_SNAPSHOT_KIND: "validation_snapshots",
         }[kind]
@@ -272,6 +310,7 @@ class PromptLabStorage:
             raise ValueError(f"Record kind {kind!r} is not a SQLite history record")
         query = {
             EVAL_RUN_KIND: "SELECT id, execution_plan_id AS primary_ref, suite_name AS label, status, created_at FROM eval_runs ORDER BY created_at DESC, id ASC",
+            TRAINING_RUN_KIND: "SELECT id, profile_id AS primary_ref, suite_id AS label, status, created_at FROM training_runs ORDER BY created_at DESC, id ASC",
             PROMOTION_RECORD_KIND: "SELECT id, promoted_execution_plan_id AS primary_ref, target_project AS label, CASE WHEN active = 1 THEN 'active' ELSE 'inactive' END AS status, promoted_at AS created_at FROM promotion_records ORDER BY promoted_at DESC, id ASC",
             VALIDATION_SNAPSHOT_KIND: "SELECT id, '' AS primary_ref, status AS label, status, created_at FROM validation_snapshots ORDER BY created_at DESC, id ASC",
         }[kind]
@@ -307,7 +346,13 @@ class PromptLabStorage:
     def save_active_state(self, record: ActivePromptLabState) -> ActivePromptLabState:
         return self.save_design_object(record)  # type: ignore[return-value]
 
+    def save_training_suite(self, record: TrainingSuite) -> TrainingSuite:
+        return self.save_design_object(record)  # type: ignore[return-value]
+
     def save_eval_run(self, record: EvalRun) -> EvalRun:
+        return self.save_history_record(record)  # type: ignore[return-value]
+
+    def save_training_run(self, record: TrainingRun) -> TrainingRun:
         return self.save_history_record(record)  # type: ignore[return-value]
 
     def save_promotion_record(self, record: PromotionRecord) -> PromotionRecord:

@@ -60,6 +60,29 @@ Phase 2 polish additions:
 - these additions stay inspection/admin-safe and do not turn Prompt Lab into an
   uncontrolled freeform editor
 
+Prompt Training Regimen V0 additions:
+
+- Prompt Lab now supports a manual batch training runner over published baseline
+  packages
+- training is profile-only in V0: one prompt profile is tuned at a time while
+  execution plans and bindings remain fixed
+- Prompt Lab owns training suites under
+  `.mindshard/prompt_lab/training_suites/`
+- training-generated overlay prompt text lives under
+  `.mindshard/prompt_lab/source_overlays/`
+- training-run history is now indexed in Prompt Lab SQLite as `training_run`
+  records
+- the CLI now supports `train run`, `train list`, and `train show`
+- the MCP surface now exposes matching training operations
+- V0 is draft-only: training may recommend candidate profiles, but it does not
+  publish or activate them automatically
+- V0 defaults are:
+  - target model: `qwen3.5:4b`
+  - candidate generator: `qwen3.5:9b`
+  - tiny judge: `qwen2.5:1.5b`
+  - `phi3`, `all-minilm`, and `mxbai-embed-large` are intentionally not used
+    as judges here
+
 Primary subsystem entrypoint:
 
 - `src/prompt_lab/main.py`

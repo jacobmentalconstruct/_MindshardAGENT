@@ -11,7 +11,21 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from src.core.prompt_lab.contracts import serialize_record
+from src.core.prompt_lab.contracts import (
+    EVAL_RUN_KIND,
+    PROMOTION_RECORD_KIND,
+    TRAINING_RUN_KIND,
+    VALIDATION_SNAPSHOT_KIND,
+    serialize_record,
+)
+from src.core.prompt_lab.training_service import (
+    DEFAULT_GENERATOR_MODEL,
+    DEFAULT_GENERATOR_NUM_CTX,
+    DEFAULT_JUDGE_MODEL,
+    DEFAULT_JUDGE_NUM_CTX,
+    DEFAULT_TARGET_MODEL,
+    DEFAULT_TARGET_NUM_CTX,
+)
 from src.prompt_lab.entrypoints import build_prompt_lab_entrypoints
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -96,6 +110,42 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "prompt_lab_train_run",
+        "description": "Run a manual batch Prompt Lab training job for one profile in one published package.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "package_id": {"type": "string"},
+                "profile_id": {"type": "string"},
+                "suite_id": {"type": "string"},
+                "target_model": {"type": "string"},
+                "generator_model": {"type": "string"},
+                "judge_model": {"type": "string"},
+                "candidate_count": {"type": "integer"},
+                "target_num_ctx": {"type": "integer"},
+                "generator_num_ctx": {"type": "integer"},
+                "judge_num_ctx": {"type": "integer"},
+            },
+            "required": ["package_id", "profile_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "prompt_lab_train_list",
+        "description": "List recorded Prompt Lab training runs.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "prompt_lab_train_show",
+        "description": "Show one recorded Prompt Lab training run by id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"run_id": {"type": "string"}},
+            "required": ["run_id"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 SERVER_INFO = {"name": "mindshard-prompt-lab", "version": "1.0.0"}
@@ -118,6 +168,7 @@ def _write_message(payload: dict) -> None:
 
 def _dispatch(entrypoints, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     services = entrypoints.services
+    history_kinds = {EVAL_RUN_KIND, TRAINING_RUN_KIND, PROMOTION_RECORD_KIND, VALIDATION_SNAPSHOT_KIND}
 
     if name == "prompt_lab_get_status":
         active_state = services.package_service.get_active_state()
@@ -136,7 +187,7 @@ def _dispatch(entrypoints, name: str, arguments: dict[str, Any]) -> dict[str, An
 
     if name == "prompt_lab_list_records":
         kind = str(arguments.get("kind", "")).strip()
-        if kind in {"eval_run", "promotion_record", "validation_snapshot"}:
+        if kind in history_kinds:
             records = services.storage.list_history_records(kind)
         else:
             records = services.storage.list_design_objects(kind)
@@ -146,7 +197,7 @@ def _dispatch(entrypoints, name: str, arguments: dict[str, Any]) -> dict[str, An
     if name == "prompt_lab_show_record":
         kind = str(arguments.get("kind", "")).strip()
         record_id = str(arguments.get("record_id", "")).strip()
-        if kind in {"eval_run", "promotion_record", "validation_snapshot"}:
+        if kind in history_kinds:
             record = services.storage.load_history_record(kind, record_id)
         else:
             record = services.storage.load_design_object(kind, record_id)
@@ -206,6 +257,38 @@ def _dispatch(entrypoints, name: str, arguments: dict[str, Any]) -> dict[str, An
         records = services.operation_log.tail(limit=limit)
         services.operation_log.record(channel="mcp", action=name, status="ok", details={"limit": limit})
         return {"status": "ok", "records": records}
+
+    if name == "prompt_lab_train_run":
+        result = services.training_service.run_training(
+            package_id=str(arguments["package_id"]),
+            profile_id=str(arguments["profile_id"]),
+            suite_id=str(arguments.get("suite_id", "")).strip() or services.training_service.ensure_default_training_suite().id,
+            target_model=str(arguments.get("target_model", "")).strip() or DEFAULT_TARGET_MODEL,
+            generator_model=str(arguments.get("generator_model", "")).strip() or DEFAULT_GENERATOR_MODEL,
+            judge_model=str(arguments.get("judge_model", "")).strip() or DEFAULT_JUDGE_MODEL,
+            candidate_count=int(arguments.get("candidate_count", 3) or 3),
+            target_num_ctx=int(arguments.get("target_num_ctx", DEFAULT_TARGET_NUM_CTX) or DEFAULT_TARGET_NUM_CTX),
+            generator_num_ctx=int(arguments.get("generator_num_ctx", DEFAULT_GENERATOR_NUM_CTX) or DEFAULT_GENERATOR_NUM_CTX),
+            judge_num_ctx=int(arguments.get("judge_num_ctx", DEFAULT_JUDGE_NUM_CTX) or DEFAULT_JUDGE_NUM_CTX),
+        )
+        services.operation_log.record(channel="mcp", action=name, status="ok", details={"run_id": result.training_run.id})
+        return {
+            "status": "ok",
+            "training_run": serialize_record(result.training_run),
+            "baseline_profile_id": result.baseline_profile_id,
+            "recommended_profile_id": result.recommended_profile_id,
+        }
+
+    if name == "prompt_lab_train_list":
+        records = services.training_service.list_training_runs()
+        services.operation_log.record(channel="mcp", action=name, status="ok", details={"count": len(records)})
+        return {"status": "ok", "count": len(records), "records": records}
+
+    if name == "prompt_lab_train_show":
+        run_id = str(arguments.get("run_id", "")).strip()
+        record = services.training_service.get_training_run(run_id)
+        services.operation_log.record(channel="mcp", action=name, status="ok", details={"run_id": run_id})
+        return {"status": "ok", "record": serialize_record(record)}
 
     return {"status": "error", "message": f"Unknown tool: {name}"}
 

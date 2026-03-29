@@ -297,6 +297,15 @@ def test_file_tools():
     _check("Numbered read includes line prefix", "   2|" in result.get("content", ""))
     _check("Numbered read includes selected line", "print('world')" in result.get("content", ""))
 
+    result = fw.read_file("test.py", start_line=1, end_line=50, line_numbers=True)
+    _check("Oversized end_line clamps instead of failing", result["success"])
+    _check("Clamped read reports actual end line", result.get("end_line") == 2)
+
+    result = fw.read_file("test.py", start_line=0, end_line=-5, line_numbers=True)
+    _check("Malformed range normalizes instead of failing", result["success"])
+    _check("Normalized malformed range starts at first line", result.get("start_line") == 1)
+    _check("Normalized malformed range collapses to a usable line", result.get("end_line") == 1)
+
     # Whitespace-aware read
     fw.write_file("indent.py", "def demo():\n    value = 1\t \n")
     result = fw.read_file("indent.py", start_line=2, end_line=2, line_numbers=True, show_whitespace=True)
