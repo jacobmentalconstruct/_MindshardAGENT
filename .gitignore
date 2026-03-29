@@ -1,8 +1,10 @@
 # ============================================================
-# _theCELL / _UsefulHelperSCRIPTS - Python + Tkinter
+# MindshardAGENT - Git Ignore
+# Local runtime state, builder tooling, caches, and machine-
+# specific artifacts that should not be committed.
 # ============================================================
 
-# --- Python bytecode / caches ---
+# Python bytecode / caches
 __pycache__/
 *.py[cod]
 *$py.class
@@ -15,7 +17,7 @@ __pycache__/
 .coverage.*
 htmlcov/
 
-# --- Virtual environments (keep crawlers out) ---
+# Virtual environments / packaging
 .venv/
 venv/
 ENV/
@@ -23,37 +25,41 @@ env/
 .conda/
 .condarc
 pip-wheel-metadata/
-
-# --- Packaging / build artifacts ---
 build/
 dist/
 *.egg-info/
 .eggs/
 pip-log.txt
 
-# --- IDE / editor ---
+# IDE / editor / local agent surfaces
 .vscode/
 .idea/
 *.code-workspace
 .claude/
 .codex/
 .cursor/
+.dev-tools/
 
-# --- OS junk ---
+# OS junk
 .DS_Store
 Thumbs.db
 Desktop.ini
 
-# --- Logs / temp ---
+# Logs / temp / scratch
 *.log
 *.tmp
 *.temp
 *.swp
 *~
+*.pid
+*.out
+*.bak
+*.orig
 .cache/
-_logs
+_logs/
+_sandbox/
 
-# --- App persistence / generated data ---
+# App persistence / generated data
 _db/
 *.db
 *.sqlite
@@ -62,55 +68,24 @@ _db/
 *.sqlite-journal
 *.wal
 *.shm
+*.zip
 
-# --- JSONL / session artifacts (generated) ---
+# JSONL / generated session artifacts
 *.jsonl
 memory_archive_*.jsonl
 working_memory*.jsonl
 session_*.jsonl
 
-# --- Common local config/secrets (don’t commit) ---
+# Local config / secrets / machine state
 .env
 .env.*
 *.env
+.direnv/
+.python-version
 secrets.json
 config.local.json
 app_config.json
 app_config.json.tmp
-.prompt-versioning/
-_utils/agent_diagnostic_lab/_logs/
-_utils/agent_diagnostic_lab/outputs/
-
-# --- Vector / RAG stores (often large + machine-local) ---
-knowledge_base/
-chroma/
-chromadb/
-vector_store/
-vectors/
-*.faiss
-*.index
-
-# --- Jupyter / notebooks (if any) ---
-.ipynb_checkpoints/
-
-# --- Optional: if you ever dump reports/maps locally ---
-*_project_map.txt
-*_filedump.txt
-*_folder_tree.txt
-reports/
-output/
-
-# --- MindshardAGENT runtime sidecars and sandbox state ---
-# These are generated at runtime and must never be committed.
-.mindshard/
-_sandbox/
-*.zip
-
-# --- Local builder / vendored tool workspaces ---
-# These are local helper/tooling surfaces, not app runtime source.
-.dev-tools/
-
-# --- Private local machine state ---
 *.local.json
 *.local.toml
 *.local.yaml
@@ -121,19 +96,33 @@ _sandbox/
 local_settings/
 private/
 
-# --wierd odds-n-ends
-_randomDOCS/
-_sanbox-area/
-_db/
+# Local docs / builder continuity / private helper docs
 _docs/
-_docs
-.claude/
-.claude
-.dev-tools/
-.dev-tools
+_randomDOCS/
+
+# Prompt/versioning and runtime sidecars
 .mindshard/
-.mindshard
-.venv/
-.venv
-.pytest_cache/
-.pytest_cache
+.prompt-versioning/
+
+# Vector / RAG stores
+knowledge_base/
+chroma/
+chromadb/
+vector_store/
+vectors/
+*.faiss
+*.index
+
+# Jupyter / notebook state
+.ipynb_checkpoints/
+
+# Optional local reports / dumps
+*_project_map.txt
+*_filedump.txt
+*_folder_tree.txt
+reports/
+output/
+
+# Local diagnostic outputs
+_utils/agent_diagnostic_lab/_logs/
+_utils/agent_diagnostic_lab/outputs/
